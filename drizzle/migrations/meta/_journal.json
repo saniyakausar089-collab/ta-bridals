@@ -15,6 +15,13 @@
       "when": 1792161069141,
       "tag": "0001_validate_bridals_assignments",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1792182000000,
+      "tag": "0002_user_signup_approval",
+      "breakpoints": true
     }
   ]
 }

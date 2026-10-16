@@ -18,9 +18,11 @@ import {
   subWeeks,
 } from "date-fns";
 import {
+  AlertCircle,
   CalendarDays,
   Camera,
   Check,
+  CheckCircle2,
   ChevronLeft,
   ChevronRight,
   Clock3,
@@ -30,16 +32,33 @@ import {
   MapPin,
   Pencil,
   Plus,
+  RefreshCw,
   Search,
+  ShieldAlert,
+  ShieldCheck,
   Sparkles,
   Trash2,
+  UserCheck,
+  UserPlus,
   Users,
+  UserX,
+  X,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { supabase } from "@/integrations/supabase/client";
 import type { Tables, TablesInsert } from "@/integrations/supabase/types";
+import {
+  approveRegistration,
+  checkUserAccess,
+  isOwnerEmail,
+  rejectRegistration,
+  signUpTeamMember,
+  type AccessStatus,
+  type ApprovalStatus,
+  type ProfileRecord,
+} from "@/lib/auth";
 
 export const Route = createFileRoute("/")({
   component: Index,
@@ -51,7 +70,7 @@ type Assignment = Tables<"shoot_assignments">;
 type ShootInput = TablesInsert<"shoots">;
 type TeamMemberInput = TablesInsert<"team_members">;
 type AssignmentInput = Pick<Assignment, "team_member_id" | "assignment_type">;
-type Section = "overview" | "shoots" | "calendar" | "team";
+type Section = "overview" | "shoots" | "calendar" | "team" | "approvals";
 
 const demoShoots: Shoot[] = [
   {
@@ -216,7 +235,50 @@ const demoAssignments: Assignment[] = [
   },
 ];
 
-const navigation: {
+const demoRegistrations: ProfileRecord[] = [
+  {
+    user_id: "demo-pending-1",
+    display_name: "Priya Sharma",
+    email: "priya.sharma@example.com",
+    approval_status: "pending",
+    reviewed_at: null,
+    reviewed_by: null,
+    created_at: "2026-10-16T15:20:00.000Z",
+    updated_at: "2026-10-16T15:20:00.000Z",
+  },
+  {
+    user_id: "demo-pending-2",
+    display_name: "Karan Verma",
+    email: "karan.verma@example.com",
+    approval_status: "pending",
+    reviewed_at: null,
+    reviewed_by: null,
+    created_at: "2026-10-15T18:40:00.000Z",
+    updated_at: "2026-10-15T18:40:00.000Z",
+  },
+  {
+    user_id: "demo-approved-1",
+    display_name: "Aarav Mehta",
+    email: "aarav@example.com",
+    approval_status: "approved",
+    reviewed_at: "2026-10-10T11:00:00.000Z",
+    reviewed_by: "demo-owner",
+    created_at: "2026-10-09T14:30:00.000Z",
+    updated_at: "2026-10-10T11:00:00.000Z",
+  },
+  {
+    user_id: "demo-rejected-1",
+    display_name: "Unknown Applicant",
+    email: "applicant@example.com",
+    approval_status: "rejected",
+    reviewed_at: "2026-10-12T16:00:00.000Z",
+    reviewed_by: "demo-owner",
+    created_at: "2026-10-11T09:00:00.000Z",
+    updated_at: "2026-10-12T16:00:00.000Z",
+  },
+];
+
+const baseNavigation: {
   id: Section;
   label: string;
   mobileLabel: string;
@@ -245,19 +307,27 @@ const sectionCopy: Record<Section, { title: string; description: string }> = {
     title: "Your team",
     description: "The people who make every celebration unforgettable.",
   },
+  approvals: {
+    title: "Team registrations",
+    description: "Review pending signups and manage studio workspace permissions.",
+  },
 };
 
 function Index() {
   const [session, setSession] = useState<Session | null>(null);
-  const [access, setAccess] = useState<"checking" | "allowed" | "signed-out">("checking");
+  const [access, setAccess] = useState<AccessStatus>("checking");
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [profileName, setProfileName] = useState("Studio owner");
   const [demoMode, setDemoMode] = useState(false);
   const [authError, setAuthError] = useState("");
-  const [signingIn, setSigningIn] = useState(false);
+  const [checkingPending, setCheckingPending] = useState(false);
+
   const [section, setSection] = useState<Section>("overview");
   const [globalQuery, setGlobalQuery] = useState("");
   const [shoots, setShoots] = useState<Shoot[]>([]);
   const [team, setTeam] = useState<TeamMember[]>([]);
   const [assignments, setAssignments] = useState<Assignment[]>([]);
+  const [registrations, setRegistrations] = useState<ProfileRecord[]>([]);
   const [dataError, setDataError] = useState("");
   const [loadingData, setLoadingData] = useState(false);
 
@@ -268,8 +338,12 @@ function Index() {
     } = supabase.auth.onAuthStateChange((_event, nextSession) => {
       if (!mounted) return;
       setSession(nextSession);
-      if (!nextSession) setAccess("signed-out");
-      else setAccess("checking");
+      if (!nextSession) {
+        setAccess("signed-out");
+        setIsAdmin(false);
+      } else {
+        setAccess("checking");
+      }
     });
 
     void supabase.auth
@@ -296,50 +370,34 @@ function Index() {
     };
   }, []);
 
+  const evaluateAccess = useCallback(async (currentSession: Session) => {
+    try {
+      const result = await checkUserAccess(currentSession);
+      setAccess(result.status);
+      setIsAdmin(result.isAdmin);
+      setProfileName(result.displayName);
+      if (result.errorMessage && result.status === "allowed") {
+        setDataError(result.errorMessage);
+      }
+    } catch (error) {
+      setAuthError(
+        error instanceof Error ? error.message : "We couldn't verify your studio access.",
+      );
+      setAccess("signed-out");
+    }
+  }, []);
+
   useEffect(() => {
     if (!session) return;
-    let mounted = true;
+    void evaluateAccess(session);
+  }, [session, evaluateAccess]);
 
-    void Promise.all([
-      supabase
-        .from("user_roles")
-        .select("role")
-        .eq("user_id", session.user.id)
-        .eq("role", "admin")
-        .maybeSingle(),
-      supabase.from("profiles").select("display_name").eq("user_id", session.user.id).maybeSingle(),
-    ])
-      .then(async ([roleResult, profileResult]) => {
-        if (!mounted) return;
-        if (roleResult.error || profileResult.error) {
-          throw roleResult.error ?? profileResult.error;
-        }
-        if (!roleResult.data) {
-          await supabase.auth.signOut();
-          if (mounted) {
-            setSession(null);
-            setAuthError("This account does not have owner access.");
-            setAccess("signed-out");
-          }
-          return;
-        }
-        setProfileName(profileResult.data?.display_name || session.user.email || "Studio owner");
-        setAccess("allowed");
-      })
-      .catch((error: unknown) => {
-        if (!mounted) return;
-        setAuthError(
-          error instanceof Error ? error.message : "We couldn't verify your owner access.",
-        );
-        setAccess("signed-out");
-      });
-
-    return () => {
-      mounted = false;
-    };
-  }, [session]);
-
-  const [profileName, setProfileName] = useState("Studio owner");
+  const handleCheckPendingStatus = useCallback(async () => {
+    if (!session) return;
+    setCheckingPending(true);
+    await evaluateAccess(session);
+    setCheckingPending(false);
+  }, [session, evaluateAccess]);
 
   const loadWorkspace = useCallback(async () => {
     setLoadingData(true);
@@ -348,29 +406,37 @@ function Index() {
       setShoots(demoShoots);
       setTeam(demoTeam);
       setAssignments(demoAssignments);
+      setRegistrations(demoRegistrations);
       setLoadingData(false);
       return;
     }
     try {
-      const [shootResult, teamResult, assignmentResult] = await Promise.all([
+      const [shootResult, teamResult, assignmentResult, regResult] = await Promise.all([
         supabase.from("shoots").select("*").order("event_date", { ascending: true }),
         supabase.from("team_members").select("*").order("full_name", { ascending: true }),
         supabase.from("shoot_assignments").select("*"),
+        isAdmin
+          ? supabase.from("profiles").select("*").order("created_at", { ascending: false })
+          : Promise.resolve({ data: null, error: null }),
       ]);
       if (shootResult.error) throw shootResult.error;
       if (teamResult.error) throw teamResult.error;
       if (assignmentResult.error) throw assignmentResult.error;
-      setShoots(shootResult.data);
-      setTeam(teamResult.data);
-      setAssignments(assignmentResult.data);
+      setShoots(shootResult.data ?? []);
+      setTeam(teamResult.data ?? []);
+      setAssignments(assignmentResult.data ?? []);
+      if (regResult?.data) {
+        setRegistrations(regResult.data as unknown as ProfileRecord[]);
+      }
     } catch (error) {
       setDataError(error instanceof Error ? error.message : "We couldn't load your studio data.");
     } finally {
       setLoadingData(false);
     }
-  }, [demoMode]);
+  }, [demoMode, isAdmin]);
 
   async function saveShoot(values: ShootInput, shootId?: string) {
+    if (!isAdmin) throw new Error("Only the studio owner can save shoots.");
     if (!session || demoMode) throw new Error("Sign in as the studio owner to save shoots.");
     const result = shootId
       ? await supabase.from("shoots").update(values).eq("id", shootId).select().single()
@@ -388,6 +454,7 @@ function Index() {
   }
 
   async function deleteShoot(shootId: string) {
+    if (!isAdmin) throw new Error("Only the studio owner can delete shoots.");
     if (!session || demoMode) throw new Error("Sign in as the studio owner to delete shoots.");
     const { error } = await supabase.from("shoots").delete().eq("id", shootId);
     if (error) throw error;
@@ -396,6 +463,7 @@ function Index() {
   }
 
   async function saveShootAssignments(shootId: string, values: AssignmentInput[]) {
+    if (!isAdmin) throw new Error("Only the studio owner can manage shoot assignments.");
     if (!session || demoMode)
       throw new Error("Sign in as the studio owner to manage shoot assignments.");
     const { error } = await supabase.rpc("replace_shoot_assignments", {
@@ -405,10 +473,11 @@ function Index() {
     if (error) throw error;
     const { data, error: loadError } = await supabase.from("shoot_assignments").select("*");
     if (loadError) throw loadError;
-    setAssignments(data);
+    setAssignments(data ?? []);
   }
 
   async function saveTeamMember(values: TeamMemberInput, memberId?: string) {
+    if (!isAdmin) throw new Error("Only the studio owner can save team members.");
     if (!session || demoMode) throw new Error("Sign in as the studio owner to save team members.");
     const result = memberId
       ? await supabase.from("team_members").update(values).eq("id", memberId).select().single()
@@ -422,6 +491,7 @@ function Index() {
   }
 
   async function deleteTeamMember(memberId: string) {
+    if (!isAdmin) throw new Error("Only the studio owner can remove team members.");
     if (!session || demoMode)
       throw new Error("Sign in as the studio owner to remove team members.");
     const { error } = await supabase.from("team_members").delete().eq("id", memberId);
@@ -439,40 +509,20 @@ function Index() {
   function handleDemo() {
     setAuthError("");
     setProfileName("Demo Owner");
+    setIsAdmin(true);
     setDemoMode(true);
     setAccess("allowed");
-  }
-
-  async function handleSignIn(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setSigningIn(true);
-    setAuthError("");
-    const form = new FormData(event.currentTarget);
-    const email = String(form.get("email") ?? "").trim();
-    const password = String(form.get("password") ?? "");
-    try {
-      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-      if (error) {
-        setAuthError(error.message);
-        return;
-      }
-      setSession(data.session);
-      setDemoMode(false);
-      setAccess("checking");
-    } catch (error) {
-      setAuthError(error instanceof Error ? error.message : "We couldn't sign you in.");
-    } finally {
-      setSigningIn(false);
-    }
   }
 
   async function handleSignOut() {
     if (demoMode) {
       setDemoMode(false);
       setAccess("signed-out");
+      setIsAdmin(false);
       setShoots([]);
       setTeam([]);
       setAssignments([]);
+      setRegistrations([]);
       return;
     }
     const { error } = await supabase.auth.signOut();
@@ -482,20 +532,38 @@ function Index() {
     }
     setSession(null);
     setAccess("signed-out");
+    setIsAdmin(false);
     setShoots([]);
     setTeam([]);
     setAssignments([]);
+    setRegistrations([]);
+  }
+
+  if (session && access === "pending") {
+    return (
+      <PendingApprovalScreen
+        displayName={profileName}
+        email={session.user.email || ""}
+        checkingStatus={checkingPending}
+        onCheckStatus={() => void handleCheckPendingStatus()}
+        onSignOut={() => void handleSignOut()}
+      />
+    );
+  }
+
+  if (session && access === "rejected") {
+    return (
+      <RejectedScreen
+        displayName={profileName}
+        email={session.user.email || ""}
+        onSignOut={() => void handleSignOut()}
+      />
+    );
   }
 
   if ((!session && !demoMode) || access === "signed-out") {
     return (
-      <SignInScreen
-        error={authError}
-        loading={signingIn}
-        onSubmit={handleSignIn}
-        onDemo={handleDemo}
-        onDismissError={() => setAuthError("")}
-      />
+      <AuthScreen error={authError} onDemo={handleDemo} onDismissError={() => setAuthError("")} />
     );
   }
 
@@ -517,9 +585,12 @@ function Index() {
       globalQuery={globalQuery}
       onGlobalQueryChange={setGlobalQuery}
       profileName={profileName}
+      isAdmin={isAdmin}
       shoots={shoots}
       team={team}
       assignments={assignments}
+      registrations={registrations}
+      onRegistrationsChange={setRegistrations}
       loading={loadingData}
       error={dataError}
       demoMode={demoMode}
@@ -534,19 +605,99 @@ function Index() {
   );
 }
 
-function SignInScreen({
-  error,
-  loading,
-  onSubmit,
+function AuthScreen({
+  error: externalError,
   onDemo,
   onDismissError,
 }: {
   error: string;
-  loading: boolean;
-  onSubmit: (event: React.FormEvent<HTMLFormElement>) => void;
   onDemo: () => void;
   onDismissError: () => void;
 }) {
+  const [mode, setMode] = useState<"signin" | "signup">("signin");
+  const [loading, setLoading] = useState(false);
+  const [internalError, setInternalError] = useState("");
+  const [noticeMessage, setNoticeMessage] = useState("");
+
+  const [signInEmail, setSignInEmail] = useState("");
+  const [signInPassword, setSignInPassword] = useState("");
+
+  const [fullName, setFullName] = useState("");
+  const [signUpEmail, setSignUpEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+
+  const activeError = internalError || externalError;
+
+  function handleModeSwitch(nextMode: "signin" | "signup") {
+    setMode(nextMode);
+    setInternalError("");
+    setNoticeMessage("");
+    onDismissError();
+  }
+
+  async function handleSignInSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setLoading(true);
+    setInternalError("");
+    setNoticeMessage("");
+    onDismissError();
+
+    try {
+      const { error } = await supabase.auth.signInWithPassword({
+        email: signInEmail.trim(),
+        password: signInPassword,
+      });
+
+      if (error) {
+        setInternalError(error.message);
+      }
+    } catch (err) {
+      setInternalError(err instanceof Error ? err.message : "We couldn't sign you in.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleSignUpSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setLoading(true);
+    setInternalError("");
+    setNoticeMessage("");
+    onDismissError();
+
+    try {
+      const res = await signUpTeamMember({
+        fullName,
+        email: signUpEmail,
+        password,
+        confirmPassword,
+      });
+
+      if (!res.success) {
+        setInternalError(res.error || "Unable to complete registration.");
+        return;
+      }
+
+      if (res.requiresEmailConfirmation) {
+        setNoticeMessage(
+          res.message ||
+            "Account created! Please check your email to confirm your address before your registration can be approved.",
+        );
+        setPassword("");
+        setConfirmPassword("");
+      } else {
+        setNoticeMessage(
+          "Registration submitted! Your account has been received and is waiting for studio owner approval.",
+        );
+      }
+    } catch (err) {
+      setInternalError(err instanceof Error ? err.message : "Unable to complete registration.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
   return (
     <main className="grid min-h-screen bg-[#fbfaf7] lg:grid-cols-[1.05fr_0.95fr]">
       <section className="relative hidden min-h-screen overflow-hidden bg-[#30382f] p-12 text-white lg:flex lg:flex-col lg:justify-between">
@@ -574,94 +725,377 @@ function SignInScreen({
         <p className="relative text-xs text-white/45">A little more room for the work you love.</p>
       </section>
 
-      <section className="flex min-h-screen items-center justify-center px-6 py-14">
-        <div className="w-full max-w-[390px]">
-          <div className="mb-10 flex items-center gap-3 lg:hidden">
+      <section className="flex min-h-screen items-center justify-center px-6 py-12">
+        <div className="w-full max-w-[410px]">
+          <div className="mb-8 flex items-center gap-3 lg:hidden">
             <span className="grid size-10 place-items-center rounded-full bg-[#30382f] text-white">
               <Camera className="size-5" strokeWidth={1.5} />
             </span>
             <span className="font-serif text-lg tracking-wide text-[#30382f]">TA BRIDALS</span>
           </div>
+
+          <div className="mb-6 grid grid-cols-2 rounded-xl bg-[#eeebe2] p-1 text-xs font-medium text-[#6c6e64]">
+            <button
+              type="button"
+              onClick={() => handleModeSwitch("signin")}
+              className={`rounded-lg py-2.5 transition-all ${
+                mode === "signin"
+                  ? "bg-white text-[#30382f] font-semibold shadow-xs"
+                  : "hover:text-[#30382f]"
+              }`}
+            >
+              Sign In
+            </button>
+            <button
+              type="button"
+              onClick={() => handleModeSwitch("signup")}
+              className={`rounded-lg py-2.5 transition-all ${
+                mode === "signup"
+                  ? "bg-white text-[#30382f] font-semibold shadow-xs"
+                  : "hover:text-[#30382f]"
+              }`}
+            >
+              Create Account
+            </button>
+          </div>
+
           <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#8b806f]">
-            Welcome back
+            {mode === "signin" ? "Welcome back" : "New team member"}
           </p>
-          <h2 className="mt-3 font-serif text-4xl text-[#30382f]">Your studio, in sync.</h2>
-          <p className="mt-3 text-sm leading-6 text-[#77786f]">
-            Sign in with your owner account to open your workspace.
+          <h2 className="mt-2 font-serif text-3xl text-[#30382f] sm:text-4xl">
+            {mode === "signin" ? "Your studio, in sync." : "Join the studio team."}
+          </h2>
+          <p className="mt-2 text-sm leading-6 text-[#77786f]">
+            {mode === "signin"
+              ? "Sign in with your account to access your studio workspace."
+              : "Register below. New accounts require owner approval before accessing studio data."}
           </p>
 
-          <form className="mt-9 space-y-5" onSubmit={onSubmit}>
-            <label className="block space-y-2 text-sm font-medium text-[#444941]">
-              Email address
-              <Input
-                className="h-12 rounded-lg border-[#dedbd2] bg-white px-4"
-                type="email"
-                name="email"
-                autoComplete="username"
-                placeholder="you@example.com"
-                required
-              />
-            </label>
-            <label className="block space-y-2 text-sm font-medium text-[#444941]">
-              Password
-              <Input
-                className="h-12 rounded-lg border-[#dedbd2] bg-white px-4"
-                type="password"
-                name="password"
-                autoComplete="current-password"
-                placeholder="Enter your password"
-                required
-              />
-            </label>
-            {error && (
-              <div
-                className="flex items-start justify-between gap-3 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800"
-                role="alert"
+          {activeError && (
+            <div
+              className="mt-6 flex items-start justify-between gap-3 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800"
+              role="alert"
+            >
+              <span>{activeError}</span>
+              <button
+                type="button"
+                onClick={() => {
+                  setInternalError("");
+                  onDismissError();
+                }}
+                className="shrink-0 font-medium underline underline-offset-2"
               >
-                <span>{error}</span>
+                Dismiss
+              </button>
+            </div>
+          )}
+
+          {noticeMessage && (
+            <div
+              className="mt-6 flex items-start justify-between gap-3 rounded-lg border border-[#c8ddc2] bg-[#f2f8f0] px-4 py-3 text-sm text-[#385333]"
+              role="status"
+            >
+              <div className="flex items-start gap-2">
+                <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-[#4c7345]" />
+                <span>{noticeMessage}</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setNoticeMessage("")}
+                className="shrink-0 font-medium underline underline-offset-2"
+              >
+                Dismiss
+              </button>
+            </div>
+          )}
+
+          {mode === "signin" ? (
+            <form className="mt-7 space-y-4" onSubmit={handleSignInSubmit}>
+              <label className="block space-y-1.5 text-sm font-medium text-[#444941]">
+                Email address
+                <Input
+                  className="h-12 rounded-lg border-[#dedbd2] bg-white px-4"
+                  type="email"
+                  name="email"
+                  value={signInEmail}
+                  onChange={(e) => setSignInEmail(e.target.value)}
+                  autoComplete="username"
+                  placeholder="you@example.com"
+                  required
+                />
+              </label>
+              <label className="block space-y-1.5 text-sm font-medium text-[#444941]">
+                Password
+                <Input
+                  className="h-12 rounded-lg border-[#dedbd2] bg-white px-4"
+                  type="password"
+                  name="password"
+                  value={signInPassword}
+                  onChange={(e) => setSignInPassword(e.target.value)}
+                  autoComplete="current-password"
+                  placeholder="Enter your password"
+                  required
+                />
+              </label>
+
+              <Button
+                className="mt-2 h-12 w-full rounded-lg bg-[#344234] text-sm text-white hover:bg-[#283528]"
+                type="submit"
+                disabled={loading}
+              >
+                {loading ? (
+                  <>
+                    <LoaderCircle className="size-4 animate-spin" aria-hidden="true" />
+                    Signing in…
+                  </>
+                ) : (
+                  "Sign in to your studio"
+                )}
+              </Button>
+
+              <div className="pt-2 text-center text-xs text-[#7d7c73]">
+                Need an account?{" "}
                 <button
                   type="button"
-                  onClick={onDismissError}
-                  className="shrink-0 font-medium underline underline-offset-2"
+                  onClick={() => handleModeSwitch("signup")}
+                  className="font-medium text-[#344234] underline underline-offset-2 hover:text-[#1e271e]"
                 >
-                  Dismiss
+                  Create account & request access
                 </button>
               </div>
-            )}
-            <Button
-              className="h-12 w-full rounded-lg bg-[#344234] text-sm text-white hover:bg-[#283528]"
-              type="submit"
-              disabled={loading}
-            >
-              {loading ? (
-                <>
-                  <LoaderCircle className="size-4 animate-spin" aria-hidden="true" />
-                  Signing in…
-                </>
-              ) : (
-                "Sign in to your studio"
-              )}
-            </Button>
-            <div className="relative py-1 text-center text-[11px] text-[#a09b90]">
-              <span className="bg-[#fbfaf7] px-3">or take a look around</span>
-            </div>
-            <Button
-              className="h-11 w-full rounded-lg border-[#dedbd2] bg-transparent text-sm text-[#465143] hover:bg-[#f1f0e9]"
-              type="button"
-              variant="outline"
-              onClick={onDemo}
-            >
-              Explore demo workspace
-            </Button>
-            <p className="text-center text-[11px] leading-5 text-[#89877e]">
-              Sample data only. No sign-in needed.
-            </p>
-          </form>
+
+              <div className="relative py-2 text-center text-[11px] text-[#a09b90]">
+                <span className="bg-[#fbfaf7] px-3">or take a look around</span>
+              </div>
+
+              <Button
+                className="h-11 w-full rounded-lg border-[#dedbd2] bg-transparent text-sm text-[#465143] hover:bg-[#f1f0e9]"
+                type="button"
+                variant="outline"
+                onClick={onDemo}
+              >
+                Explore demo workspace
+              </Button>
+
+              <p className="text-center text-[11px] leading-5 text-[#89877e]">
+                Sample data only. No sign-in needed.
+              </p>
+            </form>
+          ) : (
+            <form className="mt-7 space-y-4" onSubmit={handleSignUpSubmit}>
+              <label className="block space-y-1.5 text-sm font-medium text-[#444941]">
+                Full name
+                <Input
+                  className="h-12 rounded-lg border-[#dedbd2] bg-white px-4"
+                  type="text"
+                  name="fullName"
+                  value={fullName}
+                  onChange={(e) => setFullName(e.target.value)}
+                  autoComplete="name"
+                  placeholder="e.g. Maya Sharma"
+                  required
+                />
+              </label>
+
+              <label className="block space-y-1.5 text-sm font-medium text-[#444941]">
+                Email address
+                <Input
+                  className="h-12 rounded-lg border-[#dedbd2] bg-white px-4"
+                  type="email"
+                  name="email"
+                  value={signUpEmail}
+                  onChange={(e) => setSignUpEmail(e.target.value)}
+                  autoComplete="email"
+                  placeholder="you@example.com"
+                  required
+                />
+              </label>
+
+              <label className="block space-y-1.5 text-sm font-medium text-[#444941]">
+                Password
+                <Input
+                  className="h-12 rounded-lg border-[#dedbd2] bg-white px-4"
+                  type="password"
+                  name="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  autoComplete="new-password"
+                  placeholder="At least 6 characters"
+                  minLength={6}
+                  required
+                />
+              </label>
+
+              <label className="block space-y-1.5 text-sm font-medium text-[#444941]">
+                Confirm password
+                <Input
+                  className="h-12 rounded-lg border-[#dedbd2] bg-white px-4"
+                  type="password"
+                  name="confirmPassword"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  autoComplete="new-password"
+                  placeholder="Confirm your password"
+                  minLength={6}
+                  required
+                />
+              </label>
+
+              <div className="rounded-lg bg-[#f5f3ec] p-3 text-xs leading-5 text-[#737267]">
+                <div className="flex items-center gap-1.5 font-medium text-[#494c44]">
+                  <Clock3 className="size-3.5 text-[#887858]" /> Admin Approval Required
+                </div>
+                Your account will be created with pending approval status. Studio shoots and client
+                data are restricted until approved.
+              </div>
+
+              <Button
+                className="mt-2 h-12 w-full rounded-lg bg-[#344234] text-sm text-white hover:bg-[#283528]"
+                type="submit"
+                disabled={loading}
+              >
+                {loading ? (
+                  <>
+                    <LoaderCircle className="size-4 animate-spin" aria-hidden="true" />
+                    Submitting registration…
+                  </>
+                ) : (
+                  "Create account & request access"
+                )}
+              </Button>
+
+              <div className="pt-2 text-center text-xs text-[#7d7c73]">
+                Already have an account?{" "}
+                <button
+                  type="button"
+                  onClick={() => handleModeSwitch("signin")}
+                  className="font-medium text-[#344234] underline underline-offset-2 hover:text-[#1e271e]"
+                >
+                  Sign in
+                </button>
+              </div>
+            </form>
+          )}
+
           <p className="mt-6 text-center text-xs leading-5 text-[#89877e]">
-            Real studio data is only available to the owner account.
+            TA Bridals · Wedding Shoot & Studio Management
           </p>
         </div>
       </section>
+    </main>
+  );
+}
+
+function PendingApprovalScreen({
+  displayName,
+  email,
+  checkingStatus,
+  onCheckStatus,
+  onSignOut,
+}: {
+  displayName: string;
+  email: string;
+  checkingStatus: boolean;
+  onCheckStatus: () => void;
+  onSignOut: () => void;
+}) {
+  return (
+    <main className="flex min-h-screen flex-col items-center justify-center bg-[#fbfaf7] px-6 py-12">
+      <div className="w-full max-w-lg rounded-2xl border border-[#e8e5dc] bg-white p-8 shadow-xs sm:p-10">
+        <div className="flex items-center justify-between border-b border-[#f1eee6] pb-6">
+          <Brand />
+          <span className="flex items-center gap-1.5 rounded-full bg-amber-50 px-3 py-1 text-xs font-medium text-amber-800 border border-amber-200">
+            <Clock3 className="size-3.5" />
+            Pending Approval
+          </span>
+        </div>
+
+        <div className="mt-8 text-center sm:text-left">
+          <h1 className="font-serif text-3xl text-[#30382f]">Registration Submitted</h1>
+          <p className="mt-3 text-sm leading-6 text-[#696c64]">
+            Hello <span className="font-semibold text-[#30382f]">{displayName}</span>. Your account
+            has been created and is waiting for review by the studio owner.
+          </p>
+        </div>
+
+        <div className="mt-6 space-y-3 rounded-xl bg-[#f8f7f3] p-5 text-xs leading-5 text-[#6c6e66]">
+          <div className="flex items-center justify-between border-b border-[#ece8de] pb-2">
+            <span className="font-medium text-[#494c44]">Registered account:</span>
+            <span className="font-mono text-[#30382f]">{email}</span>
+          </div>
+          <div className="flex items-center justify-between border-b border-[#ece8de] pb-2">
+            <span className="font-medium text-[#494c44]">Access level:</span>
+            <span className="text-amber-800 font-medium">Restricted (Pending Review)</span>
+          </div>
+          <p className="pt-1 text-[#838276]">
+            To protect bridal couple details and schedule confidentiality, pending users cannot read
+            or write studio shoot records. Once the studio owner approves your registration, your
+            team workspace will activate automatically.
+          </p>
+        </div>
+
+        <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-center">
+          <Button
+            onClick={onCheckStatus}
+            disabled={checkingStatus}
+            className="flex-1 h-11 bg-[#344234] text-white hover:bg-[#283528]"
+          >
+            {checkingStatus ? (
+              <>
+                <LoaderCircle className="size-4 animate-spin" />
+                Checking status…
+              </>
+            ) : (
+              <>
+                <RefreshCw className="size-4 mr-1.5" />
+                Check approval status
+              </>
+            )}
+          </Button>
+          <Button
+            variant="outline"
+            onClick={onSignOut}
+            className="h-11 border-[#dedbd2] text-[#4d5149]"
+          >
+            <LogOut className="size-4 mr-1.5" />
+            Sign out
+          </Button>
+        </div>
+      </div>
+    </main>
+  );
+}
+
+function RejectedScreen({
+  email,
+  onSignOut,
+}: {
+  displayName?: string;
+  email: string;
+  onSignOut: () => void;
+}) {
+  return (
+    <main className="flex min-h-screen flex-col items-center justify-center bg-[#fbfaf7] px-6 py-12">
+      <div className="w-full max-w-md rounded-2xl border border-red-200 bg-white p-8 text-center shadow-xs">
+        <div className="mx-auto grid size-12 place-items-center rounded-full bg-red-50 text-red-700">
+          <ShieldAlert className="size-6" />
+        </div>
+        <h1 className="mt-4 font-serif text-2xl text-[#30382f]">Registration Not Approved</h1>
+        <p className="mt-2 text-sm leading-6 text-[#72756d]">
+          The registration for <span className="font-medium text-[#30382f]">{email}</span> was not
+          approved by the studio administrator. If you believe this is in error, please contact
+          studio management directly.
+        </p>
+        <div className="mt-6">
+          <Button
+            onClick={onSignOut}
+            className="w-full h-11 bg-[#344234] text-white hover:bg-[#283528]"
+          >
+            <LogOut className="size-4 mr-1.5" />
+            Sign out
+          </Button>
+        </div>
+      </div>
     </main>
   );
 }
@@ -672,9 +1106,12 @@ function Workspace({
   globalQuery,
   onGlobalQueryChange,
   profileName,
+  isAdmin,
   shoots,
   team,
   assignments,
+  registrations,
+  onRegistrationsChange,
   loading,
   error,
   demoMode,
@@ -691,9 +1128,12 @@ function Workspace({
   globalQuery: string;
   onGlobalQueryChange: (query: string) => void;
   profileName: string;
+  isAdmin: boolean;
   shoots: Shoot[];
   team: TeamMember[];
   assignments: Assignment[];
+  registrations: ProfileRecord[];
+  onRegistrationsChange: (registrations: ProfileRecord[]) => void;
   loading: boolean;
   error: string;
   demoMode: boolean;
@@ -705,6 +1145,30 @@ function Workspace({
   onSaveTeamMember: (values: TeamMemberInput, memberId?: string) => Promise<void>;
   onDeleteTeamMember: (memberId: string) => Promise<void>;
 }) {
+  const pendingCount = useMemo(
+    () => registrations.filter((r) => r.approval_status === "pending").length,
+    [registrations],
+  );
+
+  const navigationItems = useMemo(() => {
+    if (!isAdmin) return baseNavigation;
+    return [
+      ...baseNavigation,
+      {
+        id: "approvals" as Section,
+        label: "Registrations",
+        mobileLabel: "Registrations",
+        icon: UserCheck,
+      },
+    ];
+  }, [isAdmin]);
+
+  useEffect(() => {
+    if (!isAdmin && section === "approvals") {
+      onSectionChange("overview");
+    }
+  }, [isAdmin, section, onSectionChange]);
+
   const copy = sectionCopy[section];
   const firstName = profileName.trim().split(/\s+/)[0] || "there";
 
@@ -716,7 +1180,7 @@ function Workspace({
           Workspace
         </p>
         <nav className="space-y-1" aria-label="Main navigation">
-          {navigation.map(({ id, label, icon: Icon }) => (
+          {navigationItems.map(({ id, label, icon: Icon }) => (
             <button
               key={id}
               type="button"
@@ -735,12 +1199,17 @@ function Workspace({
                   {shoots.length}
                 </span>
               )}
+              {id === "approvals" && pendingCount > 0 && (
+                <span className="ml-auto rounded-full bg-amber-500 text-white font-medium px-2 py-0.5 text-[10px]">
+                  {pendingCount}
+                </span>
+              )}
             </button>
           ))}
         </nav>
         <div className="mt-auto rounded-xl bg-[#f7f6f2] p-4">
           <p className="font-serif text-sm italic text-[#586651]">
-            Weddings are better with the right team.
+            {isAdmin ? "Weddings are better with the right team." : "Welcome to the studio team."}
           </p>
         </div>
         <button
@@ -763,7 +1232,7 @@ function Workspace({
               className="flex items-center gap-1 overflow-x-auto lg:hidden"
               aria-label="Mobile navigation"
             >
-              {navigation.map(({ id, mobileLabel }) => (
+              {navigationItems.map(({ id, mobileLabel }) => (
                 <button
                   key={id}
                   type="button"
@@ -774,6 +1243,7 @@ function Workspace({
                   }`}
                 >
                   {mobileLabel}
+                  {id === "approvals" && pendingCount > 0 && ` (${pendingCount})`}
                 </button>
               ))}
             </nav>
@@ -811,7 +1281,9 @@ function Workspace({
             <div className="ml-auto flex items-center gap-3">
               <div className="hidden text-right sm:block">
                 <p className="text-xs font-medium text-[#42483f]">{profileName}</p>
-                <p className="mt-0.5 text-[10px] text-[#99968c]">Studio owner</p>
+                <p className="mt-0.5 text-[10px] text-[#99968c]">
+                  {isAdmin ? "Studio owner" : "Team member"}
+                </p>
               </div>
               <div
                 className="grid size-9 place-items-center rounded-full bg-[#e9ece5] text-xs font-semibold text-[#435040]"
@@ -857,7 +1329,7 @@ function Workspace({
                 {format(new Date(), "EEEE, MMMM d, yyyy")}
               </p>
               <h1 className="font-serif text-[30px] leading-tight text-[#343a33] sm:text-[34px]">
-                {section === "overview" ? "Welcome back, TA Bridals." : copy.title}
+                {section === "overview" ? `Welcome back, ${firstName}.` : copy.title}
               </h1>
               <p className="mt-2 text-sm text-[#818177]">
                 {section === "overview"
@@ -893,6 +1365,8 @@ function Workspace({
               assignments={assignments}
               loading={loading}
               onNavigate={onSectionChange}
+              isAdmin={isAdmin}
+              pendingRegistrationsCount={pendingCount}
             />
           ) : section === "shoots" ? (
             <ShootsView
@@ -900,7 +1374,7 @@ function Workspace({
               assignments={assignments}
               loading={loading}
               externalQuery={globalQuery}
-              editable={!demoMode}
+              editable={isAdmin && !demoMode}
               onSaveShoot={onSaveShoot}
               onDeleteShoot={onDeleteShoot}
               team={team}
@@ -909,19 +1383,437 @@ function Workspace({
             />
           ) : section === "calendar" ? (
             <CalendarView shoots={shoots} loading={loading} />
-          ) : (
+          ) : section === "team" ? (
             <TeamView
               team={team}
               loading={loading}
               externalQuery={globalQuery}
-              editable={!demoMode}
+              editable={isAdmin && !demoMode}
               onSaveTeamMember={onSaveTeamMember}
               onDeleteTeamMember={onDeleteTeamMember}
+            />
+          ) : isAdmin ? (
+            <RegistrationsView
+              registrations={registrations}
+              onRegistrationsChange={onRegistrationsChange}
+              demoMode={demoMode}
+            />
+          ) : (
+            <Overview
+              shoots={shoots}
+              team={team}
+              assignments={assignments}
+              loading={loading}
+              onNavigate={onSectionChange}
+              isAdmin={isAdmin}
+              pendingRegistrationsCount={0}
             />
           )}
         </main>
       </div>
     </div>
+  );
+}
+
+function RegistrationsView({
+  registrations,
+  onRegistrationsChange,
+  demoMode,
+}: {
+  registrations: ProfileRecord[];
+  onRegistrationsChange: (registrations: ProfileRecord[]) => void;
+  demoMode: boolean;
+}) {
+  const [filter, setFilter] = useState<"pending" | "approved" | "rejected" | "all">("pending");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [processingId, setProcessingId] = useState<string | null>(null);
+  const [actionError, setActionError] = useState("");
+  const [actionNotice, setActionNotice] = useState("");
+  const [refreshing, setRefreshing] = useState(false);
+
+  const pendingCount = registrations.filter((r) => r.approval_status === "pending").length;
+  const approvedCount = registrations.filter((r) => r.approval_status === "approved").length;
+  const rejectedCount = registrations.filter((r) => r.approval_status === "rejected").length;
+
+  const reload = useCallback(async () => {
+    if (demoMode) return;
+    setRefreshing(true);
+    setActionError("");
+    try {
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("*")
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      onRegistrationsChange((data ?? []) as unknown as ProfileRecord[]);
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : "Failed to refresh registrations.");
+    } finally {
+      setRefreshing(false);
+    }
+  }, [demoMode, onRegistrationsChange]);
+
+  const filteredRegistrations = useMemo(() => {
+    return registrations.filter((r) => {
+      if (filter !== "all" && r.approval_status !== filter) return false;
+      if (!searchQuery.trim()) return true;
+      const q = searchQuery.toLowerCase();
+      return r.display_name.toLowerCase().includes(q) || (r.email ?? "").toLowerCase().includes(q);
+    });
+  }, [registrations, filter, searchQuery]);
+
+  async function handleApprove(userId: string, name: string) {
+    setProcessingId(userId);
+    setActionError("");
+    setActionNotice("");
+
+    if (demoMode) {
+      onRegistrationsChange(
+        registrations.map((r) =>
+          r.user_id === userId
+            ? { ...r, approval_status: "approved", reviewed_at: new Date().toISOString() }
+            : r,
+        ),
+      );
+      setActionNotice(`Approved ${name} as team member (demo mode).`);
+      setProcessingId(null);
+      return;
+    }
+
+    const { error } = await approveRegistration(userId);
+    if (error) {
+      setActionError(error);
+    } else {
+      setActionNotice(`Approved ${name}! They can now sign in and access the studio workspace.`);
+      await reload();
+    }
+    setProcessingId(null);
+  }
+
+  async function handleReject(userId: string, name: string) {
+    setProcessingId(userId);
+    setActionError("");
+    setActionNotice("");
+
+    if (demoMode) {
+      onRegistrationsChange(
+        registrations.map((r) =>
+          r.user_id === userId
+            ? { ...r, approval_status: "rejected", reviewed_at: new Date().toISOString() }
+            : r,
+        ),
+      );
+      setActionNotice(`Rejected registration for ${name} (demo mode).`);
+      setProcessingId(null);
+      return;
+    }
+
+    const { error } = await rejectRegistration(userId);
+    if (error) {
+      setActionError(error);
+    } else {
+      setActionNotice(`Registration for ${name} was rejected.`);
+      await reload();
+    }
+    setProcessingId(null);
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="grid gap-4 sm:grid-cols-3">
+        <div className="rounded-xl border border-[#e9e6dd] bg-white p-5">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-medium uppercase tracking-wider text-[#8b877a]">
+              Pending Approval
+            </span>
+            <span className="grid size-7 place-items-center rounded-full bg-amber-50 text-amber-700">
+              <Clock3 className="size-4" />
+            </span>
+          </div>
+          <p className="mt-3 font-serif text-3xl text-[#30382f]">{pendingCount}</p>
+          <p className="mt-1 text-xs text-[#89867b]">Awaiting owner verification</p>
+        </div>
+
+        <div className="rounded-xl border border-[#e9e6dd] bg-white p-5">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-medium uppercase tracking-wider text-[#8b877a]">
+              Approved Team
+            </span>
+            <span className="grid size-7 place-items-center rounded-full bg-emerald-50 text-emerald-700">
+              <ShieldCheck className="size-4" />
+            </span>
+          </div>
+          <p className="mt-3 font-serif text-3xl text-[#30382f]">{approvedCount}</p>
+          <p className="mt-1 text-xs text-[#89867b]">Full team member access</p>
+        </div>
+
+        <div className="rounded-xl border border-[#e9e6dd] bg-white p-5">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-medium uppercase tracking-wider text-[#8b877a]">
+              Total Registrations
+            </span>
+            <span className="grid size-7 place-items-center rounded-full bg-[#f0eee6] text-[#555a50]">
+              <Users className="size-4" />
+            </span>
+          </div>
+          <p className="mt-3 font-serif text-3xl text-[#30382f]">{registrations.length}</p>
+          <p className="mt-1 text-xs text-[#89867b]">All time account requests</p>
+        </div>
+      </div>
+
+      {actionNotice && (
+        <div
+          className="flex items-center justify-between rounded-lg border border-[#c4dcbf] bg-[#f2f8f0] px-4 py-3 text-sm text-[#385333]"
+          role="status"
+        >
+          <div className="flex items-center gap-2">
+            <CheckCircle2 className="size-4 text-[#4c7345]" />
+            <span>{actionNotice}</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setActionNotice("")}
+            className="font-medium underline underline-offset-2"
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
+
+      {actionError && (
+        <div
+          className="flex items-center justify-between rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800"
+          role="alert"
+        >
+          <span>{actionError}</span>
+          <button
+            type="button"
+            onClick={() => setActionError("")}
+            className="font-medium underline underline-offset-2"
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
+
+      <section className="overflow-hidden rounded-2xl border border-[#e9e7df] bg-white">
+        <div className="flex flex-wrap items-center justify-between gap-4 border-b border-[#efeee9] px-5 py-4 sm:px-6">
+          <div className="flex flex-wrap items-center gap-1">
+            <button
+              type="button"
+              onClick={() => setFilter("pending")}
+              className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
+                filter === "pending"
+                  ? "bg-[#344234] text-white"
+                  : "bg-[#f4f2ec] text-[#696b61] hover:text-[#30382f]"
+              }`}
+            >
+              Pending ({pendingCount})
+            </button>
+            <button
+              type="button"
+              onClick={() => setFilter("approved")}
+              className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
+                filter === "approved"
+                  ? "bg-[#344234] text-white"
+                  : "bg-[#f4f2ec] text-[#696b61] hover:text-[#30382f]"
+              }`}
+            >
+              Approved ({approvedCount})
+            </button>
+            <button
+              type="button"
+              onClick={() => setFilter("rejected")}
+              className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
+                filter === "rejected"
+                  ? "bg-[#344234] text-white"
+                  : "bg-[#f4f2ec] text-[#696b61] hover:text-[#30382f]"
+              }`}
+            >
+              Rejected ({rejectedCount})
+            </button>
+            <button
+              type="button"
+              onClick={() => setFilter("all")}
+              className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
+                filter === "all"
+                  ? "bg-[#344234] text-white"
+                  : "bg-[#f4f2ec] text-[#696b61] hover:text-[#30382f]"
+              }`}
+            >
+              All ({registrations.length})
+            </button>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <label className="relative block w-full sm:w-[220px]">
+              <Search
+                className="absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-[#a09d93]"
+                aria-hidden="true"
+              />
+              <Input
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search requests…"
+                className="h-9 border-[#e6e4dd] pl-8 text-xs"
+              />
+            </label>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => void reload()}
+              disabled={refreshing}
+              className="h-9 text-xs"
+              title="Refresh list"
+            >
+              <RefreshCw className={`size-3.5 ${refreshing ? "animate-spin" : ""}`} />
+            </Button>
+          </div>
+        </div>
+
+        {filteredRegistrations.length === 0 ? (
+          <EmptyState
+            title={
+              filter === "pending"
+                ? "No pending registrations"
+                : searchQuery
+                  ? "No matching registrations found"
+                  : "No registrations in this category"
+            }
+            detail={
+              filter === "pending"
+                ? "When new team members register, their requests will appear here for your review."
+                : "Try adjusting your search or tab filters."
+            }
+          />
+        ) : (
+          <div className="divide-y divide-[#f2efe8]">
+            {filteredRegistrations.map((reg) => {
+              const isOwner = isOwnerEmail(reg.email);
+              const isProcessing = processingId === reg.user_id;
+
+              return (
+                <article
+                  key={reg.user_id}
+                  className="flex flex-col gap-4 p-5 transition-colors hover:bg-[#faf9f5] sm:flex-row sm:items-center sm:justify-between"
+                >
+                  <div className="flex items-start gap-3 min-w-0">
+                    <Avatar name={reg.display_name || "Team Member"} />
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        <p className="truncate text-sm font-medium text-[#30382f]">
+                          {reg.display_name || "Unnamed applicant"}
+                        </p>
+                        {isOwner && (
+                          <span className="rounded-full bg-[#e8eee4] px-2 py-0.5 text-[10px] font-medium text-[#465c40]">
+                            Owner
+                          </span>
+                        )}
+                      </div>
+                      <p className="mt-0.5 truncate text-xs text-[#7e8076]">{reg.email}</p>
+                      <p className="mt-1 text-[11px] text-[#a4a297]">
+                        Registered on {format(parseISO(reg.created_at), "MMM d, yyyy · h:mm a")}
+                        {reg.reviewed_at && (
+                          <span className="ml-2 italic text-[#8a887d]">
+                            · Reviewed {format(parseISO(reg.reviewed_at), "MMM d")}
+                          </span>
+                        )}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-3 self-end sm:self-center">
+                    <ApprovalBadge status={reg.approval_status} />
+
+                    {reg.approval_status === "pending" && (
+                      <div className="flex items-center gap-2">
+                        <Button
+                          size="sm"
+                          onClick={() => handleApprove(reg.user_id, reg.display_name)}
+                          disabled={isProcessing}
+                          className="h-8 bg-[#344234] text-white hover:bg-[#283528] text-xs font-medium"
+                        >
+                          {isProcessing ? (
+                            <LoaderCircle className="size-3.5 animate-spin" />
+                          ) : (
+                            <>
+                              <Check className="size-3 mr-1" />
+                              Approve
+                            </>
+                          )}
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleReject(reg.user_id, reg.display_name)}
+                          disabled={isProcessing}
+                          className="h-8 border-[#dedbd2] text-red-700 hover:bg-red-50 text-xs font-medium"
+                        >
+                          <X className="size-3 mr-1" />
+                          Reject
+                        </Button>
+                      </div>
+                    )}
+
+                    {reg.approval_status === "approved" && !isOwner && (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => handleReject(reg.user_id, reg.display_name)}
+                        disabled={isProcessing}
+                        className="h-8 text-xs text-[#8d8c82] hover:text-red-700"
+                        title="Revoke access"
+                      >
+                        <UserX className="size-3 mr-1" />
+                        Revoke
+                      </Button>
+                    )}
+
+                    {reg.approval_status === "rejected" && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleApprove(reg.user_id, reg.display_name)}
+                        disabled={isProcessing}
+                        className="h-8 text-xs text-[#40543c] hover:bg-[#f1f4ee]"
+                      >
+                        <UserCheck className="size-3 mr-1" />
+                        Re-approve
+                      </Button>
+                    )}
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+        )}
+      </section>
+    </div>
+  );
+}
+
+function ApprovalBadge({ status }: { status: ApprovalStatus }) {
+  if (status === "approved") {
+    return (
+      <span className="flex items-center gap-1 rounded-full bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 text-[11px] font-medium text-emerald-800">
+        <Check className="size-3 text-emerald-600" />
+        Approved
+      </span>
+    );
+  }
+  if (status === "rejected") {
+    return (
+      <span className="flex items-center gap-1 rounded-full bg-red-50 border border-red-200 px-2.5 py-0.5 text-[11px] font-medium text-red-800">
+        <X className="size-3 text-red-600" />
+        Rejected
+      </span>
+    );
+  }
+  return (
+    <span className="flex items-center gap-1 rounded-full bg-amber-50 border border-amber-200 px-2.5 py-0.5 text-[11px] font-medium text-amber-800">
+      <Clock3 className="size-3 text-amber-600" />
+      Pending
+    </span>
   );
 }
 
@@ -951,12 +1843,16 @@ function Overview({
   assignments,
   loading,
   onNavigate,
+  isAdmin,
+  pendingRegistrationsCount,
 }: {
   shoots: Shoot[];
   team: TeamMember[];
   assignments: Assignment[];
   loading: boolean;
   onNavigate: (section: Section) => void;
+  isAdmin: boolean;
+  pendingRegistrationsCount: number;
 }) {
   const today = new Date();
   const upcoming = shoots.filter(
@@ -986,6 +1882,33 @@ function Overview({
 
   return (
     <div className="space-y-5">
+      {isAdmin && pendingRegistrationsCount > 0 && (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50/70 px-5 py-4">
+          <div className="flex items-center gap-3">
+            <span className="grid size-8 place-items-center rounded-full bg-amber-100 text-amber-800">
+              <Clock3 className="size-4" />
+            </span>
+            <div>
+              <p className="text-xs font-semibold text-amber-950">
+                {pendingRegistrationsCount} team{" "}
+                {pendingRegistrationsCount === 1 ? "registration is" : "registrations are"} awaiting
+                approval
+              </p>
+              <p className="text-[11px] text-amber-800">
+                Review applicant details and grant workspace access to your team members.
+              </p>
+            </div>
+          </div>
+          <Button
+            size="sm"
+            onClick={() => onNavigate("approvals")}
+            className="h-8 bg-[#344234] text-white hover:bg-[#283528] text-xs font-medium"
+          >
+            Review registrations
+          </Button>
+        </div>
+      )}
+
       <section className="studio-hero relative flex min-h-[176px] items-end overflow-hidden rounded-2xl border border-[#30282e] p-6 sm:min-h-[194px] sm:p-8">
         <div className="relative z-[1] max-w-xl">
           <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-[#e7a0ad]">
@@ -1600,33 +2523,23 @@ function AssignmentEditor({
         return currentStart < otherEnd && otherStart < currentEnd;
       })
       .map((otherShoot) => ({
-        teamMemberId: assignment.team_member_id,
+        member: team.find((item) => item.id === assignment.team_member_id),
         shoot: otherShoot,
       }));
   });
-  const onSiteCount = selected.filter(
-    (assignment) => assignment.assignment_type === "on_site",
-  ).length;
-  const canSave = selected.length <= 20 && (conflicts.length === 0 || conflictsReviewed) && !saving;
 
   function toggleMember(memberId: string) {
-    setConflictsReviewed(false);
     setSelected((current) =>
-      current.some((assignment) => assignment.team_member_id === memberId)
-        ? current.filter((assignment) => assignment.team_member_id !== memberId)
-        : current.length >= 20
-          ? current
-          : [...current, { team_member_id: memberId, assignment_type: "on_site" }],
+      current.some((item) => item.team_member_id === memberId)
+        ? current.filter((item) => item.team_member_id !== memberId)
+        : [...current, { team_member_id: memberId, assignment_type: "on_site" }],
     );
   }
 
   function changeType(memberId: string, assignmentType: Assignment["assignment_type"]) {
-    setConflictsReviewed(false);
     setSelected((current) =>
-      current.map((assignment) =>
-        assignment.team_member_id === memberId
-          ? { ...assignment, assignment_type: assignmentType }
-          : assignment,
+      current.map((item) =>
+        item.team_member_id === memberId ? { ...item, assignment_type: assignmentType } : item,
       ),
     );
   }
@@ -1638,7 +2551,7 @@ function AssignmentEditor({
       await onSave(shoot.id, selected);
       onClose();
     } catch (error) {
-      setError(error instanceof Error ? error.message : "Could not save these assignments.");
+      setError(error instanceof Error ? error.message : "Could not save assignments.");
     } finally {
       setSaving(false);
     }
@@ -1657,107 +2570,87 @@ function AssignmentEditor({
         aria-modal="true"
         aria-labelledby="assignment-editor-title"
       >
-        <div className="mb-5">
-          <p className="text-[10px] font-medium uppercase tracking-[0.2em] text-[#9a8c77]">
-            TEAM SCHEDULING
-          </p>
-          <h2 id="assignment-editor-title" className="mt-2 font-serif text-2xl">
-            {shoot.couple_name}
-          </h2>
-          <p className="mt-1 text-xs text-[#b8adb2]">
-            {format(parseISO(shoot.event_date), "MMMM d, yyyy")} · {formatTime(shoot.start_time)}
+        <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <p className="text-[10px] font-medium uppercase tracking-[0.2em] text-[#9a8c77]">
+              CREW ASSIGNMENT
+            </p>
+            <h2 id="assignment-editor-title" className="mt-2 font-serif text-2xl">
+              {shoot.couple_name}
+            </h2>
+            <p className="mt-1 text-xs text-[#82767d]">
+              {format(parseISO(shoot.event_date), "EEEE, MMMM d, yyyy")} · Planned crew:{" "}
+              {shoot.planned_team_size}
+            </p>
+          </div>
+          <p className="text-xs text-[#d5c7ad]">
+            {selected.filter((item) => item.assignment_type === "on_site").length} on-site /{" "}
+            {selected.length} total
           </p>
         </div>
-        <div className="mb-4 grid grid-cols-3 gap-2">
-          <TeamSummary label="On-site" value={onSiteCount} />
-          <TeamSummary
-            label="Still needed"
-            value={Math.max(shoot.planned_team_size - onSiteCount, 0)}
-          />
-          <TeamSummary label="Capacity left" value={Math.max(20 - onSiteCount, 0)} />
-        </div>
-        <p className="mb-3 text-xs text-[#b8adb2]">
-          Choose up to 20 unique team members. Post-production assignments don’t count toward
-          on-site staffing.
-        </p>
-        <div className="max-h-[35dvh] overflow-y-auto rounded-lg border border-[#30282e]">
+        {conflicts.length > 0 && !conflictsReviewed && (
+          <div
+            className="mb-4 rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-xs text-amber-200"
+            role="alert"
+          >
+            <p className="font-semibold">Scheduling notice</p>
+            <p className="mt-1">
+              One or more team members are already assigned to overlapping events on this date.
+            </p>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="mt-3 text-xs"
+              onClick={() => setConflictsReviewed(true)}
+            >
+              Continue anyway
+            </Button>
+          </div>
+        )}
+        <div className="max-h-[360px] space-y-2 overflow-y-auto pr-1">
           {team.map((member) => {
-            const assignment = selected.find((item) => item.team_member_id === member.id);
+            const isAssigned = selectedIds.has(member.id);
+            const current = selected.find((item) => item.team_member_id === member.id);
             return (
-              <label
+              <div
                 key={member.id}
-                className="flex flex-wrap items-center gap-3 border-b border-[#30282e] px-3 py-3 last:border-b-0"
+                className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[#30282e] bg-[#1d171d] p-3 text-xs"
               >
-                <input
-                  type="checkbox"
-                  checked={selectedIds.has(member.id)}
-                  onChange={() => toggleMember(member.id)}
-                  className="size-4 accent-[#c56c7d]"
-                />
-                <Avatar name={member.full_name} />
-                <span className="min-w-0 flex-1">
-                  <span className="block truncate text-xs font-medium text-[#f7f0ee]">
-                    {member.full_name}
-                  </span>
-                  <span className="mt-1 block truncate text-[10px] text-[#82767d]">
-                    {member.role}
-                    {!member.available && " · unavailable"}
-                  </span>
-                </span>
-                {assignment && (
+                <label className="flex items-center gap-3">
+                  <input
+                    type="checkbox"
+                    checked={isAssigned}
+                    onChange={() => toggleMember(member.id)}
+                  />
+                  <div>
+                    <p className="font-medium text-[#f7f0ee]">{member.full_name}</p>
+                    <p className="text-[11px] text-[#82767d]">
+                      {member.role} · {member.available ? "Available" : "Busy"}
+                    </p>
+                  </div>
+                </label>
+                {isAssigned && (
                   <select
-                    className="rounded-md border border-[#30282e] bg-[#1b181d] px-2 py-1.5 text-[10px] text-[#b8adb2]"
-                    aria-label={`${member.full_name} assignment type`}
-                    value={assignment.assignment_type}
-                    onChange={(event) => {
-                      const value = event.target.value;
-                      if (value === "on_site" || value === "post_production") {
-                        changeType(member.id, value);
-                      }
-                    }}
+                    className="rounded-md border border-[#30282e] bg-[#120f12] px-2 py-1 text-xs text-[#f7f0ee]"
+                    value={current?.assignment_type ?? "on_site"}
+                    onChange={(event) =>
+                      changeType(member.id, event.target.value as Assignment["assignment_type"])
+                    }
                   >
-                    <option value="on_site">On-site</option>
-                    <option value="post_production">Post-production</option>
+                    <option value="on_site">On site</option>
+                    <option value="post_production">Post production</option>
                   </select>
                 )}
-              </label>
+              </div>
             );
           })}
         </div>
-        {conflicts.length > 0 && (
-          <div className="mt-4 rounded-lg border border-amber-400/25 bg-amber-400/10 p-3">
-            <p className="text-xs font-medium text-amber-200">
-              Review overlapping bookings before saving
-            </p>
-            <ul className="mt-2 space-y-1.5">
-              {conflicts.map(({ teamMemberId, shoot: conflictingShoot }) => (
-                <li
-                  key={`${teamMemberId}-${conflictingShoot.id}`}
-                  className="text-[11px] leading-5 text-amber-100/80"
-                >
-                  {team.find((member) => member.id === teamMemberId)?.full_name} is also assigned to{" "}
-                  {conflictingShoot.couple_name} at {formatTime(conflictingShoot.start_time)}.
-                </li>
-              ))}
-            </ul>
-            <label className="mt-3 flex items-start gap-2 text-[11px] leading-5 text-amber-100">
-              <input
-                className="mt-1 size-3 accent-[#c56c7d]"
-                type="checkbox"
-                checked={conflictsReviewed}
-                onChange={(event) => setConflictsReviewed(event.target.checked)}
-              />
-              I reviewed these schedule conflicts and want to continue.
-            </label>
-          </div>
-        )}
-        {selected.length > 20 && (
-          <p className="mt-3 text-xs text-red-300" role="alert">
-            An event can have no more than 20 assignments.
-          </p>
-        )}
         {error && (
-          <p className="mt-3 text-xs text-red-300" role="alert">
+          <p
+            className="mt-4 rounded-md border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-300"
+            role="alert"
+          >
             {error}
           </p>
         )}
@@ -1765,7 +2658,7 @@ function AssignmentEditor({
           <Button type="button" variant="outline" onClick={onClose} disabled={saving}>
             Cancel
           </Button>
-          <Button type="button" onClick={() => void handleSave()} disabled={!canSave}>
+          <Button type="button" onClick={handleSave} disabled={saving}>
             {saving ? "Saving…" : "Save assignments"}
           </Button>
         </div>
@@ -1783,73 +2676,102 @@ function CalendarView({
   loading: boolean;
   compact?: boolean;
 }) {
-  const [view, setView] = useState<"month" | "week">("month");
   const [anchor, setAnchor] = useState(() => new Date());
+  const [view, setView] = useState<"month" | "week">("month");
   const [selectedShoot, setSelectedShoot] = useState<Shoot | null>(null);
-  const periodStart = view === "month" ? startOfMonth(anchor) : startOfWeek(anchor);
-  const periodEnd = view === "month" ? endOfWeek(endOfMonth(anchor)) : endOfWeek(anchor);
-  const days = useMemo(
-    () =>
-      Array.from({ length: Math.round((+periodEnd - +periodStart) / 86_400_000) + 1 }, (_, i) =>
-        addDays(periodStart, i),
-      ),
-    [periodEnd, periodStart],
-  );
-  const previous = () => setAnchor(view === "month" ? subMonths(anchor, 1) : subWeeks(anchor, 1));
-  const next = () => setAnchor(view === "month" ? addMonths(anchor, 1) : addWeeks(anchor, 1));
-  const eventsFor = (day: Date) =>
-    shoots.filter(
-      (shoot) => shoot.status !== "Cancelled" && isSameDay(parseISO(shoot.event_date), day),
+
+  const monthStart = startOfMonth(anchor);
+  const monthEnd = endOfMonth(anchor);
+  const weekStart = startOfWeek(anchor);
+  const weekEnd = endOfWeek(anchor);
+  const periodStart = view === "month" ? startOfWeek(monthStart) : weekStart;
+  const periodEnd = view === "month" ? endOfWeek(monthEnd) : weekEnd;
+
+  const days = useMemo(() => {
+    const list: Date[] = [];
+    let day = periodStart;
+    while (day <= periodEnd) {
+      list.push(day);
+      day = addDays(day, 1);
+    }
+    return list;
+  }, [periodStart, periodEnd]);
+
+  function eventsFor(date: Date) {
+    return shoots.filter(
+      (shoot) => shoot.status !== "Cancelled" && isSameDay(parseISO(shoot.event_date), date),
     );
+  }
 
   return (
     <>
       <section className="overflow-hidden rounded-2xl border border-[#e9e7df] bg-white">
-        <div className="flex flex-wrap items-center justify-between gap-4 border-b border-[#efeee9] px-5 py-4 sm:px-6">
-          <div className="flex items-center gap-3">
-            <h2 className="min-w-[100px] font-serif text-lg text-[#3e453d] sm:min-w-[145px] sm:text-xl">
-              {format(anchor, "MMMM yyyy")}
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#efeee9] px-5 py-4 sm:px-6">
+          <div>
+            <h2 className="font-serif text-xl text-[#3e453d]">
+              {format(anchor, view === "month" ? "MMMM yyyy" : "'Week of' MMM d, yyyy")}
             </h2>
-            <button
-              type="button"
-              onClick={previous}
-              className="rounded-md p-2 text-[#77786f] hover:bg-[#f5f4f0]"
-              aria-label={`Previous ${view}`}
-            >
-              <ChevronLeft className="size-4" />
-            </button>
-            <button
-              type="button"
-              onClick={next}
-              className="rounded-md p-2 text-[#77786f] hover:bg-[#f5f4f0]"
-              aria-label={`Next ${view}`}
-            >
-              <ChevronRight className="size-4" />
-            </button>
-            <button
-              type="button"
-              onClick={() => setAnchor(new Date())}
-              className="rounded-md px-2 py-1 text-xs text-[#72766b] hover:bg-[#f5f4f0]"
-            >
-              Today
-            </button>
+            <p className="mt-1 text-xs text-[#929086]">Studio shoot schedule</p>
           </div>
-          <div className="flex rounded-lg bg-[#f5f4f0] p-1" aria-label="Calendar view">
-            {(["month", "week"] as const).map((option) => (
-              <button
-                key={option}
-                type="button"
-                onClick={() => setView(option)}
-                aria-pressed={view === option}
-                className={`rounded-md px-3 py-1.5 text-xs capitalize ${
-                  view === option
-                    ? "bg-white font-medium text-[#42483f] shadow-sm"
-                    : "text-[#818177]"
-                }`}
+          <div className="flex flex-wrap items-center gap-2">
+            {!compact && (
+              <div className="flex rounded-lg border border-[#e6e4dd] bg-[#f8f7f4] p-0.5 text-xs">
+                <button
+                  type="button"
+                  className={`rounded px-2.5 py-1 ${
+                    view === "month" ? "bg-white font-medium text-[#344234]" : "text-[#76776f]"
+                  }`}
+                  onClick={() => setView("month")}
+                >
+                  Month
+                </button>
+                <button
+                  type="button"
+                  className={`rounded px-2.5 py-1 ${
+                    view === "week" ? "bg-white font-medium text-[#344234]" : "text-[#76776f]"
+                  }`}
+                  onClick={() => setView("week")}
+                >
+                  Week
+                </button>
+              </div>
+            )}
+            <div className="flex items-center gap-1">
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-8 px-2.5 text-xs"
+                onClick={() =>
+                  setAnchor((current) =>
+                    view === "month" ? subMonths(current, 1) : subWeeks(current, 1),
+                  )
+                }
+                aria-label="Previous period"
               >
-                {option}
-              </button>
-            ))}
+                <ChevronLeft className="size-4" />
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-8 px-3 text-xs"
+                onClick={() => setAnchor(new Date())}
+              >
+                Today
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-8 px-2.5 text-xs"
+                onClick={() =>
+                  setAnchor((current) =>
+                    view === "month" ? addMonths(current, 1) : addWeeks(current, 1),
+                  )
+                }
+                aria-label="Next period"
+              >
+                <ChevronRight className="size-4" />
+              </Button>
+            </div>
           </div>
         </div>
         {loading && shoots.length === 0 ? (
@@ -2042,31 +2964,27 @@ function TeamView({
 }) {
   const [query, setQuery] = useState(externalQuery);
   const [roleFilter, setRoleFilter] = useState("All roles");
-  const [availabilityFilter, setAvailabilityFilter] = useState("Everyone");
+  const [availability, setAvailability] = useState("All availability");
   const [editingMember, setEditingMember] = useState<TeamMember | null | undefined>(undefined);
   const [actionError, setActionError] = useState("");
   useEffect(() => setQuery(externalQuery), [externalQuery]);
   const filteredTeam = useMemo(() => {
     const normalizedQuery = query.trim().toLocaleLowerCase();
-    return team.filter(
-      (member) =>
-        (roleFilter === "All roles" || member.role === roleFilter) &&
-        (availabilityFilter === "Everyone" ||
-          member.available === (availabilityFilter === "Available")) &&
-        [member.full_name, member.role, member.email ?? "", member.phone ?? ""]
-          .join(" ")
-          .toLocaleLowerCase()
-          .includes(normalizedQuery),
-    );
-  }, [availabilityFilter, query, roleFilter, team]);
+    return team.filter((member) => {
+      const matchesQuery = [member.full_name, member.role, member.email ?? "", member.phone ?? ""]
+        .join(" ")
+        .toLocaleLowerCase()
+        .includes(normalizedQuery);
+      const matchesRole = roleFilter === "All roles" || member.role === roleFilter;
+      const matchesAvailability =
+        availability === "All availability" ||
+        (availability === "Available" ? member.available : !member.available);
+      return matchesQuery && matchesRole && matchesAvailability;
+    });
+  }, [availability, query, roleFilter, team]);
 
   async function confirmDelete(member: TeamMember) {
-    if (
-      !window.confirm(
-        `Remove ${member.full_name} from the team? Their shoot assignments will also be removed.`,
-      )
-    )
-      return;
+    if (!window.confirm(`Remove ${member.full_name} from the studio team?`)) return;
     setActionError("");
     try {
       await onDeleteTeamMember(member.id);
@@ -2085,48 +3003,58 @@ function TeamView({
               {team.length} {team.length === 1 ? "person" : "people"} in your studio
             </p>
           </div>
-          <label className="relative block w-full sm:max-w-[280px]">
-            <Search
-              className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[#a09d93]"
-              aria-hidden="true"
-            />
-            <Input
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder="Search your team…"
-              aria-label="Search team"
-              className="h-10 border-[#e6e4dd] pl-9 text-sm"
-            />
-          </label>
-          <select
-            className="h-10 rounded-md border px-3 text-xs"
-            aria-label="Filter team by role"
-            value={roleFilter}
-            onChange={(event) => setRoleFilter(event.target.value)}
-          >
-            <option>All roles</option>
-            {Array.from(new Set(team.map((member) => member.role))).map((role) => (
-              <option key={role}>{role}</option>
-            ))}
-          </select>
-          <select
-            className="h-10 rounded-md border px-3 text-xs"
-            aria-label="Filter team by availability"
-            value={availabilityFilter}
-            onChange={(event) => setAvailabilityFilter(event.target.value)}
-          >
-            <option>Everyone</option>
-            <option>Available</option>
-            <option>Unavailable</option>
-          </select>
-          {editable && (
-            <Button
-              className="h-10 gap-2 rounded-lg bg-[#344234] text-xs text-white"
-              onClick={() => setEditingMember(null)}
+          <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
+            <label className="relative block min-w-[180px] flex-1 sm:max-w-[240px]">
+              <Search
+                className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[#a09d93]"
+                aria-hidden="true"
+              />
+              <Input
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder="Search your team…"
+                aria-label="Search team"
+                className="h-10 border-[#e6e4dd] pl-9 text-sm"
+              />
+            </label>
+            <select
+              className="h-10 rounded-md border px-3 text-xs"
+              aria-label="Filter by role"
+              value={roleFilter}
+              onChange={(event) => setRoleFilter(event.target.value)}
             >
-              <Plus className="size-4" /> Add team member
-            </Button>
-          )}
+              <option>All roles</option>
+              <option>Photographer</option>
+              <option>Videographer</option>
+              <option>Photo Editor</option>
+              <option>Video Editor</option>
+              <option>Album Designer</option>
+              <option>Cinematographer / Creative Director</option>
+              <option>Drone Operator</option>
+              <option>Assistant Photographer</option>
+              <option>Assistant Videographer</option>
+              <option>Lighting Assistant</option>
+              <option>Data Manager / Footage Backup Assistant</option>
+            </select>
+            <select
+              className="h-10 rounded-md border px-3 text-xs"
+              aria-label="Filter by availability"
+              value={availability}
+              onChange={(event) => setAvailability(event.target.value)}
+            >
+              <option>All availability</option>
+              <option>Available</option>
+              <option>Unavailable</option>
+            </select>
+            {editable && (
+              <Button
+                className="h-10 gap-2 rounded-lg bg-[#344234] text-xs text-white"
+                onClick={() => setEditingMember(null)}
+              >
+                <Plus className="size-4" /> Add member
+              </Button>
+            )}
+          </div>
         </div>
         {actionError && (
           <p className="border-b border-red-200 px-5 py-3 text-xs text-red-700" role="alert">
@@ -2150,7 +3078,12 @@ function TeamView({
               <article key={member.id} className="flex min-w-0 items-start gap-3 bg-white p-5">
                 <Avatar name={member.full_name} />
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-medium text-[#444941]">{member.full_name}</p>
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="truncate text-sm font-medium text-[#444941]">
+                      {member.full_name}
+                    </p>
+                    <Availability available={member.available} />
+                  </div>
                   <p className="mt-1 text-xs text-[#87867d]">{member.role}</p>
                   {member.email && (
                     <a
@@ -2168,28 +3101,25 @@ function TeamView({
                       {member.phone}
                     </a>
                   )}
-                  <Availability available={member.available} />
+                  {editable && (
+                    <div className="mt-4 flex gap-3 border-t border-[#f0efe9] pt-3 text-xs">
+                      <button
+                        type="button"
+                        className="text-[#586651] hover:underline"
+                        onClick={() => setEditingMember(member)}
+                      >
+                        Edit
+                      </button>
+                      <button
+                        type="button"
+                        className="text-[#96615b] hover:underline"
+                        onClick={() => void confirmDelete(member)}
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  )}
                 </div>
-                {editable && (
-                  <div className="flex shrink-0">
-                    <button
-                      type="button"
-                      onClick={() => setEditingMember(member)}
-                      className="rounded-md p-2 text-[#b8adb2] hover:bg-[#242026] hover:text-[#e7a0ad]"
-                      aria-label={`Edit ${member.full_name}`}
-                    >
-                      <Pencil className="size-3.5" />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => void confirmDelete(member)}
-                      className="rounded-md p-2 text-[#b8adb2] hover:bg-[#242026] hover:text-[#f16c78]"
-                      aria-label={`Remove ${member.full_name}`}
-                    >
-                      <Trash2 className="size-3.5" />
-                    </button>
-                  </div>
-                )}
               </article>
             ))}
           </div>
@@ -2197,7 +3127,7 @@ function TeamView({
       </section>
       {editingMember !== undefined && (
         <TeamMemberEditor
-          key={editingMember?.id ?? "new-team-member"}
+          key={editingMember?.id ?? "new-member"}
           member={editingMember}
           onClose={() => setEditingMember(undefined)}
           onSave={onSaveTeamMember}
@@ -2218,19 +3148,6 @@ function TeamMemberEditor({
 }) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
-  const roles = [
-    "Photographer",
-    "Videographer",
-    "Photo Editor",
-    "Video Editor",
-    "Album Designer",
-    "Cinematographer / Creative Director",
-    "Drone Operator",
-    "Assistant Photographer",
-    "Assistant Videographer",
-    "Lighting Assistant",
-    "Data Manager / Footage Backup Assistant",
-  ];
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -2242,17 +3159,17 @@ function TeamMemberEditor({
     const notes = String(form.get("notes") ?? "").trim();
     const values: TeamMemberInput = {
       full_name: String(form.get("full_name") ?? "").trim(),
-      role: String(form.get("role") ?? roles[0]),
+      role: String(form.get("role") ?? "Photographer"),
       email: email || null,
       phone: phone || null,
-      notes: notes || null,
       available: form.get("available") === "on",
+      notes: notes || null,
     };
     try {
       await onSave(values, member?.id);
       onClose();
     } catch (error) {
-      setError(error instanceof Error ? error.message : "Could not save this team member.");
+      setError(error instanceof Error ? error.message : "Could not save team member.");
     } finally {
       setSaving(false);
     }
@@ -2269,14 +3186,14 @@ function TeamMemberEditor({
         className="studio-modal"
         role="dialog"
         aria-modal="true"
-        aria-labelledby="team-editor-title"
+        aria-labelledby="member-editor-title"
       >
         <div className="mb-5">
           <p className="text-[10px] font-medium uppercase tracking-[0.2em] text-[#9a8c77]">
-            YOUR STUDIO CREW
+            STUDIO ROSTER
           </p>
-          <h2 id="team-editor-title" className="mt-2 font-serif text-2xl">
-            {member ? "Edit team member" : "Add a team member"}
+          <h2 id="member-editor-title" className="mt-2 font-serif text-2xl">
+            {member ? "Edit team member" : "Add team member"}
           </h2>
         </div>
         <form className="space-y-4" onSubmit={handleSubmit}>
@@ -2291,35 +3208,36 @@ function TeamMemberEditor({
             />
           </label>
           <label className="studio-field">
-            Primary role
-            <select name="role" defaultValue={member?.role ?? roles[0]} required>
-              {roles.map((role) => (
-                <option key={role}>{role}</option>
-              ))}
+            Role
+            <select name="role" defaultValue={member?.role ?? "Photographer"} required>
+              <option>Photographer</option>
+              <option>Videographer</option>
+              <option>Photo Editor</option>
+              <option>Video Editor</option>
+              <option>Album Designer</option>
+              <option>Cinematographer / Creative Director</option>
+              <option>Drone Operator</option>
+              <option>Assistant Photographer</option>
+              <option>Assistant Videographer</option>
+              <option>Lighting Assistant</option>
+              <option>Data Manager / Footage Backup Assistant</option>
             </select>
           </label>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <label className="studio-field">
-              Email <span className="font-normal text-[#82767d]">· optional</span>
-              <Input name="email" type="email" defaultValue={member?.email ?? ""} maxLength={255} />
-            </label>
-            <label className="studio-field">
-              Phone <span className="font-normal text-[#82767d]">· optional</span>
-              <Input name="phone" type="tel" defaultValue={member?.phone ?? ""} maxLength={32} />
-            </label>
-          </div>
+          <label className="studio-field">
+            Email address <span className="font-normal text-[#82767d]">· optional</span>
+            <Input name="email" type="email" defaultValue={member?.email ?? ""} maxLength={255} />
+          </label>
+          <label className="studio-field">
+            Phone number <span className="font-normal text-[#82767d]">· optional</span>
+            <Input name="phone" defaultValue={member?.phone ?? ""} maxLength={32} />
+          </label>
+          <label className="flex items-center gap-2 pt-1 text-xs text-[#f7f0ee]">
+            <input name="available" type="checkbox" defaultChecked={member?.available ?? true} />
+            Available for new shoot assignments
+          </label>
           <label className="studio-field">
             Notes <span className="font-normal text-[#82767d]">· optional</span>
             <textarea name="notes" maxLength={1000} defaultValue={member?.notes ?? ""} rows={3} />
-          </label>
-          <label className="flex items-center gap-2 text-xs text-[#b8adb2]">
-            <input
-              name="available"
-              type="checkbox"
-              defaultChecked={member?.available ?? true}
-              className="size-4 accent-[#c56c7d]"
-            />
-            Available for assignments
           </label>
           {error && (
             <p
@@ -2334,7 +3252,7 @@ function TeamMemberEditor({
               Cancel
             </Button>
             <Button type="submit" disabled={saving}>
-              {saving ? "Saving…" : member ? "Save changes" : "Add team member"}
+              {saving ? "Saving…" : member ? "Save changes" : "Add member"}
             </Button>
           </div>
         </form>
@@ -2352,9 +3270,9 @@ function ShootRow({
 }: {
   shoot: Shoot;
   assignedCount?: number;
-  onEdit?: (() => void) | undefined;
-  onDelete?: (() => void) | undefined;
-  onAssign?: (() => void) | undefined;
+  onEdit?: () => void;
+  onDelete?: () => void;
+  onAssign?: () => void;
 }) {
   return (
     <article className="flex flex-wrap items-center gap-4 px-5 py-4 sm:px-6">
@@ -2368,7 +3286,12 @@ function ShootRow({
       </div>
       <div className="min-w-[155px] flex-1">
         <p className="text-sm font-medium text-[#42483f]">{shoot.couple_name}</p>
-        <p className="mt-1 text-xs text-[#8d8b81]">{shoot.event_type}</p>
+        <p className="mt-1 text-xs text-[#8d8b81]">
+          {shoot.event_type}
+          {assignedCount !== undefined
+            ? ` · ${assignedCount}/${shoot.planned_team_size} assigned`
+            : ""}
+        </p>
       </div>
       <div className="hidden min-w-[150px] items-center gap-2 text-xs text-[#77786f] md:flex">
         <MapPin className="size-3.5 shrink-0 text-[#a19e93]" aria-hidden="true" />
@@ -2378,43 +3301,40 @@ function ShootRow({
         <Clock3 className="size-3.5 text-[#a19e93]" aria-hidden="true" />
         {formatTime(shoot.start_time)}
       </div>
-      {assignedCount !== undefined && (
-        <span className="hidden text-[10px] text-[#929086] sm:inline">
-          {assignedCount}/{shoot.planned_team_size} crew
-        </span>
-      )}
       <StatusBadge status={shoot.status} />
-      {(onEdit || onDelete || onAssign) && (
-        <div className="ml-auto flex items-center gap-1">
+      {(onAssign || onEdit || onDelete) && (
+        <div className="flex items-center gap-1 sm:ml-auto">
           {onAssign && (
-            <button
-              type="button"
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 gap-1 border-[#e9e7df] text-xs text-[#586651]"
               onClick={onAssign}
-              className="rounded-md p-2 text-[#b8adb2] hover:bg-[#242026] hover:text-[#e7a0ad]"
-              aria-label={`Manage team for ${shoot.couple_name}`}
             >
-              <Users className="size-3.5" aria-hidden="true" />
-            </button>
+              <Users className="size-3.5" /> Assign
+            </Button>
           )}
           {onEdit && (
-            <button
-              type="button"
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 px-2.5 text-xs text-[#586651]"
               onClick={onEdit}
-              className="rounded-md p-2 text-[#b8adb2] hover:bg-[#242026] hover:text-[#e7a0ad]"
-              aria-label={`Edit ${shoot.couple_name} shoot`}
+              aria-label={`Edit ${shoot.couple_name}`}
             >
-              <Pencil className="size-3.5" aria-hidden="true" />
-            </button>
+              <Pencil className="size-3.5" />
+            </Button>
           )}
           {onDelete && (
-            <button
-              type="button"
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 px-2.5 text-xs text-[#96615b]"
               onClick={onDelete}
-              className="rounded-md p-2 text-[#b8adb2] hover:bg-[#242026] hover:text-[#f16c78]"
-              aria-label={`Delete ${shoot.couple_name} shoot`}
+              aria-label={`Delete ${shoot.couple_name}`}
             >
-              <Trash2 className="size-3.5" aria-hidden="true" />
-            </button>
+              <Trash2 className="size-3.5" />
+            </Button>
           )}
         </div>
       )}
@@ -2431,7 +3351,6 @@ function StatusBadge({ status }: { status: string }) {
   };
   return (
     <span
-      data-status={status.toLowerCase().replaceAll(" ", "-")}
       className={`rounded-full px-2.5 py-1 text-[10px] font-medium ${palette[status] ?? "bg-[#f1f0eb] text-[#77786f]"}`}
     >
       {status}
@@ -2460,7 +3379,6 @@ function Avatar({ name }: { name: string }) {
 function Availability({ available }: { available: boolean }) {
   return (
     <span
-      data-available={available}
       className={`flex shrink-0 items-center gap-1.5 text-[10px] ${
         available ? "text-[#69806a]" : "text-[#969287]"
       }`}
@@ -2499,11 +3417,11 @@ function formatTime(time: string) {
   return format(new Date(2000, 0, 1, Number(hours), Number(minutes)), "h:mm a");
 }
 
-function startOfDay(date: Date) {
-  return new Date(date.getFullYear(), date.getMonth(), date.getDate());
-}
-
 function timeInMinutes(time: string) {
   const [hours = "0", minutes = "0"] = time.split(":");
   return Number(hours) * 60 + Number(minutes);
+}
+
+function startOfDay(date: Date) {
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate());
 }
