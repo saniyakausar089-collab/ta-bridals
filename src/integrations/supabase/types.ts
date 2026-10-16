@@ -191,6 +191,10 @@ export type Database = {
         }
         Returns: boolean
       }
+      replace_shoot_assignments: {
+        Args: { p_assignments: Json; p_shoot_id: string }
+        Returns: undefined
+      }
     }
     Enums: {
       app_role: "admin"

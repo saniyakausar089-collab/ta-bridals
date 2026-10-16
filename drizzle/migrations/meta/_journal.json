@@ -8,6 +8,13 @@
       "when": 1792160780727,
       "tag": "0000_create_ta_bridals_management",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1792161069141,
+      "tag": "0001_validate_bridals_assignments",
+      "breakpoints": true
     }
   ]
 }
