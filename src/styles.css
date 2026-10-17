@@ -572,3 +572,14 @@
     font-size: 1.7rem;
   }
 }
+
+/* n8n Studio AI Chat styling integration */
+:root {
+  --chat--color-primary: #30382f;
+  --chat--color-primary-shade-50: #262c25;
+  --chat--color-primary-shade-100: #1b201a;
+  --chat--color-secondary: #fbfaf7;
+  --chat--color-dark: #30382f;
+  --chat--border-radius: 14px;
+}
+
