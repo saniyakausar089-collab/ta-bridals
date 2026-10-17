@@ -4,13 +4,8 @@
     {
       "parameters": {
         "public": true,
-        "mode": "hostedChat",
-        "authentication": "none",
-        "initialMessages": "Hello! I am the TA Bridals AI Studio Manager. How can I help you today?",
+        "initialMessages": "Hi! 👋 Welcome to TA Bridals AI Assistant! 😊 How can I help you today?",
         "options": {
-          "title": "TA Bridals Studio Manager",
-          "subtitle": "Shoots, staff, payments and studio insights",
-          "inputPlaceholder": "Ask about shoots, staff, payments...",
           "allowedOrigins": "*"
         }
       },
@@ -65,7 +60,6 @@
     },
     {
       "parameters": {
-        "sessionIdType": "fromInput",
         "contextWindowLength": 10
       },
       "id": "d41a6137-9d4d-4878-88e7-6ed9221a47c0",
