@@ -1,7 +1,7 @@
 import type { Session, User } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 
-export type UserRole = "admin" | "team_member";
+export type UserRole = "admin" | "team_member" | "client";
 export type ApprovalStatus = "pending" | "approved" | "rejected";
 export type AccessStatus = "checking" | "allowed" | "pending" | "rejected" | "signed-out";
 
@@ -79,30 +79,22 @@ export async function checkUserAccess(session: Session | null): Promise<UserAcce
       userEmail.split("@")[0] ||
       (hasAdminRole ? "Studio owner" : "Team member");
 
-    if (hasAdminRole) {
+    // 1. Studio owner account always retains administrative access
+    if (isOwner) {
       return {
         status: "allowed",
         role: "admin",
         isAdmin: true,
         isApproved: true,
-        displayName,
+        displayName: displayName || "Studio owner",
         email: userEmail,
       };
     }
 
+    // 2. For all other users, check approval status BEFORE granting any role
     const rawStatus = (profile?.approval_status as ApprovalStatus) || "pending";
 
-    if (rawStatus === "approved" || hasTeamRole) {
-      return {
-        status: "allowed",
-        role: "team_member",
-        isAdmin: false,
-        isApproved: true,
-        displayName,
-        email: userEmail,
-      };
-    }
-
+    // If profile is missing or marked rejected, strictly block access
     if (rawStatus === "rejected") {
       return {
         status: "rejected",
@@ -114,12 +106,47 @@ export async function checkUserAccess(session: Session | null): Promise<UserAcce
       };
     }
 
-    // Default status for new registrations is pending
+    // If profile is missing or marked pending, keep in pending state
+    if (rawStatus === "pending" || !profile) {
+      return {
+        status: "pending",
+        role: null,
+        isAdmin: false,
+        isApproved: false,
+        displayName,
+        email: userEmail,
+      };
+    }
+
+    // 3. The user's approval_status is 'approved' - now evaluate role
+    if (hasAdminRole) {
+      return {
+        status: "allowed",
+        role: "admin",
+        isAdmin: true,
+        isApproved: true,
+        displayName,
+        email: userEmail,
+      };
+    }
+
+    if (roles.includes("client")) {
+      return {
+        status: "allowed",
+        role: "client",
+        isAdmin: false,
+        isApproved: true,
+        displayName,
+        email: userEmail,
+      };
+    }
+
+    // Default approved role is team member
     return {
-      status: "pending",
-      role: null,
+      status: "allowed",
+      role: "team_member",
       isAdmin: false,
-      isApproved: false,
+      isApproved: true,
       displayName,
       email: userEmail,
     };

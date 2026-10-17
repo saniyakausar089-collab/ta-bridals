@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import type { Session } from "@supabase/supabase-js";
 import {
   addDays,
@@ -30,6 +30,7 @@ import {
   LoaderCircle,
   LogOut,
   MapPin,
+  Music2,
   Pencil,
   Plus,
   RefreshCw,
@@ -432,6 +433,13 @@ function Index() {
   const evaluateAccess = useCallback(async (currentSession: Session) => {
     try {
       const result = await checkUserAccess(currentSession);
+      // Route guard: Clients can ONLY open the song library route and are blocked from all admin/team pages
+      if (result.role === "client") {
+        if (typeof window !== "undefined") {
+          window.location.href = "/client";
+        }
+        return;
+      }
       setAccess(result.status);
       setIsAdmin(result.isAdmin);
       setProfileName(result.displayName);
@@ -1641,6 +1649,19 @@ function AuthScreen({
               <p className="text-center text-[11px] leading-5 text-[#89877e]">
                 Sample data only. No sign-in needed.
               </p>
+
+              <div className="mt-4 border-t border-[#dedbd2] pt-3 text-center">
+                <p className="text-xs text-[#89877e]">
+                  Wedding couple looking for your song library?
+                </p>
+                <Link
+                  to="/client"
+                  className="mt-1.5 inline-flex items-center gap-1.5 rounded-lg border border-[#dedbd2] bg-white px-3 py-1.5 text-xs font-medium text-[#344234] hover:bg-[#f1f0e9] transition-colors"
+                >
+                  <Music2 className="size-3.5 text-[#546254]" />
+                  Open Client Song Library Portal &rarr;
+                </Link>
+              </div>
             </form>
           ) : (
             <form className="mt-7 space-y-4" onSubmit={handleSignUpSubmit}>
@@ -1734,6 +1755,16 @@ function AuthScreen({
                 >
                   Sign in
                 </button>
+              </div>
+
+              <div className="border-t border-[#dedbd2] pt-3 text-center text-xs text-[#89877e]">
+                Are you a client?{" "}
+                <Link
+                  to="/client"
+                  className="font-medium text-[#344234] underline hover:text-[#1e271e]"
+                >
+                  Go to Client Signup &rarr;
+                </Link>
               </div>
             </form>
           )}
@@ -2025,10 +2056,17 @@ function Workspace({
             {isAdmin ? "Weddings are better with the right team." : "Welcome to the studio team."}
           </p>
         </div>
+        <Link
+          to="/client"
+          className="mt-4 flex items-center gap-2.5 rounded-xl border border-[#dedbd2] bg-[#fbfaf7] px-3 py-2 text-xs font-medium text-[#344234] hover:bg-[#f1f0e9] transition-colors"
+        >
+          <Music2 className="size-4 text-[#526052]" />
+          <span>Client Song Portal &rarr;</span>
+        </Link>
         <button
           type="button"
           onClick={onSignOut}
-          className="mt-5 flex items-center gap-3 px-3 py-2 text-sm text-[#76776f] hover:text-[#343a33]"
+          className="mt-3 flex items-center gap-3 px-3 py-2 text-sm text-[#76776f] hover:text-[#343a33]"
         >
           <LogOut className="size-4" aria-hidden="true" />
           Sign out
@@ -2092,6 +2130,13 @@ function Workspace({
               />
             </label>
             <div className="ml-auto flex items-center gap-3">
+              <Link
+                to="/client"
+                className="hidden sm:inline-flex items-center gap-1.5 rounded-lg border border-[#dedbd2] bg-[#f8f7f4] px-3 py-1.5 text-xs font-medium text-[#344234] hover:bg-[#edeae2] transition-colors shadow-2xs"
+              >
+                <Music2 className="size-3.5 text-[#526052]" />
+                Client Song Portal &rarr;
+              </Link>
               <div className="hidden text-right sm:block">
                 <p className="text-xs font-medium text-[#42483f]">{profileName}</p>
                 <p className="mt-0.5 text-[10px] text-[#99968c]">
