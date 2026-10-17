@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 
 export const N8N_CHAT_WEBHOOK_URL =
-  "https://sanikausar.app.n8n.cloud/webhook/5ca3c1d5-c2ea-4cea-b458-d55a14c909ce/chat";
+  "https://kaifkahn2812.app.n8n.cloud/webhook/5ca3c1d5-c2ea-4cea-b458-d55a14c909ce/chat";
 
 declare global {
   interface Window {
@@ -39,6 +39,8 @@ export function N8nChatWidget() {
       createChat({
         webhookUrl: '${N8N_CHAT_WEBHOOK_URL}',
         mode: 'window',
+        loadPreviousSession: false,
+        showWelcomeScreen: false,
         initialMessages: [
           'Hello! I am the TA Bridals AI Studio Manager. How can I help you today?'
         ],
@@ -47,6 +49,7 @@ export function N8nChatWidget() {
             title: 'TA Bridals Studio Manager',
             subtitle: 'Shoots, staff, payments and studio insights',
             inputPlaceholder: 'Ask about shoots, staff, payments...',
+            getStarted: 'Start conversation',
           },
         },
       });

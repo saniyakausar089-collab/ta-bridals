@@ -3,7 +3,11 @@
   "nodes": [
     {
       "parameters": {
-        "options": {}
+        "public": true,
+        "mode": "webhook",
+        "options": {
+          "allowedOrigins": "*"
+        }
       },
       "id": "31a4afbe-cca5-41e8-815d-bd9502085cfd",
       "name": "TA Bridals Chat Trigger",
