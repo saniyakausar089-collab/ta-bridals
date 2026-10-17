@@ -310,6 +310,16 @@ function ClientRouteComponent() {
                 error or if you have booked a shoot with TA Bridals under a different email, please contact
                 your studio manager directly.
               </p>
+
+              {session.rejectionReason && (
+                <div className="mt-4 rounded-xl border border-rose-200 bg-rose-50/70 p-3.5 text-xs text-rose-900">
+                  <div className="font-semibold text-rose-950 flex items-center gap-1.5 mb-1">
+                    <AlertCircle className="size-3.5 text-rose-700" />
+                    Reason provided by studio:
+                  </div>
+                  <p className="text-rose-800 leading-relaxed italic">&ldquo;{session.rejectionReason}&rdquo;</p>
+                </div>
+              )}
             </div>
 
             <div className="mt-6 flex justify-end">

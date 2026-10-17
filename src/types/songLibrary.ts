@@ -29,6 +29,7 @@ export interface ClientProfile {
   phone?: string;
   weddingDate?: string;
   approvalStatus: ClientApprovalStatus;
+  rejectionReason?: string;
   assignedLibraryId: string | null;
   assignedLibraryName?: string;
   createdAt: string;
@@ -45,6 +46,7 @@ export interface SongItem {
   durationFormatted: string;
   libraryId: string;
   playbackUrl?: string;
+  audioFileName?: string;
   tags?: string[];
   createdAt: string;
 }
@@ -53,6 +55,7 @@ export interface SongLibraryRecord {
   id: string;
   name: string;
   description: string;
+  isArchived?: boolean;
   songCount: number;
   clientCount: number;
   createdAt: string;

@@ -60,6 +60,7 @@ import { AnalyticsSection } from "@/components/AnalyticsSection";
 import { AvailabilitySection } from "@/components/AvailabilitySection";
 import { AuditLogSection } from "@/components/AuditLogSection";
 import { FinanceSection } from "@/components/FinanceSection";
+import { SongLibraryAdminSection } from "@/components/SongLibraryAdminSection";
 import {
   demoInvoices,
   demoClientPayments,
@@ -106,7 +107,8 @@ type Section =
   | "finance"
   | "analytics"
   | "approvals"
-  | "audit";
+  | "audit"
+  | "songs";
 
 const demoShoots: Shoot[] = [
   {
@@ -363,6 +365,10 @@ const sectionCopy: Record<Section, { title: string; description: string }> = {
   audit: {
     title: "Audit Log",
     description: "Comprehensive trail of administrative actions and record changes.",
+  },
+  songs: {
+    title: "Song Libraries & Client Approvals",
+    description: "Approve wedding clients, organize custom song libraries, and assign playlists.",
   },
 };
 
@@ -1993,6 +1999,12 @@ function Workspace({
         icon: BarChart3,
       },
       {
+        id: "songs" as Section,
+        label: "Song Libraries",
+        mobileLabel: "Songs",
+        icon: Music2,
+      },
+      {
         id: "approvals" as Section,
         label: "Registrations",
         mobileLabel: "Registrations",
@@ -2008,7 +2020,14 @@ function Workspace({
   }, [isAdmin]);
 
   useEffect(() => {
-    if (!isAdmin && (section === "approvals" || section === "audit" || section === "analytics" || section === "finance")) {
+    if (
+      !isAdmin &&
+      (section === "approvals" ||
+        section === "audit" ||
+        section === "analytics" ||
+        section === "finance" ||
+        section === "songs")
+    ) {
       onSectionChange("overview");
     }
   }, [isAdmin, section, onSectionChange]);
@@ -2293,6 +2312,8 @@ function Workspace({
               onRegistrationsChange={onRegistrationsChange}
               demoMode={demoMode}
             />
+          ) : section === "songs" && isAdmin ? (
+            <SongLibraryAdminSection />
           ) : (
             <Overview
               shoots={shoots}
