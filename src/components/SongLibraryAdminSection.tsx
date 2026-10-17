@@ -44,6 +44,7 @@ import {
   updateSong,
   deleteSong,
   getSongPlaybackUrl,
+  uploadSongAudio,
 } from "@/lib/songLibraryService";
 import {
   WEDDING_EVENT_GROUPS,
@@ -90,6 +91,8 @@ export function SongLibraryAdminSection() {
   const [songArtist, setSongArtist] = useState<string>("");
   const [songEventGroup, setSongEventGroup] = useState<WeddingEventGroup>("Haldi");
   const [songAudioRef, setSongAudioRef] = useState<string>("");
+  const [songFile, setSongFile] = useState<File | null>(null);
+  const [uploadingAudio, setUploadingAudio] = useState<boolean>(false);
   const [submittingSong, setSubmittingSong] = useState<boolean>(false);
 
   // Audio preview player state
@@ -160,21 +163,28 @@ export function SongLibraryAdminSection() {
     };
   }, [audioElement]);
 
-  const handleTogglePlay = (songId: string) => {
+  const handleTogglePlay = async (songId: string, audioPath?: string) => {
     if (playingSongId === songId) {
       if (audioElement) audioElement.pause();
       setPlayingSongId(null);
     } else {
       if (audioElement) audioElement.pause();
-      const url = getSongPlaybackUrl(songId);
-      const audio = new Audio(url);
-      audio.onended = () => setPlayingSongId(null);
-      audio.play().catch(() => {
-        // Fallback or autoplay restrictions
-        setPlayingSongId(null);
-      });
-      setAudioElement(audio);
-      setPlayingSongId(songId);
+      try {
+        const url = await getSongPlaybackUrl(audioPath || songId);
+        if (!url) {
+          setErrorMessage("Playback audio preview is not available for this song.");
+          return;
+        }
+        const audio = new Audio(url);
+        audio.onended = () => setPlayingSongId(null);
+        audio.play().catch(() => {
+          setPlayingSongId(null);
+        });
+        setAudioElement(audio);
+        setPlayingSongId(songId);
+      } catch {
+        setErrorMessage("Could not load audio preview.");
+      }
     }
   };
 
@@ -286,36 +296,54 @@ export function SongLibraryAdminSection() {
     setLibFormDesc(lib.description);
   };
 
-  const handleArchiveLibrary = async (libraryId: string, currentArchived: boolean) => {
+  const handleArchiveLibrary = async (lib: SongLibraryRecord) => {
+    if (!lib.isArchived && lib.clientCount > 0) {
+      setErrorMessage(
+        `Cannot archive library "${lib.name}": There are ${lib.clientCount} clients currently assigned to this library. Please reassign or unassign clients before archiving.`
+      );
+      return;
+    }
+    const actionLabel = lib.isArchived ? "unarchive" : "archive";
+    if (!confirm(`Are you sure you want to ${actionLabel} the library "${lib.name}"?`)) {
+      return;
+    }
     setErrorMessage("");
     setSuccessMessage("");
 
     try {
-      const res = await archiveSongLibrary(libraryId, !currentArchived);
+      const res = await archiveSongLibrary(lib.id, !lib.isArchived);
       if (!res.success) {
         setErrorMessage(res.error || "Could not update archive status.");
         return;
       }
-      setSuccessMessage(currentArchived ? "Library unarchived." : "Library archived.");
+      setSuccessMessage(lib.isArchived ? "Library unarchived." : "Library archived.");
       await loadData();
     } catch (err) {
       setErrorMessage(err instanceof Error ? err.message : "Error toggling archive.");
     }
   };
 
-  const handleDeleteLibrary = async (libraryId: string, libName: string) => {
-    if (!confirm(`Are you sure you want to delete the library "${libName}"?`)) return;
+  const handleDeleteLibrary = async (lib: SongLibraryRecord) => {
+    if (lib.clientCount > 0) {
+      setErrorMessage(
+        `Cannot delete library "${lib.name}": There are ${lib.clientCount} clients currently assigned to this library. Please reassign clients before deleting.`
+      );
+      return;
+    }
+    if (!confirm(`Are you sure you want to delete the library "${lib.name}"? This action cannot be undone.`)) {
+      return;
+    }
     setErrorMessage("");
     setSuccessMessage("");
 
     try {
-      const res = await deleteSongLibrary(libraryId);
+      const res = await deleteSongLibrary(lib.id);
       if (!res.success) {
         setErrorMessage(res.error || "Could not delete library.");
         return;
       }
-      setSuccessMessage(`Library "${libName}" deleted successfully.`);
-      if (selectedLibraryForSongs?.id === libraryId) {
+      setSuccessMessage(`Library "${lib.name}" deleted successfully.`);
+      if (selectedLibraryForSongs?.id === lib.id) {
         setSelectedLibraryForSongs(null);
       }
       await loadData();
@@ -334,12 +362,27 @@ export function SongLibraryAdminSection() {
     setSubmittingSong(true);
 
     try {
+      let finalAudioPath = songAudioRef.trim() || undefined;
+
+      // If user uploaded a new audio file, upload to storage bucket
+      if (songFile) {
+        setUploadingAudio(true);
+        const uploadRes = await uploadSongAudio(selectedLibraryForSongs.id, songFile);
+        if (!uploadRes.success || !uploadRes.storagePath) {
+          setErrorMessage(uploadRes.error || "Failed to upload audio file.");
+          setSubmittingSong(false);
+          setUploadingAudio(false);
+          return;
+        }
+        finalAudioPath = uploadRes.storagePath;
+      }
+
       if (editingSongId) {
         const res = await updateSong(editingSongId, {
           title: songTitle,
           artist: songArtist,
           eventGroup: songEventGroup,
-          audioFileName: songAudioRef.trim() || undefined,
+          audioFileName: finalAudioPath,
         });
         if (!res.success || !res.song) {
           setErrorMessage(res.error || "Failed to update song.");
@@ -353,7 +396,7 @@ export function SongLibraryAdminSection() {
           title: songTitle,
           artist: songArtist,
           eventGroup: songEventGroup,
-          audioFileName: songAudioRef.trim() || undefined,
+          audioFileName: finalAudioPath,
         });
         if (!res.success || !res.song) {
           setErrorMessage(res.error || "Failed to add song.");
@@ -366,6 +409,7 @@ export function SongLibraryAdminSection() {
       setSongTitle("");
       setSongArtist("");
       setSongAudioRef("");
+      setSongFile(null);
       setSongEventGroup("Haldi");
       await loadSongs(selectedLibraryForSongs.id);
       await loadData(); // refresh counts
@@ -373,6 +417,7 @@ export function SongLibraryAdminSection() {
       setErrorMessage(err instanceof Error ? err.message : "Error saving song.");
     } finally {
       setSubmittingSong(false);
+      setUploadingAudio(false);
     }
   };
 
@@ -882,14 +927,25 @@ export function SongLibraryAdminSection() {
                     </div>
                     <div>
                       <label className="block text-[11px] font-medium text-[#444941]">
-                        Audio File Reference (placeholder)
+                        Upload Audio File (.mp3, .wav, .m4a)
                       </label>
                       <Input
-                        placeholder="e.g. tracks/haldi_mix.mp3"
-                        value={songAudioRef}
-                        onChange={(e) => setSongAudioRef(e.target.value)}
+                        type="file"
+                        accept="audio/*"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) {
+                            setSongFile(file);
+                            setSongAudioRef(file.name);
+                          }
+                        }}
                         className="mt-1 text-xs"
                       />
+                      {songAudioRef && (
+                        <span className="text-[10px] text-stone-500 font-mono mt-0.5 block truncate">
+                          {songFile ? `Selected file: ${songFile.name}` : `Path: ${songAudioRef}`}
+                        </span>
+                      )}
                     </div>
                   </div>
                   <div className="flex justify-end gap-2 pt-1">
@@ -952,7 +1008,7 @@ export function SongLibraryAdminSection() {
                               <div className="flex items-center gap-3 min-w-0">
                                 <button
                                   type="button"
-                                  onClick={() => handleTogglePlay(song.id)}
+                                  onClick={() => handleTogglePlay(song.id, song.audioFileName)}
                                   className={`flex size-8 shrink-0 items-center justify-center rounded-full transition-colors ${
                                     playingSongId === song.id
                                       ? "bg-[#344234] text-white"
@@ -1135,7 +1191,7 @@ export function SongLibraryAdminSection() {
                           </button>
                           <button
                             type="button"
-                            onClick={() => handleArchiveLibrary(lib.id, !!lib.isArchived)}
+                            onClick={() => handleArchiveLibrary(lib)}
                             className="text-[#99968c] hover:text-[#343a33] p-1 transition-colors"
                             title={lib.isArchived ? "Unarchive library" : "Archive library"}
                           >
@@ -1145,16 +1201,14 @@ export function SongLibraryAdminSection() {
                               <Archive className="size-3.5" />
                             )}
                           </button>
-                          {lib.clientCount === 0 && (
-                            <button
-                              type="button"
-                              onClick={() => handleDeleteLibrary(lib.id, lib.name)}
-                              className="text-[#99968c] hover:text-rose-600 p-1 transition-colors"
-                              title="Delete empty library"
-                            >
-                              <Trash2 className="size-3.5" />
-                            </button>
-                          )}
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteLibrary(lib)}
+                            className="text-[#99968c] hover:text-rose-600 p-1 transition-colors"
+                            title="Delete library"
+                          >
+                            <Trash2 className="size-3.5" />
+                          </button>
                         </div>
                       </div>
 

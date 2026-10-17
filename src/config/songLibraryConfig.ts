@@ -41,8 +41,8 @@ export interface SongLibraryConfig {
 }
 
 export const songLibraryConfig: SongLibraryConfig = {
-  // Currently running in mock mode. Will be swapped to false on the client's server.
-  isMockMode: true,
+  // Live mode connected to Supabase backend
+  isMockMode: false,
 
   // TODO: Replace with the client's custom server URL upon backend deployment
   apiBaseUrl: "https://api.tabridals.internal",

@@ -28,10 +28,20 @@ import {
   clientSignUp,
   clientSignOut,
   getClientSession,
+  restoreClientSession,
   refreshClientStatus,
+  getSongsByLibrary,
+  getSongPlaybackUrl,
+  saveClientSelections,
+  getClientSelections,
   DEMO_CLIENT_ACCOUNTS,
 } from "@/lib/songLibraryService";
-import type { ClientProfile, ClientApprovalStatus } from "@/types/songLibrary";
+import {
+  WEDDING_EVENT_GROUPS,
+  type ClientProfile,
+  type ClientApprovalStatus,
+  type SongItem,
+} from "@/types/songLibrary";
 
 export const Route = createFileRoute("/client")({
   component: ClientRouteComponent,
@@ -44,6 +54,15 @@ function ClientRouteComponent() {
   const [checkingStatus, setCheckingStatus] = useState<boolean>(false);
   const [authError, setAuthError] = useState<string>("");
   const [successNotice, setSuccessNotice] = useState<string>("");
+
+  // Songs & selections state for approved clients
+  const [songs, setSongs] = useState<SongItem[]>([]);
+  const [loadingSongs, setLoadingSongs] = useState<boolean>(false);
+  const [selectedSongIds, setSelectedSongIds] = useState<Set<string>>(new Set());
+  const [savingSelections, setSavingSelections] = useState<boolean>(false);
+  const [selectionNotice, setSelectionNotice] = useState<string>("");
+  const [playingSongId, setPlayingSongId] = useState<string | null>(null);
+  const [audioElement, setAudioElement] = useState<HTMLAudioElement | null>(null);
 
   // Login form state
   const [loginEmail, setLoginEmail] = useState<string>("");
@@ -60,9 +79,11 @@ function ClientRouteComponent() {
 
   // Restore session on mount
   useEffect(() => {
-    const current = getClientSession();
-    setSession(current);
-    setLoading(false);
+    void (async () => {
+      const current = await restoreClientSession();
+      setSession(current);
+      setLoading(false);
+    })();
   }, []);
 
   // Quick fill helper for testing demo accounts
@@ -124,12 +145,15 @@ function ClientRouteComponent() {
     }
   };
 
-  const handleSignOut = () => {
-    clientSignOut();
+  const handleSignOut = async () => {
+    if (audioElement) audioElement.pause();
+    await clientSignOut();
     setSession(null);
     setLoginPassword("");
     setAuthError("");
     setSuccessNotice("");
+    setSongs([]);
+    setSelectedSongIds(new Set());
   };
 
   const handleRefreshStatus = async () => {
@@ -140,6 +164,90 @@ function ClientRouteComponent() {
       setSession((prev) => (prev ? { ...prev, approvalStatus: newStatus } : null));
     } finally {
       setCheckingStatus(false);
+    }
+  };
+
+  // Stop audio on unmount
+  useEffect(() => {
+    return () => {
+      if (audioElement) {
+        audioElement.pause();
+      }
+    };
+  }, [audioElement]);
+
+  // Load songs & existing selections when client is approved & assigned
+  useEffect(() => {
+    if (session?.approvalStatus === "approved" && session.assignedLibraryId) {
+      void (async () => {
+        setLoadingSongs(true);
+        try {
+          const [loadedSongs, savedSelections] = await Promise.all([
+            getSongsByLibrary(session.assignedLibraryId!),
+            getClientSelections(session.id),
+          ]);
+          setSongs(loadedSongs);
+          setSelectedSongIds(new Set(savedSelections.map((s) => s.songId)));
+        } catch (err) {
+          console.error("Failed to load client library songs:", err);
+        } finally {
+          setLoadingSongs(false);
+        }
+      })();
+    }
+  }, [session?.approvalStatus, session?.assignedLibraryId, session?.id]);
+
+  const handleToggleSongSelect = (songId: string) => {
+    const next = new Set(selectedSongIds);
+    if (next.has(songId)) {
+      next.delete(songId);
+    } else {
+      next.add(songId);
+    }
+    setSelectedSongIds(next);
+  };
+
+  const handleSaveAllSelections = async () => {
+    setSavingSelections(true);
+    setSelectionNotice("");
+    try {
+      const selectionsPayload = songs
+        .filter((s) => selectedSongIds.has(s.id))
+        .map((s) => ({ songId: s.id, eventGroup: s.eventGroup }));
+
+      const res = await saveClientSelections(selectionsPayload);
+      if (!res.success) {
+        setSelectionNotice(res.error || "Failed to save selections.");
+      } else {
+        setSelectionNotice("Your song selections have been successfully saved!");
+      }
+    } catch (err) {
+      setSelectionNotice(err instanceof Error ? err.message : "Error saving selections.");
+    } finally {
+      setSavingSelections(false);
+    }
+  };
+
+  const handleTogglePlay = async (song: SongItem) => {
+    if (playingSongId === song.id) {
+      if (audioElement) audioElement.pause();
+      setPlayingSongId(null);
+    } else {
+      if (audioElement) audioElement.pause();
+      try {
+        const url = await getSongPlaybackUrl(song.audioFileName || song.id);
+        if (!url) {
+          alert("Audio preview is not available for this song.");
+          return;
+        }
+        const audio = new Audio(url);
+        audio.onended = () => setPlayingSongId(null);
+        audio.play().catch(() => setPlayingSongId(null));
+        setAudioElement(audio);
+        setPlayingSongId(song.id);
+      } catch {
+        alert("Could not load audio preview.");
+      }
     }
   };
 
@@ -417,12 +525,126 @@ function ClientRouteComponent() {
               )}
             </div>
 
-            <div className="mt-8 border-t border-stone-100 pt-6">
-              <p className="text-xs text-stone-400">
-                Step 1 Complete: Client auth, pending guard, and role separation are verified.
-                Full interactive song browsing, playback, and pick submission will connect in Step 5.
-              </p>
-            </div>
+            {session.assignedLibraryId ? (
+              <div className="mt-8 border-t border-stone-100 pt-6 text-left">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+                  <div>
+                    <h3 className="font-serif text-lg font-normal text-stone-900">
+                      Curated Wedding Soundtrack
+                    </h3>
+                    <p className="text-xs text-stone-500">
+                      Listen to previews, pick your favorite songs for each event, and save your selections.
+                    </p>
+                  </div>
+                  <Button
+                    onClick={handleSaveAllSelections}
+                    disabled={savingSelections}
+                    className="bg-[#2d3a2e] hover:bg-[#1f2820] text-white text-xs px-4"
+                  >
+                    {savingSelections ? "Saving..." : `Save Selections (${selectedSongIds.size})`}
+                  </Button>
+                </div>
+
+                {selectionNotice && (
+                  <div className="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-xs text-emerald-800 flex items-center gap-2">
+                    <CheckCircle2 className="size-4 shrink-0" />
+                    <span>{selectionNotice}</span>
+                  </div>
+                )}
+
+                {loadingSongs ? (
+                  <div className="py-12 text-center text-xs text-stone-500">
+                    Loading your assigned soundtrack library...
+                  </div>
+                ) : songs.length === 0 ? (
+                  <div className="rounded-xl border border-dashed border-stone-200 p-8 text-center text-xs text-stone-500">
+                    No songs have been added to your library yet. Your studio manager will curate songs for you shortly!
+                  </div>
+                ) : (
+                  <div className="space-y-6">
+                    {WEDDING_EVENT_GROUPS.map((eventGroup) => {
+                      const groupSongs = songs.filter((s) => s.eventGroup === eventGroup);
+                      if (groupSongs.length === 0) return null;
+
+                      return (
+                        <div
+                          key={eventGroup}
+                          className="rounded-xl border border-stone-200 overflow-hidden bg-white shadow-2xs"
+                        >
+                          <div className="border-b border-stone-100 bg-[#fbfaf7] px-4 py-2.5 flex items-center justify-between">
+                            <span className="font-semibold text-xs text-stone-900">{eventGroup}</span>
+                            <span className="text-[11px] text-stone-500">{groupSongs.length} tracks</span>
+                          </div>
+                          <div className="divide-y divide-stone-100">
+                            {groupSongs.map((song) => {
+                              const isSelected = selectedSongIds.has(song.id);
+                              return (
+                                <div
+                                  key={song.id}
+                                  className={`px-4 py-3 flex items-center justify-between gap-3 transition-colors ${
+                                    isSelected ? "bg-emerald-50/40" : "hover:bg-stone-50/60"
+                                  }`}
+                                >
+                                  <div className="flex items-center gap-3 min-w-0">
+                                    <button
+                                      type="button"
+                                      onClick={() => handleTogglePlay(song)}
+                                      className={`flex size-8 shrink-0 items-center justify-center rounded-full transition-colors ${
+                                        playingSongId === song.id
+                                          ? "bg-[#2d3a2e] text-white"
+                                          : "bg-stone-100 text-stone-700 hover:bg-stone-200"
+                                      }`}
+                                      title="Play audio preview"
+                                    >
+                                      <Music2 className="size-3.5" />
+                                    </button>
+                                    <div className="min-w-0">
+                                      <p className="text-xs font-semibold text-stone-900 truncate">
+                                        {song.title}
+                                      </p>
+                                      <p className="text-[11px] text-stone-500 truncate">
+                                        {song.artist}
+                                      </p>
+                                    </div>
+                                  </div>
+
+                                  <div className="flex items-center gap-2 shrink-0">
+                                    <button
+                                      type="button"
+                                      onClick={() => handleToggleSongSelect(song.id)}
+                                      className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-medium transition-all ${
+                                        isSelected
+                                          ? "bg-emerald-600 text-white shadow-2xs"
+                                          : "border border-stone-200 text-stone-600 hover:border-stone-300 hover:bg-stone-50"
+                                      }`}
+                                    >
+                                      {isSelected ? (
+                                        <>
+                                          <CheckCircle2 className="size-3.5" />
+                                          <span>Selected</span>
+                                        </>
+                                      ) : (
+                                        <span>Select Track</span>
+                                      )}
+                                    </button>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="mt-8 border-t border-stone-100 pt-6">
+                <p className="text-xs text-stone-400">
+                  Your registration is verified. Your assigned song library will appear here once linked by studio admin.
+                </p>
+              </div>
+            )}
           </div>
         </main>
       </div>
