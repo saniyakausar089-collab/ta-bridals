@@ -117,7 +117,7 @@ CREATE TABLE IF NOT EXISTS public.payroll_obligations (
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now(),
   -- Prevent duplicate monthly salary for the same worker and period
-  CONSTRAINT unique_worker_salary_period UNIQUE NULLS NOT DISTINCT (worker_id, period_label, compensation_type)
+  CONSTRAINT unique_worker_salary_period UNIQUE (worker_id, period_label, compensation_type)
 );
 
 CREATE INDEX IF NOT EXISTS idx_payroll_obligations_worker ON public.payroll_obligations(worker_id);

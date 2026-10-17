@@ -51,7 +51,7 @@ BEGIN
   WHERE s.event_date >= CURRENT_DATE 
     AND s.event_date <= CURRENT_DATE + p_days_ahead
     AND s.status != 'Cancelled'
-  GROUP BY s.id
+  GROUP BY s.id, s.couple_name, s.event_type, s.event_date, s.location, s.venue, s.start_time, s.end_time, s.planned_team_size, s.status
   ORDER BY s.event_date ASC;
 END;
 $$;
@@ -131,7 +131,7 @@ BEGIN
         FROM public.shoots s
         LEFT JOIN public.shoot_assignments sa ON sa.shoot_id = s.id
         WHERE s.event_date >= CURRENT_DATE AND s.status != 'Cancelled'
-        GROUP BY s.id
+        GROUP BY s.id, s.planned_team_size
         HAVING COUNT(sa.id) FILTER (WHERE sa.assignment_type = 'on_site') < s.planned_team_size
       ) u
     ),
@@ -147,6 +147,6 @@ REVOKE ALL ON FUNCTION public.n8n_get_upcoming_shoots_summary(integer) FROM PUBL
 REVOKE ALL ON FUNCTION public.n8n_get_team_availability_summary(date) FROM PUBLIC;
 REVOKE ALL ON FUNCTION public.n8n_get_studio_operational_metrics() FROM PUBLIC;
 
-GRANT EXECUTE ON FUNCTION public.n8n_get_upcoming_shoots_summary(integer) TO authenticated;
-GRANT EXECUTE ON FUNCTION public.n8n_get_team_availability_summary(date) TO authenticated;
-GRANT EXECUTE ON FUNCTION public.n8n_get_studio_operational_metrics() TO authenticated;
+GRANT EXECUTE ON FUNCTION public.n8n_get_upcoming_shoots_summary(integer) TO authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.n8n_get_team_availability_summary(date) TO authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.n8n_get_studio_operational_metrics() TO authenticated, service_role;
