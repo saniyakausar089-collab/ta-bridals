@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 
 export const N8N_CHAT_WEBHOOK_URL =
-  "https://sanikausar.app.n8n.cloud/webhook/da35ba41-fad9-4c10-ab0a-bb0935624e83/chat";
+  "https://sanikausar.app.n8n.cloud/webhook/5ca3c1d5-c2ea-4cea-b458-d55a14c909ce/chat";
 
 declare global {
   interface Window {
