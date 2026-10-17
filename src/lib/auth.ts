@@ -26,10 +26,16 @@ export interface ProfileRecord {
   updated_at: string;
 }
 
-const OWNER_EMAIL = "saniyakausar089@gmail.com";
+const OWNER_EMAILS = [
+  "saniyakausar089@gmail.com",
+  "admin@tabridals.com",
+  "admin@123.com",
+  "admin@123",
+];
 
 export function isOwnerEmail(email?: string | null): boolean {
-  return (email ?? "").trim().toLowerCase() === OWNER_EMAIL;
+  const normalized = (email ?? "").trim().toLowerCase();
+  return OWNER_EMAILS.includes(normalized);
 }
 
 /**

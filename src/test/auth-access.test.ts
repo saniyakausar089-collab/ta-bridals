@@ -3,9 +3,11 @@ import { checkUserAccess, isOwnerEmail, signUpTeamMember, type ProfileRecord } f
 import { supabase } from "../integrations/supabase/client";
 
 describe("TA Bridals Auth & Access Control", () => {
-  it("recognizes the designated owner email", () => {
+  it("recognizes the designated owner email and admin credentials", () => {
     expect(isOwnerEmail("saniyakausar089@gmail.com")).toBe(true);
     expect(isOwnerEmail("SANIYAKAUSAR089@GMAIL.COM")).toBe(true);
+    expect(isOwnerEmail("Admin@123")).toBe(true);
+    expect(isOwnerEmail("admin@123.com")).toBe(true);
     expect(isOwnerEmail("photographer@example.com")).toBe(false);
     expect(isOwnerEmail(null)).toBe(false);
   });
