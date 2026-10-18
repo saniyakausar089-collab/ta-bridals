@@ -54,19 +54,38 @@ function createSupabaseFetch(supabaseUrl: string, supabaseKey: string): typeof f
   };
 }
 
+function getEnvVar(name: string): string | undefined {
+  const viteVal = typeof import.meta !== "undefined" && import.meta.env ? import.meta.env[name] : undefined;
+  if (viteVal) return String(viteVal).replace(/^["']|["']$/g, "").trim();
+
+  if (typeof process !== "undefined" && process.env) {
+    const procVal = process.env[name];
+    if (procVal) return String(procVal).replace(/^["']|["']$/g, "").trim();
+  }
+  return undefined;
+}
+
+export function getSupabaseConfig(): { isConfigured: boolean; missing: string[]; url?: string } {
+  const url = getEnvVar("VITE_SUPABASE_URL") || getEnvVar("SUPABASE_URL");
+  const key = getEnvVar("VITE_SUPABASE_PUBLISHABLE_KEY") || getEnvVar("SUPABASE_PUBLISHABLE_KEY");
+  const missing: string[] = [];
+  if (!url) missing.push("VITE_SUPABASE_URL");
+  if (!key) missing.push("VITE_SUPABASE_PUBLISHABLE_KEY");
+  return {
+    isConfigured: missing.length === 0,
+    missing,
+    url,
+  };
+}
+
 function createSupabaseClient() {
-  // Use import.meta.env for client-side (Vite build-time replacement)
-  // Fall back to process.env for SSR (server-side rendering)
-  const SUPABASE_URL = import.meta.env["VITE_SUPABASE_URL"] || process.env["SUPABASE_URL"];
+  const config = getSupabaseConfig();
+  const SUPABASE_URL = config.url;
   const SUPABASE_PUBLISHABLE_KEY =
-    import.meta.env["VITE_SUPABASE_PUBLISHABLE_KEY"] || process.env["SUPABASE_PUBLISHABLE_KEY"];
+    getEnvVar("VITE_SUPABASE_PUBLISHABLE_KEY") || getEnvVar("SUPABASE_PUBLISHABLE_KEY");
 
   if (!SUPABASE_URL || !SUPABASE_PUBLISHABLE_KEY) {
-    const missing = [
-      ...(!SUPABASE_URL ? ["SUPABASE_URL"] : []),
-      ...(!SUPABASE_PUBLISHABLE_KEY ? ["SUPABASE_PUBLISHABLE_KEY"] : []),
-    ];
-    const message = `Missing Supabase environment variable(s): ${missing.join(", ")}. Connect Supabase in Lovable Cloud.`;
+    const message = `Missing Supabase environment variable(s): ${config.missing.join(", ")}. Please configure VITE_SUPABASE_URL and VITE_SUPABASE_PUBLISHABLE_KEY in your .env or .env.local file.`;
     console.error(`[Supabase] ${message}`);
     throw new Error(message);
   }

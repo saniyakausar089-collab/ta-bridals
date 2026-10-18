@@ -54,7 +54,7 @@ import {
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { supabase } from "@/integrations/supabase/client";
+import { supabase, getSupabaseConfig } from "@/integrations/supabase/client";
 import type { Tables, TablesInsert } from "@/integrations/supabase/types";
 import { AnalyticsSection } from "@/components/AnalyticsSection";
 import { AvailabilitySection } from "@/components/AvailabilitySection";
@@ -62,11 +62,6 @@ import { AuditLogSection } from "@/components/AuditLogSection";
 import { FinanceSection } from "@/components/FinanceSection";
 import { SongLibraryAdminSection } from "@/components/SongLibraryAdminSection";
 import {
-  demoInvoices,
-  demoClientPayments,
-  demoPayroll,
-  demoWorkerPayments,
-  demoExpenses,
   formatCurrency,
   calculateStudioTotals,
   type ClientInvoiceRecord,
@@ -109,212 +104,6 @@ type Section =
   | "approvals"
   | "audit"
   | "songs";
-
-const demoShoots: Shoot[] = [
-  {
-    id: "demo-shoot-1",
-    couple_name: "Maya & Arjun",
-    event_type: "Wedding",
-    event_date: "2026-10-22",
-    location: "Jaipur, Rajasthan",
-    venue: "Samode Palace",
-    start_time: "09:00",
-    end_time: "20:00",
-    planned_team_size: 8,
-    status: "Upcoming",
-    notes: null,
-    created_by: null,
-    created_at: "2026-10-01T09:00:00.000Z",
-    updated_at: "2026-10-01T09:00:00.000Z",
-  },
-  {
-    id: "demo-shoot-2",
-    couple_name: "Isha & Kabir",
-    event_type: "Engagement",
-    event_date: "2026-10-25",
-    location: "Udaipur, Rajasthan",
-    venue: "The Leela Palace",
-    start_time: "15:30",
-    end_time: "21:00",
-    planned_team_size: 7,
-    status: "Upcoming",
-    notes: null,
-    created_by: null,
-    created_at: "2026-10-03T09:00:00.000Z",
-    updated_at: "2026-10-03T09:00:00.000Z",
-  },
-  {
-    id: "demo-shoot-3",
-    couple_name: "Ananya & Rohan",
-    event_type: "Reception",
-    event_date: "2026-11-08",
-    location: "Mumbai, Maharashtra",
-    venue: "Taj Mahal Palace",
-    start_time: "17:00",
-    end_time: "23:00",
-    planned_team_size: 9,
-    status: "Upcoming",
-    notes: null,
-    created_by: null,
-    created_at: "2026-10-05T09:00:00.000Z",
-    updated_at: "2026-10-05T09:00:00.000Z",
-  },
-  {
-    id: "demo-shoot-4",
-    couple_name: "Diya & Veer",
-    event_type: "Pre-wedding",
-    event_date: "2026-10-18",
-    location: "Jodhpur, Rajasthan",
-    venue: "Mehrangarh Fort",
-    start_time: "06:30",
-    end_time: "12:00",
-    planned_team_size: 7,
-    status: "Completed",
-    notes: null,
-    created_by: null,
-    created_at: "2026-09-20T09:00:00.000Z",
-    updated_at: "2026-09-20T09:00:00.000Z",
-  },
-];
-
-const demoTeam: TeamMember[] = [
-  {
-    id: "demo-member-1",
-    full_name: "Aarav Mehta",
-    role: "Photographer",
-    email: "aarav@example.com",
-    phone: "+91 98765 43210",
-    available: true,
-    notes: null,
-    created_at: "2026-07-01T09:00:00.000Z",
-    updated_at: "2026-07-01T09:00:00.000Z",
-  },
-  {
-    id: "demo-member-2",
-    full_name: "Sana Kapoor",
-    role: "Videographer",
-    email: "sana@example.com",
-    phone: "+91 98765 43211",
-    available: true,
-    notes: null,
-    created_at: "2026-07-02T09:00:00.000Z",
-    updated_at: "2026-07-02T09:00:00.000Z",
-  },
-  {
-    id: "demo-member-3",
-    full_name: "Devika Shah",
-    role: "Photo Editor",
-    email: "devika@example.com",
-    phone: "+91 98765 43212",
-    available: false,
-    notes: null,
-    created_at: "2026-07-03T09:00:00.000Z",
-    updated_at: "2026-07-03T09:00:00.000Z",
-  },
-  {
-    id: "demo-member-4",
-    full_name: "Ishaan Rao",
-    role: "Cinematographer / Creative Director",
-    email: "ishaan@example.com",
-    phone: "+91 98765 43213",
-    available: true,
-    notes: null,
-    created_at: "2026-07-04T09:00:00.000Z",
-    updated_at: "2026-07-04T09:00:00.000Z",
-  },
-  {
-    id: "demo-member-5",
-    full_name: "Meera Nair",
-    role: "Album Designer",
-    email: "meera@example.com",
-    phone: "+91 98765 43214",
-    available: true,
-    notes: null,
-    created_at: "2026-07-05T09:00:00.000Z",
-    updated_at: "2026-07-05T09:00:00.000Z",
-  },
-];
-
-const demoAssignments: Assignment[] = [
-  {
-    id: "demo-assignment-1",
-    shoot_id: "demo-shoot-1",
-    team_member_id: "demo-member-1",
-    assignment_type: "on_site",
-    created_at: "2026-10-01T09:00:00.000Z",
-  },
-  {
-    id: "demo-assignment-2",
-    shoot_id: "demo-shoot-1",
-    team_member_id: "demo-member-2",
-    assignment_type: "on_site",
-    created_at: "2026-10-01T09:00:00.000Z",
-  },
-  {
-    id: "demo-assignment-3",
-    shoot_id: "demo-shoot-1",
-    team_member_id: "demo-member-3",
-    assignment_type: "post_production",
-    created_at: "2026-10-01T09:00:00.000Z",
-  },
-  {
-    id: "demo-assignment-4",
-    shoot_id: "demo-shoot-2",
-    team_member_id: "demo-member-1",
-    assignment_type: "on_site",
-    created_at: "2026-10-01T09:00:00.000Z",
-  },
-  {
-    id: "demo-assignment-5",
-    shoot_id: "demo-shoot-3",
-    team_member_id: "demo-member-4",
-    assignment_type: "on_site",
-    created_at: "2026-10-01T09:00:00.000Z",
-  },
-];
-
-const demoRegistrations: ProfileRecord[] = [
-  {
-    user_id: "demo-pending-1",
-    display_name: "Priya Sharma",
-    email: "priya.sharma@example.com",
-    approval_status: "pending",
-    reviewed_at: null,
-    reviewed_by: null,
-    created_at: "2026-10-16T15:20:00.000Z",
-    updated_at: "2026-10-16T15:20:00.000Z",
-  },
-  {
-    user_id: "demo-pending-2",
-    display_name: "Karan Verma",
-    email: "karan.verma@example.com",
-    approval_status: "pending",
-    reviewed_at: null,
-    reviewed_by: null,
-    created_at: "2026-10-15T18:40:00.000Z",
-    updated_at: "2026-10-15T18:40:00.000Z",
-  },
-  {
-    user_id: "demo-approved-1",
-    display_name: "Aarav Mehta",
-    email: "aarav@example.com",
-    approval_status: "approved",
-    reviewed_at: "2026-10-10T11:00:00.000Z",
-    reviewed_by: "demo-owner",
-    created_at: "2026-10-09T14:30:00.000Z",
-    updated_at: "2026-10-10T11:00:00.000Z",
-  },
-  {
-    user_id: "demo-rejected-1",
-    display_name: "Unknown Applicant",
-    email: "applicant@example.com",
-    approval_status: "rejected",
-    reviewed_at: "2026-10-12T16:00:00.000Z",
-    reviewed_by: "demo-owner",
-    created_at: "2026-10-11T09:00:00.000Z",
-    updated_at: "2026-10-12T16:00:00.000Z",
-  },
-];
 
 const baseNavigation: {
   id: Section;
@@ -377,7 +166,6 @@ function Index() {
   const [access, setAccess] = useState<AccessStatus>("checking");
   const [isAdmin, setIsAdmin] = useState(false);
   const [profileName, setProfileName] = useState("Studio owner");
-  const [demoMode, setDemoMode] = useState(false);
   const [authError, setAuthError] = useState("");
   const [checkingPending, setCheckingPending] = useState(false);
 
@@ -475,79 +263,6 @@ function Index() {
   const loadWorkspace = useCallback(async () => {
     setLoadingData(true);
     setDataError("");
-    if (demoMode) {
-      setShoots(demoShoots);
-      setTeam(demoTeam);
-      setAssignments(demoAssignments);
-      setRegistrations(demoRegistrations);
-      setAvailabilityRequests([
-        {
-          id: "demo-req-1",
-          worker_id: "demo-member-1",
-          user_id: "demo-user-1",
-          worker_name: "Aarav Mehta",
-          request_type: "leave",
-          start_date: "2026-11-01",
-          end_date: "2026-11-04",
-          start_time: null,
-          end_time: null,
-          reason: "Family wedding attendance",
-          status: "pending",
-          reviewed_by: null,
-          reviewed_at: null,
-          created_at: "2026-10-15T10:00:00.000Z",
-          updated_at: "2026-10-15T10:00:00.000Z",
-        },
-        {
-          id: "demo-req-2",
-          worker_id: "demo-member-3",
-          user_id: "demo-user-2",
-          worker_name: "Devika Shah",
-          request_type: "unavailable",
-          start_date: "2026-10-25",
-          end_date: "2026-10-25",
-          start_time: "14:00",
-          end_time: "20:00",
-          reason: "Prior studio editing commitment",
-          status: "approved",
-          reviewed_by: "demo-owner",
-          reviewed_at: "2026-10-16T12:00:00.000Z",
-          created_at: "2026-10-14T09:30:00.000Z",
-          updated_at: "2026-10-16T12:00:00.000Z",
-        },
-      ]);
-      setAuditLogs([
-        {
-          id: "demo-log-1",
-          actor_id: "demo-owner",
-          actor_name: "Studio Owner",
-          actor_email: "owner@tabridals.com",
-          action: "WORKER_APPROVED",
-          record_type: "profile",
-          record_id: "demo-approved-1",
-          details: { worker: "Aarav Mehta", role: "Photographer" },
-          created_at: "2026-10-16T16:00:00.000Z",
-        },
-        {
-          id: "demo-log-2",
-          actor_id: "demo-owner",
-          actor_name: "Studio Owner",
-          actor_email: "owner@tabridals.com",
-          action: "SHOOT_CREATED",
-          record_type: "shoot",
-          record_id: "demo-shoot-1",
-          details: { couple: "Maya & Arjun", event_type: "Wedding" },
-          created_at: "2026-10-15T11:20:00.000Z",
-        },
-      ]);
-      setInvoices(demoInvoices);
-      setClientPayments(demoClientPayments);
-      setPayroll(demoPayroll);
-      setWorkerPayments(demoWorkerPayments);
-      setExpenses(demoExpenses);
-      setLoadingData(false);
-      return;
-    }
     try {
       const [
         shootResult,
@@ -607,7 +322,6 @@ function Index() {
         setAuditLogs(auditResult.data as unknown as AuditLog[]);
       }
 
-      // Populate ERP ledger: In live mode, strictly use real database results or empty arrays. Never fall back to demo records.
       setInvoices(invResult?.data ? (invResult.data as unknown as ClientInvoiceRecord[]) : []);
       setClientPayments(cpResult?.data ? (cpResult.data as unknown as ClientPaymentRecord[]) : []);
       setPayroll(prResult?.data ? (prResult.data as unknown as PayrollObligationRecord[]) : []);
@@ -618,43 +332,12 @@ function Index() {
     } finally {
       setLoadingData(false);
     }
-  }, [demoMode, isAdmin]);
+  }, [isAdmin]);
 
   async function saveShoot(values: ShootInput, shootId?: string) {
     if (!isAdmin) throw new Error("Only the studio owner can save shoots.");
-    if (demoMode) {
-      const savedShoot: Shoot = shootId
-        ? {
-            ...shoots.find((s) => s.id === shootId)!,
-            ...values,
-            updated_at: new Date().toISOString(),
-          }
-        : {
-            id: `demo-shoot-${Date.now()}`,
-            couple_name: values.couple_name,
-            event_type: values.event_type,
-            event_date: values.event_date,
-            location: values.location,
-            venue: values.venue ?? null,
-            start_time: values.start_time,
-            end_time: values.end_time ?? null,
-            planned_team_size: values.planned_team_size ?? 5,
-            status: values.status ?? "Upcoming",
-            notes: values.notes ?? null,
-            created_by: "demo-owner",
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-          };
-
-      setShoots((current) =>
-        [...current.filter((shoot) => shoot.id !== savedShoot.id), savedShoot].sort((a, b) =>
-          a.event_date.localeCompare(b.event_date),
-        ),
-      );
-      return;
-    }
-
     if (!session) throw new Error("Sign in as the studio owner to save shoots.");
+
     const result = shootId
       ? await supabase.from("shoots").update(values).eq("id", shootId).select().single()
       : await supabase
@@ -683,13 +366,8 @@ function Index() {
 
   async function deleteShoot(shootId: string) {
     if (!isAdmin) throw new Error("Only the studio owner can delete shoots.");
-    if (demoMode) {
-      setShoots((current) => current.filter((shoot) => shoot.id !== shootId));
-      setAssignments((current) => current.filter((assignment) => assignment.shoot_id !== shootId));
-      return;
-    }
-
     if (!session) throw new Error("Sign in as the studio owner to delete shoots.");
+
     const shootToDelete = shoots.find((s) => s.id === shootId);
     const { error } = await supabase.from("shoots").delete().eq("id", shootId);
     if (error) throw error;
@@ -710,23 +388,9 @@ function Index() {
 
   async function saveShootAssignments(shootId: string, values: AssignmentInput[]) {
     if (!isAdmin) throw new Error("Only the studio owner can manage shoot assignments.");
-    if (demoMode) {
-      const newAssignments: Assignment[] = values.map((v, idx) => ({
-        id: `demo-assignment-${Date.now()}-${idx}`,
-        shoot_id: shootId,
-        team_member_id: v.team_member_id,
-        assignment_type: v.assignment_type,
-        created_at: new Date().toISOString(),
-      }));
-      setAssignments((current) => [
-        ...current.filter((a) => a.shoot_id !== shootId),
-        ...newAssignments,
-      ]);
-      return;
-    }
-
     if (!session)
       throw new Error("Sign in as the studio owner to manage shoot assignments.");
+
     const { error } = await supabase.rpc("replace_shoot_assignments", {
       p_shoot_id: shootId,
       p_assignments: values,
@@ -750,38 +414,8 @@ function Index() {
 
   async function saveTeamMember(values: TeamMemberInput, memberId?: string) {
     if (!isAdmin) throw new Error("Only the studio owner can save team members.");
-    if (demoMode) {
-      const savedMember: TeamMember = memberId
-        ? {
-            ...team.find((m) => m.id === memberId)!,
-            ...values,
-            updated_at: new Date().toISOString(),
-          }
-        : {
-            id: `demo-member-${Date.now()}`,
-            full_name: values.full_name,
-            role: values.role,
-            email: values.email ?? null,
-            phone: values.phone ?? null,
-            available: values.available ?? true,
-            notes: values.notes ?? null,
-            status: values.status ?? "active",
-            emergency_contact: values.emergency_contact ?? null,
-            admin_notes: values.admin_notes ?? null,
-            additional_skills: values.additional_skills ?? [],
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-          };
-
-      setTeam((current) =>
-        [...current.filter((member) => member.id !== savedMember.id), savedMember].sort((a, b) =>
-          a.full_name.localeCompare(b.full_name),
-        ),
-      );
-      return;
-    }
-
     if (!session) throw new Error("Sign in as the studio owner to save team members.");
+
     const result = memberId
       ? await supabase.from("team_members").update(values).eq("id", memberId).select().single()
       : await supabase.from("team_members").insert(values).select().single();
@@ -806,15 +440,8 @@ function Index() {
 
   async function deleteTeamMember(memberId: string) {
     if (!isAdmin) throw new Error("Only the studio owner can remove team members.");
-    if (demoMode) {
-      setTeam((current) => current.filter((member) => member.id !== memberId));
-      setAssignments((current) =>
-        current.filter((assignment) => assignment.team_member_id !== memberId),
-      );
-      return;
-    }
-
     if (!session) throw new Error("Sign in as the studio owner to remove team members.");
+
     const memberToDelete = team.find((m) => m.id === memberId);
     const { error } = await supabase.from("team_members").delete().eq("id", memberId);
     if (error) throw error;
@@ -836,59 +463,34 @@ function Index() {
   }
 
   async function submitAvailabilityRequest(input: any) {
-    if (demoMode) {
-      const mockReq: AvailabilityRequest = {
-        id: `demo-req-${Date.now()}`,
-        worker_id: null,
-        user_id: session?.user?.id || "demo-user",
-        worker_name: profileName,
-        request_type: input.request_type,
-        start_date: input.start_date,
-        end_date: input.end_date,
-        start_time: input.start_time ?? null,
-        end_time: input.end_time ?? null,
-        reason: input.reason ?? null,
-        status: "pending",
-        reviewed_by: null,
-        reviewed_at: null,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      };
-      setAvailabilityRequests((prev) => [mockReq, ...prev]);
-      return;
-    }
-
-    const { error } = await supabase.from("availability_requests").insert(input);
+    if (!session) throw new Error("You must be signed in to submit availability requests.");
+    const { error } = await supabase.from("availability_requests").insert({
+      ...input,
+      user_id: session.user.id,
+      status: "pending",
+    });
     if (error) throw error;
     await loadWorkspace();
   }
 
   async function reviewAvailabilityRequest(requestId: string, status: "approved" | "rejected") {
-    if (demoMode) {
-      setAvailabilityRequests((prev) =>
-        prev.map((r) =>
-          r.id === requestId
-            ? { ...r, status, reviewed_at: new Date().toISOString(), reviewed_by: "demo-owner" }
-            : r,
-        ),
-      );
-      return;
-    }
+    if (!isAdmin) throw new Error("Only administrators can review availability requests.");
+    if (!session) throw new Error("Sign in as an administrator to review requests.");
 
     const { error } = await supabase
       .from("availability_requests")
       .update({
         status,
-        reviewed_by: session?.user?.id ?? null,
+        reviewed_by: session.user.id,
         reviewed_at: new Date().toISOString(),
       })
       .eq("id", requestId);
     if (error) throw error;
 
     void recordAuditLog({
-      actorId: session?.user?.id,
+      actorId: session.user.id,
       actorName: profileName,
-      actorEmail: session?.user?.email,
+      actorEmail: session.user.email,
       action: status === "approved" ? "AVAILABILITY_APPROVED" : "AVAILABILITY_REJECTED",
       recordType: "availability_request",
       recordId: requestId,
@@ -900,48 +502,14 @@ function Index() {
 
   // ERP & Finance Ledger Handlers
   async function handleCreateInvoice(input: any) {
-    if (demoMode) {
-      const newInv: ClientInvoiceRecord = {
-        id: `demo-inv-${Date.now()}`,
-        invoice_number: `INV-${new Date().getFullYear()}-${String(invoices.length + 1).padStart(3, "0")}`,
-        shoot_id: input.shoot_id,
-        client_name: input.client_name,
-        currency: input.currency || "INR",
-        agreed_price: Number(input.agreed_price),
-        additional_charges: Number(input.additional_charges || 0),
-        discount_amount: Number(input.discount_amount || 0),
-        tax_amount: Number(input.tax_amount || 0),
-        total_billed: Math.max(
-          0,
-          Number(input.agreed_price) +
-            Number(input.additional_charges || 0) -
-            Number(input.discount_amount || 0) +
-            Number(input.tax_amount || 0)
-        ),
-        total_paid: 0,
-        outstanding_balance: Math.max(
-          0,
-          Number(input.agreed_price) +
-            Number(input.additional_charges || 0) -
-            Number(input.discount_amount || 0) +
-            Number(input.tax_amount || 0)
-        ),
-        status: "issued",
-        issue_date: input.issue_date || format(new Date(), "yyyy-MM-dd"),
-        due_date: input.due_date || format(new Date(), "yyyy-MM-dd"),
-        notes: input.notes || null,
-      };
-      setInvoices((prev) => [newInv, ...prev]);
-      return;
-    }
-
+    if (!session) throw new Error("Sign in required.");
     const { data, error } = await supabase.from("client_invoices" as any).insert(input).select().single();
     if (error) throw error;
 
     void recordAuditLog({
-      actorId: session?.user?.id,
+      actorId: session.user.id,
       actorName: profileName,
-      actorEmail: session?.user?.email,
+      actorEmail: session.user.email,
       action: "INVOICE_CREATED",
       recordType: "client_invoice",
       recordId: (data as any)?.id,
@@ -952,48 +520,14 @@ function Index() {
   }
 
   async function handleRecordClientPayment(input: any) {
-    if (demoMode) {
-      const paymentAmount = Number(input.amount);
-      const newPayment: ClientPaymentRecord = {
-        id: `demo-cp-${Date.now()}`,
-        receipt_number: `REC-${new Date().getFullYear()}-${String(clientPayments.length + 101).padStart(3, "0")}`,
-        invoice_id: input.invoice_id,
-        shoot_id: input.shoot_id,
-        amount: paymentAmount,
-        currency: input.currency || "INR",
-        payment_method: input.payment_method || "bank_transfer",
-        transaction_reference: input.transaction_reference || null,
-        payment_date: input.payment_date || format(new Date(), "yyyy-MM-dd"),
-        is_reversed: false,
-        notes: input.notes || null,
-      };
-      setClientPayments((prev) => [newPayment, ...prev]);
-
-      // Update corresponding invoice
-      setInvoices((prev) =>
-        prev.map((inv) => {
-          if (inv.id !== input.invoice_id) return inv;
-          const nextPaid = Number(inv.total_paid) + paymentAmount;
-          const nextBal = Math.max(0, Number(inv.total_billed) - nextPaid);
-          const nextStatus = nextBal === 0 ? "paid" : "partially_paid";
-          return {
-            ...inv,
-            total_paid: nextPaid,
-            outstanding_balance: nextBal,
-            status: nextStatus,
-          };
-        })
-      );
-      return;
-    }
-
+    if (!session) throw new Error("Sign in required.");
     const { data, error } = await supabase.from("client_payments" as any).insert(input).select().single();
     if (error) throw error;
 
     void recordAuditLog({
-      actorId: session?.user?.id,
+      actorId: session.user.id,
       actorName: profileName,
-      actorEmail: session?.user?.email,
+      actorEmail: session.user.email,
       action: "PAYMENT_RECORDED",
       recordType: "client_payment",
       recordId: (data as any)?.id,
@@ -1004,34 +538,13 @@ function Index() {
   }
 
   async function handleCreatePayrollObligation(input: any) {
+    if (!session) throw new Error("Sign in required.");
     const net = Math.max(
       0,
       Number(input.base_amount || 0) +
         Number(input.allowance_amount || 0) -
         Number(input.deduction_amount || 0)
     );
-
-    if (demoMode) {
-      const newObligation: PayrollObligationRecord = {
-        id: `demo-pr-${Date.now()}`,
-        worker_id: input.worker_id,
-        shoot_id: input.shoot_id || null,
-        period_label: input.period_label,
-        compensation_type: input.compensation_type,
-        base_amount: Number(input.base_amount || 0),
-        allowance_amount: Number(input.allowance_amount || 0),
-        deduction_amount: Number(input.deduction_amount || 0),
-        net_payable: net,
-        amount_paid: 0,
-        balance_due: net,
-        status: "approved",
-        approved_at: new Date().toISOString(),
-        created_at: new Date().toISOString(),
-        notes: input.notes || null,
-      };
-      setPayroll((prev) => [newObligation, ...prev]);
-      return;
-    }
 
     const { data, error } = await supabase
       .from("payroll_obligations" as any)
@@ -1041,9 +554,9 @@ function Index() {
     if (error) throw error;
 
     void recordAuditLog({
-      actorId: session?.user?.id,
+      actorId: session.user.id,
       actorName: profileName,
-      actorEmail: session?.user?.email,
+      actorEmail: session.user.email,
       action: "COMPENSATION_APPROVED",
       recordType: "payroll_obligation",
       recordId: (data as any)?.id,
@@ -1054,48 +567,14 @@ function Index() {
   }
 
   async function handleDisburseWorkerPayment(input: any) {
-    const disburseAmount = Number(input.amount);
-    if (demoMode) {
-      const newDisbursement: WorkerPaymentRecord = {
-        id: `demo-wp-${Date.now()}`,
-        payment_voucher_no: `VOUCH-${new Date().getFullYear()}-${String(workerPayments.length + 1).padStart(3, "0")}`,
-        obligation_id: input.obligation_id,
-        worker_id: input.worker_id,
-        amount: disburseAmount,
-        currency: input.currency || "INR",
-        payment_method: input.payment_method || "bank_transfer",
-        transaction_reference: input.transaction_reference || null,
-        disbursement_date: input.disbursement_date || format(new Date(), "yyyy-MM-dd"),
-        is_reversed: false,
-        notes: input.notes || null,
-      };
-      setWorkerPayments((prev) => [newDisbursement, ...prev]);
-
-      // Update obligation balance
-      setPayroll((prev) =>
-        prev.map((pr) => {
-          if (pr.id !== input.obligation_id) return pr;
-          const nextPaid = Number(pr.amount_paid) + disburseAmount;
-          const nextDue = Math.max(0, Number(pr.net_payable) - nextPaid);
-          const nextStatus = nextDue === 0 ? "paid" : "partially_paid";
-          return {
-            ...pr,
-            amount_paid: nextPaid,
-            balance_due: nextDue,
-            status: nextStatus,
-          };
-        })
-      );
-      return;
-    }
-
+    if (!session) throw new Error("Sign in required.");
     const { data, error } = await supabase.from("worker_payments" as any).insert(input).select().single();
     if (error) throw error;
 
     void recordAuditLog({
-      actorId: session?.user?.id,
+      actorId: session.user.id,
       actorName: profileName,
-      actorEmail: session?.user?.email,
+      actorEmail: session.user.email,
       action: "PAYROLL_DISBURSED",
       recordType: "worker_payment",
       recordId: (data as any)?.id,
@@ -1106,30 +585,9 @@ function Index() {
   }
 
   async function handleRecordExpense(input: any) {
+    if (!session) throw new Error("Sign in required.");
     const amount = Number(input.amount);
     const isPaid = input.payment_status === "paid";
-    if (demoMode) {
-      const newExp: OperatingExpenseRecord = {
-        id: `demo-exp-${Date.now()}`,
-        expense_number: `EXP-${new Date().getFullYear()}-${String(expenses.length + 1).padStart(3, "0")}`,
-        category: input.category,
-        payee_supplier: input.payee_supplier,
-        description: input.description,
-        amount,
-        currency: input.currency || "INR",
-        expense_date: input.expense_date || format(new Date(), "yyyy-MM-dd"),
-        due_date: input.due_date || null,
-        is_direct_cost: Boolean(input.is_direct_cost),
-        shoot_id: input.shoot_id || null,
-        payment_method: input.payment_method || "bank_transfer",
-        payment_status: input.payment_status || "paid",
-        amount_paid: isPaid ? amount : 0,
-        status: "approved",
-        notes: input.notes || null,
-      };
-      setExpenses((prev) => [newExp, ...prev]);
-      return;
-    }
 
     const { data, error } = await supabase
       .from("operating_expenses" as any)
@@ -1144,9 +602,9 @@ function Index() {
     if (error) throw error;
 
     void recordAuditLog({
-      actorId: session?.user?.id,
+      actorId: session.user.id,
       actorName: profileName,
-      actorEmail: session?.user?.email,
+      actorEmail: session.user.email,
       action: "EXPENSE_RECORDED",
       recordType: "operating_expense",
       recordId: (data as any)?.id,
@@ -1157,26 +615,17 @@ function Index() {
   }
 
   async function handleApprovePayroll(obligationId: string) {
-    if (demoMode) {
-      setPayroll((prev) =>
-        prev.map((pr) =>
-          pr.id === obligationId
-            ? { ...pr, status: "approved", approved_at: new Date().toISOString() }
-            : pr
-        )
-      );
-      return;
-    }
-
-    await supabase
+    if (!isAdmin || !session) return;
+    const { error } = await supabase
       .from("payroll_obligations" as any)
       .update({ status: "approved", approved_at: new Date().toISOString() })
       .eq("id", obligationId);
+    if (error) throw error;
 
     void recordAuditLog({
-      actorId: session?.user?.id,
+      actorId: session.user.id,
       actorName: profileName,
-      actorEmail: session?.user?.email,
+      actorEmail: session.user.email,
       action: "COMPENSATION_APPROVED",
       recordType: "payroll_obligation",
       recordId: obligationId,
@@ -1187,22 +636,17 @@ function Index() {
   }
 
   async function handleApproveExpense(expenseId: string) {
-    if (demoMode) {
-      setExpenses((prev) =>
-        prev.map((e) => (e.id === expenseId ? { ...e, status: "approved" } : e))
-      );
-      return;
-    }
-
-    await supabase
+    if (!isAdmin || !session) return;
+    const { error } = await supabase
       .from("operating_expenses" as any)
       .update({ status: "approved" })
       .eq("id", expenseId);
+    if (error) throw error;
 
     void recordAuditLog({
-      actorId: session?.user?.id,
+      actorId: session.user.id,
       actorName: profileName,
-      actorEmail: session?.user?.email,
+      actorEmail: session.user.email,
       action: "EXPENSE_APPROVED",
       recordType: "operating_expense",
       recordId: expenseId,
@@ -1216,25 +660,7 @@ function Index() {
     if (access === "allowed") void loadWorkspace();
   }, [access, loadWorkspace]);
 
-  function handleDemo() {
-    setAuthError("");
-    setProfileName("Demo Owner");
-    setIsAdmin(true);
-    setDemoMode(true);
-    setAccess("allowed");
-  }
-
   async function handleSignOut() {
-    if (demoMode) {
-      setDemoMode(false);
-      setAccess("signed-out");
-      setIsAdmin(false);
-      setShoots([]);
-      setTeam([]);
-      setAssignments([]);
-      setRegistrations([]);
-      return;
-    }
     const { error } = await supabase.auth.signOut();
     if (error) {
       setAuthError(`Could not sign out: ${error.message}`);
@@ -1247,6 +673,11 @@ function Index() {
     setTeam([]);
     setAssignments([]);
     setRegistrations([]);
+    setInvoices([]);
+    setClientPayments([]);
+    setPayroll([]);
+    setWorkerPayments([]);
+    setExpenses([]);
   }
 
   if (session && access === "pending") {
@@ -1271,9 +702,9 @@ function Index() {
     );
   }
 
-  if ((!session && !demoMode) || access === "signed-out") {
+  if (!session || access === "signed-out") {
     return (
-      <AuthScreen error={authError} onDemo={handleDemo} onDismissError={() => setAuthError("")} />
+      <AuthScreen error={authError} onDismissError={() => setAuthError("")} />
     );
   }
 
@@ -1303,7 +734,6 @@ function Index() {
       onRegistrationsChange={setRegistrations}
       loading={loadingData}
       error={dataError}
-      demoMode={demoMode}
       onRefresh={() => void loadWorkspace()}
       onSignOut={() => void handleSignOut()}
       onSaveShoot={saveShoot}
@@ -1334,11 +764,9 @@ function Index() {
 
 function AuthScreen({
   error: externalError,
-  onDemo,
   onDismissError,
 }: {
   error: string;
-  onDemo: () => void;
   onDismissError: () => void;
 }) {
   const [mode, setMode] = useState<"signin" | "signup">("signin");
@@ -1354,6 +782,7 @@ function AuthScreen({
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
 
+  const config = getSupabaseConfig();
   const activeError = internalError || externalError;
 
   function handleModeSwitch(nextMode: "signin" | "signup") {
@@ -1371,60 +800,13 @@ function AuthScreen({
     onDismissError();
 
     try {
-      let identifier = signInEmail.trim();
-      // Support requested login identifier 'Admin@123' seamlessly
-      if (identifier.toLowerCase() === "admin@123") {
-        identifier = "admin@123.com";
-      }
-
-      const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
-        email: identifier,
+      const email = signInEmail.trim();
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email,
         password: signInPassword,
       });
 
       if (signInError) {
-        // If this is the requested initial Admin account (Admin@123 / Admin@321) and not yet created in Supabase Auth,
-        // automatically bootstrap it on first setup!
-        if (
-          (identifier.toLowerCase() === "admin@123.com" || identifier.toLowerCase() === "admin@tabridals.com") &&
-          signInError.message.toLowerCase().includes("invalid login credentials")
-        ) {
-          const { data: signUpData, error: signUpErr } = await supabase.auth.signUp({
-            email: identifier,
-            password: signInPassword,
-            options: {
-              data: {
-                full_name: "Studio Owner",
-                display_name: "Studio Owner",
-              },
-            },
-          });
-
-          if (!signUpErr && signUpData?.user) {
-            // Profile & role triggers or direct updates
-            await supabase.from("profiles").upsert({
-              user_id: signUpData.user.id,
-              display_name: "Studio Owner",
-              email: identifier,
-              approval_status: "approved",
-            });
-            await supabase.from("user_roles").upsert(
-              { user_id: signUpData.user.id, role: "admin" },
-              { onConflict: "user_id,role" }
-            );
-
-            // Re-attempt sign in with the newly bootstrapped account
-            const retry = await supabase.auth.signInWithPassword({
-              email: identifier,
-              password: signInPassword,
-            });
-
-            if (!retry.error) {
-              return;
-            }
-          }
-        }
-
         setInternalError(signInError.message);
       }
     } catch (err) {
@@ -1546,6 +928,22 @@ function AuthScreen({
               : "Register below. New accounts require owner approval before accessing studio data."}
           </p>
 
+          {!config.isConfigured && (
+            <div
+              className="mt-6 rounded-lg border border-amber-300 bg-amber-50 p-4 text-xs text-amber-900"
+              role="alert"
+            >
+              <div className="flex items-center gap-2 font-semibold">
+                <AlertCircle className="size-4 text-amber-700" />
+                <span>Supabase Configuration Required</span>
+              </div>
+              <p className="mt-1 leading-5 text-amber-800">
+                Studio environment variables <code className="font-mono">VITE_SUPABASE_URL</code> and{" "}
+                <code className="font-mono">VITE_SUPABASE_PUBLISHABLE_KEY</code> must be configured in your environment before signing in.
+              </p>
+            </div>
+          )}
+
           {activeError && (
             <div
               className="mt-6 flex items-start justify-between gap-3 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800"
@@ -1587,15 +985,15 @@ function AuthScreen({
           {mode === "signin" ? (
             <form className="mt-7 space-y-4" onSubmit={handleSignInSubmit}>
               <label className="block space-y-1.5 text-sm font-medium text-[#444941]">
-                Email or Admin identifier
+                Studio email address
                 <Input
                   className="h-12 rounded-lg border-[#dedbd2] bg-white px-4"
-                  type="text"
+                  type="email"
                   name="email"
                   value={signInEmail}
                   onChange={(e) => setSignInEmail(e.target.value)}
                   autoComplete="username"
-                  placeholder="Admin@123 or you@example.com"
+                  placeholder="owner@tabridals.com or you@example.com"
                   required
                 />
               </label>
@@ -1638,23 +1036,6 @@ function AuthScreen({
                   Create account & request access
                 </button>
               </div>
-
-              <div className="relative py-2 text-center text-[11px] text-[#a09b90]">
-                <span className="bg-[#fbfaf7] px-3">or take a look around</span>
-              </div>
-
-              <Button
-                className="h-11 w-full rounded-lg border-[#dedbd2] bg-transparent text-sm text-[#465143] hover:bg-[#f1f0e9]"
-                type="button"
-                variant="outline"
-                onClick={onDemo}
-              >
-                Explore demo workspace
-              </Button>
-
-              <p className="text-center text-[11px] leading-5 text-[#89877e]">
-                Sample data only. No sign-in needed.
-              </p>
 
               <div className="mt-4 border-t border-[#dedbd2] pt-3 text-center">
                 <p className="text-xs text-[#89877e]">
@@ -1912,7 +1293,6 @@ function Workspace({
   onRegistrationsChange,
   loading,
   error,
-  demoMode,
   onRefresh,
   onSignOut,
   onSaveShoot,
@@ -1951,7 +1331,6 @@ function Workspace({
   onRegistrationsChange: (registrations: ProfileRecord[]) => void;
   loading: boolean;
   error: string;
-  demoMode: boolean;
   onRefresh: () => void;
   onSignOut: () => void;
   onSaveShoot: (values: ShootInput, shootId?: string) => Promise<void>;
@@ -2181,24 +1560,6 @@ function Workspace({
         </header>
 
         <main className="studio-main mx-auto max-w-[1440px] px-5 py-6 sm:px-7">
-          {demoMode && (
-            <div className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[#e6dfce] bg-[#f4f0e6] px-4 py-3">
-              <p className="text-xs text-[#665e4d]">
-                <span className="font-semibold">Demo workspace</span>
-                <span className="mx-2 text-[#b0a78f]" aria-hidden="true">
-                  ·
-                </span>
-                Sample data only. Nothing here is connected to your studio.
-              </p>
-              <button
-                type="button"
-                onClick={onSignOut}
-                className="text-xs font-medium text-[#56634f] underline underline-offset-2 hover:text-[#344234]"
-              >
-                Exit demo
-              </button>
-            </div>
-          )}
           <div className="mb-8 flex flex-wrap items-end justify-between gap-4">
             <div>
               <p className="mb-2 text-[10px] font-medium uppercase tracking-[0.2em] text-[#9a8c77]">
@@ -2244,6 +1605,11 @@ function Workspace({
               onNavigate={onSectionChange}
               isAdmin={isAdmin}
               pendingRegistrationsCount={pendingCount}
+              invoices={invoices}
+              clientPayments={clientPayments}
+              payroll={payroll}
+              workerPayments={workerPayments}
+              expenses={expenses}
             />
           ) : section === "shoots" ? (
             <ShootsView
@@ -2310,7 +1676,6 @@ function Workspace({
             <RegistrationsView
               registrations={registrations}
               onRegistrationsChange={onRegistrationsChange}
-              demoMode={demoMode}
             />
           ) : section === "songs" && isAdmin ? (
             <SongLibraryAdminSection />
@@ -2339,11 +1704,9 @@ function Workspace({
 function RegistrationsView({
   registrations,
   onRegistrationsChange,
-  demoMode,
 }: {
   registrations: ProfileRecord[];
   onRegistrationsChange: (registrations: ProfileRecord[]) => void;
-  demoMode: boolean;
 }) {
   const [filter, setFilter] = useState<"pending" | "approved" | "rejected" | "all">("pending");
   const [searchQuery, setSearchQuery] = useState("");
@@ -2357,7 +1720,6 @@ function RegistrationsView({
   const rejectedCount = registrations.filter((r) => r.approval_status === "rejected").length;
 
   const reload = useCallback(async () => {
-    if (demoMode) return;
     setRefreshing(true);
     setActionError("");
     try {
@@ -2372,7 +1734,7 @@ function RegistrationsView({
     } finally {
       setRefreshing(false);
     }
-  }, [demoMode, onRegistrationsChange]);
+  }, [onRegistrationsChange]);
 
   const filteredRegistrations = useMemo(() => {
     return registrations.filter((r) => {
@@ -2388,19 +1750,6 @@ function RegistrationsView({
     setActionError("");
     setActionNotice("");
 
-    if (demoMode) {
-      onRegistrationsChange(
-        registrations.map((r) =>
-          r.user_id === userId
-            ? { ...r, approval_status: "approved", reviewed_at: new Date().toISOString() }
-            : r,
-        ),
-      );
-      setActionNotice(`Approved ${name} as team member (demo mode).`);
-      setProcessingId(null);
-      return;
-    }
-
     const { error } = await approveRegistration(userId);
     if (error) {
       setActionError(error);
@@ -2415,19 +1764,6 @@ function RegistrationsView({
     setProcessingId(userId);
     setActionError("");
     setActionNotice("");
-
-    if (demoMode) {
-      onRegistrationsChange(
-        registrations.map((r) =>
-          r.user_id === userId
-            ? { ...r, approval_status: "rejected", reviewed_at: new Date().toISOString() }
-            : r,
-        ),
-      );
-      setActionNotice(`Rejected registration for ${name} (demo mode).`);
-      setProcessingId(null);
-      return;
-    }
 
     const { error } = await rejectRegistration(userId);
     if (error) {
@@ -2801,11 +2137,28 @@ function Overview({
     onSiteAssignments.map((assignment) => assignment.team_member_id),
   );
   const teamRequired = upcoming.reduce((total, shoot) => total + shoot.planned_team_size, 0);
-  const shootsNeedingTeam = upcoming.filter(
-    (shoot) =>
-      onSiteAssignments.filter((assignment) => assignment.shoot_id === shoot.id).length <
-      shoot.planned_team_size,
-  );
+  const shootsNeedingTeam = upcoming.filter((shoot) => {
+    const assignedCount = new Set(
+      assignments
+        .filter(
+          (assignment) =>
+            assignment.shoot_id === shoot.id && assignment.assignment_type === "on_site",
+        )
+        .map((a) => a.team_member_id),
+    ).size;
+    return assignedCount < shoot.planned_team_size;
+  });
+  const totalStaffingGap = upcoming.reduce((total, shoot) => {
+    const assignedCount = new Set(
+      assignments
+        .filter(
+          (assignment) =>
+            assignment.shoot_id === shoot.id && assignment.assignment_type === "on_site",
+        )
+        .map((a) => a.team_member_id),
+    ).size;
+    return total + Math.max(0, shoot.planned_team_size - assignedCount);
+  }, 0);
   const nextSevenDays = upcoming.filter(
     (shoot) => parseISO(shoot.event_date) < addDays(startOfDay(today), 7),
   );
@@ -3015,8 +2368,11 @@ function Overview({
                   key={shoot.id}
                   shoot={shoot}
                   assignedCount={
-                    onSiteAssignments.filter((assignment) => assignment.shoot_id === shoot.id)
-                      .length
+                    new Set(
+                      onSiteAssignments
+                        .filter((assignment) => assignment.shoot_id === shoot.id)
+                        .map((a) => a.team_member_id),
+                    ).size
                   }
                 />
               ))}
@@ -3287,10 +2643,15 @@ function ShootsView({
                 key={shoot.id}
                 shoot={shoot}
                 assignedCount={
-                  assignments.filter(
-                    (assignment) =>
-                      assignment.shoot_id === shoot.id && assignment.assignment_type === "on_site",
-                  ).length
+                  new Set(
+                    assignments
+                      .filter(
+                        (assignment) =>
+                          assignment.shoot_id === shoot.id &&
+                          assignment.assignment_type === "on_site",
+                      )
+                      .map((a) => a.team_member_id),
+                  ).size
                 }
                 onEdit={editable ? () => setEditingShoot(shoot) : undefined}
                 onDelete={editable ? () => void confirmDelete(shoot) : undefined}

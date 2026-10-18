@@ -28,9 +28,6 @@ export interface ProfileRecord {
 
 const OWNER_EMAILS = [
   "saniyakausar089@gmail.com",
-  "admin@tabridals.com",
-  "admin@123.com",
-  "admin@123",
 ];
 
 export function isOwnerEmail(email?: string | null): boolean {
