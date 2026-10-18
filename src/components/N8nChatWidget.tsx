@@ -42,13 +42,13 @@ export function N8nChatWidget() {
         loadPreviousSession: false,
         showWelcomeScreen: false,
         initialMessages: [
-          'Hello! I am the TA Bridals AI Studio Manager. How can I help you today?'
+          'Hi! Welcome to TA Bridals AI Assistant! How can I help you today?'
         ],
         i18n: {
           en: {
             title: 'TA Bridals Studio Manager',
-            subtitle: 'Shoots, staff, payments and studio insights',
-            inputPlaceholder: 'Ask about shoots, staff, payments...',
+            subtitle: 'Shoots, staff, payments, and studio insights',
+            inputPlaceholder: 'Ask about shoots, schedules, staff, balances...',
             getStarted: 'Start conversation',
           },
         },
