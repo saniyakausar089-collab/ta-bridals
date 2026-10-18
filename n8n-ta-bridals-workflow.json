@@ -1,20 +1,18 @@
 {
-  "name": "TA Bridals AI Studio Manager - Gemini + Supabase",
+  "name": "TA Bridals AI Studio Manager",
   "nodes": [
     {
       "parameters": {
         "public": true,
-        "initialMessages": "Hi! 👋 Welcome to TA Bridals AI Assistant! 😊 How can I help you today?",
-        "options": {
-          "allowedOrigins": "*"
-        }
+        "initialMessages": "Hi!  Welcome to TA Bridals AI Assistant!  How can I help you today?",
+        "options": {}
       },
-      "id": "31a4afbe-cca5-41e8-815d-bd9502085cfd",
+      "id": "dcab298b-6f58-40bf-a03a-ddbfe2c1aaf4",
       "name": "TA Bridals Chat Trigger",
       "type": "@n8n/n8n-nodes-langchain.chatTrigger",
       "typeVersion": 1.1,
       "position": [
-        -528,
+        -208,
         -112
       ],
       "webhookId": "5ca3c1d5-c2ea-4cea-b458-d55a14c909ce"
@@ -24,146 +22,85 @@
         "promptType": "define",
         "text": "={{ $json.chatInput }}",
         "options": {
-          "systemMessage": "You are TA Bridals AI Studio Manager for a wedding photography and cinematography studio.\n\nUse connected tools for current business data. Supabase is the source of truth; memory is not a database. Never invent shoots, staff, assignments, payments, expenses, payroll or profit. Never claim to have queried Supabase unless a tool returned data. If a tool is missing, unconfigured or errors, say live studio data is unavailable.\n\nYou have read-only tools for these Supabase tables: shoots, team_members (staff), shoot_assignments, payments, expenses. Tools use PostgREST query syntax (e.g. select=col1,col2, status=eq.confirmed, event_date=gte.2026-10-01, order=event_date.asc, limit=100). If you do not know a table's columns, first call its tool with limit=1 to inspect the fields, then query properly. Always use a limit. Do not run arbitrary SQL or perform writes.\n\nHelp with shoots, schedules, staffing, availability, worker workload, client balances, expenses, payroll and profitability only when the tools provide the necessary records and fields. Use Asia/Kolkata timezone. Exclude cancelled shoots from active schedules unless requested. Count unique on-site staff, not duplicate assignments.\n\nFor finance, distinguish revenue earned from cash received, expenses incurred from expenses paid, salary owed from salary paid, and profit from cash flow. Avoid double-counting advances, partial payments and refunds. Use INR (₹), state the reporting period and assumptions, and label estimates.\n\nNever create, update, delete, approve, cancel, assign, reassign or initiate payments. Never reveal secrets or unauthorized personal data.\n\nBe concise, friendly and practical. Give the direct answer first and explain missing data briefly."
+          "systemMessage": "You are TA Bridals AI Studio Manager for a wedding photography and cinematography studio.\n\nUse the connected tool for current business data. Supabase is the source of truth; memory is not a database. Never invent shoots, staff, assignments, payments, expenses, payroll or profit. Never claim to have queried Supabase unless the tool returned data. If the tool is missing or errors, say live studio data is unavailable.\n\nYou have ONE read-only tool, get_studio_data. Pass the table name in 'table', and PostgREST query parameters in the query.\n\nKnown schema (verified). Table shoots has columns: id, \"shoot name\" (contains a space; just use select=* to read it), event_type, event_date (date, YYYY-MM-DD), location, venue, start_time, end_time, planned_team_size, status (values like 'Upcoming'), notes, created_by, created_at, updated_at, package_amount (total price in INR). There is NO shoot_date column; use event_date. Example: select=*, event_date=gte.2026-10-18, order=event_date.asc, limit=100. Table shoot_assignments exists but its columns are unknown; inspect it with select=* and limit=1 before filtering. Table staff has columns: id, name, role, phone, monthly_salary, status, created_at. Table payments has columns: id, shoot_id (links to shoots.id), amount, payment_type (advance, partial, final, refund), payment_date, method, notes, created_at. Table expenses has columns: id, shoot_id (links to shoots.id, null for studio-wide expenses), category, amount, expense_date, paid (boolean), notes, created_at. To get a client's balance, read the shoot and its payments (payments?shoot_id=eq.<id>) then balance = shoots.package_amount minus the sum of that shoot's payments of type advance, partial and final, minus refunds. State the numbers used. If package_amount is null, say the total price is not recorded. If a table returns no rows, say no records have been added to it yet. Do not guess column names: if a query returns a 400 or 'column does not exist' error, retry once with select=*&limit=1 to see the real fields. Always use a limit. Do not run arbitrary SQL or perform writes.\n\nIf a query returns an empty list, say no matching rows were found for that query (it may also be a permissions issue); do not claim the whole table is empty unless a select=*&limit=1 query is also empty. For 'upcoming shoots', use event_date on or after today (Asia/Kolkata) and exclude status Cancelled.\n\nHelp with shoots, schedules, staffing, availability, worker workload, client balances, expenses, payroll and profitability only when the tool provides the necessary records and fields. Use Asia/Kolkata timezone. Exclude cancelled shoots from active schedules unless requested. Count unique on-site staff, not duplicate assignments.\n\nFor finance, distinguish revenue earned from cash received, expenses incurred from expenses paid, salary owed from salary paid, and profit from cash flow. Avoid double-counting advances, partial payments and refunds. Use INR (₹), state the reporting period and assumptions, and label estimates.\n\nNever create, update, delete, approve, cancel, assign, reassign or initiate payments. Never reveal secrets or unauthorized personal data.\n\nBe concise, friendly and practical. Give the direct answer first and explain missing data briefly."
         }
       },
-      "id": "12516859-3d5c-4c19-a30c-62b80a3a4045",
+      "id": "cd567030-f84b-40da-aac6-506b20c318fb",
       "name": "TA Bridals AI Agent",
       "type": "@n8n/n8n-nodes-langchain.agent",
       "typeVersion": 2.2,
       "position": [
-        -224,
+        96,
         -112
       ]
     },
     {
       "parameters": {
-        "modelName": "models/gemini-3.8-flash",
-        "options": {
-          "temperature": 0.2
-        }
+        "model": {
+          "__rl": true,
+          "value": "claude-haiku-4-5-20251001",
+          "mode": "list",
+          "cachedResultName": "Claude Haiku 4.5"
+        },
+        "options": {}
       },
-      "id": "423a437c-61d8-4772-83af-fcf2e87fb417",
-      "name": "Google Gemini Chat Model",
-      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
-      "typeVersion": 1.2,
+      "id": "20081b98-ebbd-4642-8b97-1f126f09201d",
+      "name": "Anthropic Chat Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatAnthropic",
+      "typeVersion": 1.6,
       "position": [
-        -368,
-        160
+        -32,
+        96
       ],
       "credentials": {
-        "googlePalmApi": {
-          "id": "XPXOVIQeXWKsK9lp",
-          "name": "Google Gemini(PaLM) Api account"
+        "anthropicApi": {
+          "id": null,
+          "name": "",
+          "__aiGatewayManaged": true
         }
       }
     },
     {
       "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "={{ $('TA Bridals Chat Trigger').item.json.sessionId }}",
         "contextWindowLength": 10
       },
-      "id": "d41a6137-9d4d-4878-88e7-6ed9221a47c0",
+      "id": "7da6020c-40b0-44d9-b82c-37bdfec6a3cc",
       "name": "Simple Memory",
       "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
       "typeVersion": 1.3,
       "position": [
-        -192,
+        144,
         160
       ]
     },
     {
       "parameters": {
-        "toolDescription": "READ-ONLY. Fetches rows from the Supabase 'shoots' table (event dates, couples, venues, status, etc.). Provide PostgREST query parameters such as select, order, limit, and filters like event_date=gte.2026-10-01 or status=neq.Cancelled. Never use for writes.",
-        "url": "https://sglfufnceljqenwgwrel.supabase.co/rest/v1/shoots",
+        "toolDescription": "READ-ONLY Supabase tool. Fetches rows from ONE of these tables: shoots (columns: id, shoot name, event_type, event_date, location, venue, start_time, end_time, planned_team_size, status, notes), shoot_assignments (which staff is on which shoot), staff (id, name, role, phone, monthly_salary, status), payments (shoot_id, amount, payment_type, payment_date, method, notes), expenses (shoot_id, category, amount, expense_date, paid, notes). Set 'table' to the exact table name. Provide PostgREST query parameters such as select, order, limit and filters like event_date=gte.2026-10-01 or status=neq.Cancelled. Never use for writes.",
+        "url": "https://sglfufnceljqenwgwrel.supabase.co/rest/v1/{table}",
         "sendQuery": true,
         "specifyQuery": "model",
         "sendHeaders": true,
         "specifyHeaders": "json",
-        "jsonHeaders": "{\n  \"apikey\": \"sb_publishable_WFJHqLjcrWvjKYW6M-UWoQ_PtjJgU2u\",\n  \"Accept\": \"application/json\"\n}"
+        "jsonHeaders": "{\n  \"apikey\": \"sb_publishable_WFJHqLjcrWvjKYW6M-UWoQ_PtjJgU2u\",\n  \"Accept\": \"application/json\"\n}",
+        "placeholderDefinitions": {
+          "values": [
+            {
+              "name": "table",
+              "description": "Exact table name. Must be one of: shoots, shoot_assignments, staff, payments, expenses",
+              "type": "string"
+            }
+          ]
+        }
       },
-      "id": "10dee893-77d7-4f8d-a983-d640f910a421",
-      "name": "get_shoots",
+      "id": "5abd5e3f-edd5-45d7-bb39-dd171de852a4",
+      "name": "get_studio_data",
       "type": "@n8n/n8n-nodes-langchain.toolHttpRequest",
       "typeVersion": 1.1,
       "position": [
-        -16,
-        160
-      ]
-    },
-    {
-      "parameters": {
-        "toolDescription": "READ-ONLY. Fetches rows from the Supabase 'team_members' table (photographers, videographers, editors, roles, availability). Provide PostgREST query parameters such as select, order, limit and filters. Never use for writes.",
-        "url": "https://sglfufnceljqenwgwrel.supabase.co/rest/v1/team_members",
-        "sendQuery": true,
-        "specifyQuery": "model",
-        "sendHeaders": true,
-        "specifyHeaders": "json",
-        "jsonHeaders": "{\n  \"apikey\": \"sb_publishable_WFJHqLjcrWvjKYW6M-UWoQ_PtjJgU2u\",\n  \"Accept\": \"application/json\"\n}"
-      },
-      "id": "f208438e-32f0-4f42-a206-45c115387b42",
-      "name": "get_staff",
-      "type": "@n8n/n8n-nodes-langchain.toolHttpRequest",
-      "typeVersion": 1.1,
-      "position": [
-        176,
-        160
-      ]
-    },
-    {
-      "parameters": {
-        "toolDescription": "READ-ONLY. Fetches rows from the Supabase 'shoot_assignments' table (which staff member is assigned to which shoot). Provide PostgREST query parameters such as select, limit and filters like shoot_id=eq.123 or team_member_id=eq.45. Never use for writes.",
-        "url": "https://sglfufnceljqenwgwrel.supabase.co/rest/v1/shoot_assignments",
-        "sendQuery": true,
-        "specifyQuery": "model",
-        "sendHeaders": true,
-        "specifyHeaders": "json",
-        "jsonHeaders": "{\n  \"apikey\": \"sb_publishable_WFJHqLjcrWvjKYW6M-UWoQ_PtjJgU2u\",\n  \"Accept\": \"application/json\"\n}"
-      },
-      "id": "4920a07d-c8ef-4896-831c-c82766f5d9ef",
-      "name": "get_shoot_assignments",
-      "type": "@n8n/n8n-nodes-langchain.toolHttpRequest",
-      "typeVersion": 1.1,
-      "position": [
-        352,
-        160
-      ]
-    },
-    {
-      "parameters": {
-        "toolDescription": "READ-ONLY. Fetches rows from the Supabase 'payments' table (client payments, advances, balances, dates, amounts). Provide PostgREST query parameters such as select, order, limit and filters. Never use for writes.",
-        "url": "https://sglfufnceljqenwgwrel.supabase.co/rest/v1/payments",
-        "sendQuery": true,
-        "specifyQuery": "model",
-        "sendHeaders": true,
-        "specifyHeaders": "json",
-        "jsonHeaders": "{\n  \"apikey\": \"sb_publishable_WFJHqLjcrWvjKYW6M-UWoQ_PtjJgU2u\",\n  \"Accept\": \"application/json\"\n}"
-      },
-      "id": "c2e7dbdd-855e-49fc-af5f-2b493e7acc19",
-      "name": "get_payments",
-      "type": "@n8n/n8n-nodes-langchain.toolHttpRequest",
-      "typeVersion": 1.1,
-      "position": [
-        544,
-        160
-      ]
-    },
-    {
-      "parameters": {
-        "toolDescription": "READ-ONLY. Fetches rows from the Supabase 'expenses' table (studio and per-shoot expenses, categories, amounts, dates). Provide PostgREST query parameters such as select, order, limit and filters. Never use for writes.",
-        "url": "https://sglfufnceljqenwgwrel.supabase.co/rest/v1/expenses",
-        "sendQuery": true,
-        "specifyQuery": "model",
-        "sendHeaders": true,
-        "specifyHeaders": "json",
-        "jsonHeaders": "{\n  \"apikey\": \"sb_publishable_WFJHqLjcrWvjKYW6M-UWoQ_PtjJgU2u\",\n  \"Accept\": \"application/json\"\n}"
-      },
-      "id": "fd7a9d40-861b-4db6-bf2c-3c1aa6f79b43",
-      "name": "get_expenses",
-      "type": "@n8n/n8n-nodes-langchain.toolHttpRequest",
-      "typeVersion": 1.1,
-      "position": [
-        720,
-        160
+        400,
+        80
       ]
     }
   ],
@@ -180,7 +117,7 @@
         ]
       ]
     },
-    "Google Gemini Chat Model": {
+    "Anthropic Chat Model": {
       "ai_languageModel": [
         [
           {
@@ -202,51 +139,7 @@
         ]
       ]
     },
-    "get_shoots": {
-      "ai_tool": [
-        [
-          {
-            "node": "TA Bridals AI Agent",
-            "type": "ai_tool",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "get_staff": {
-      "ai_tool": [
-        [
-          {
-            "node": "TA Bridals AI Agent",
-            "type": "ai_tool",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "get_shoot_assignments": {
-      "ai_tool": [
-        [
-          {
-            "node": "TA Bridals AI Agent",
-            "type": "ai_tool",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "get_payments": {
-      "ai_tool": [
-        [
-          {
-            "node": "TA Bridals AI Agent",
-            "type": "ai_tool",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "get_expenses": {
+    "get_studio_data": {
       "ai_tool": [
         [
           {
@@ -262,5 +155,12 @@
   "settings": {
     "executionOrder": "v1",
     "binaryMode": "separate"
-  }
+  },
+  "versionId": "2278fa16-11dc-411b-a62e-fdde7dfc7664",
+  "meta": {
+    "instanceId": "bd5efd27846fdc9d5d72f46b244c9eec85149d66165ecb3335da1922549c7765"
+  },
+  "nodeGroups": [],
+  "id": "ERYaHo9AkBE7qQks",
+  "tags": []
 }
