@@ -50,6 +50,8 @@ import {
   DollarSign,
   History,
   Wallet,
+  AlertTriangle,
+  Bell,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -61,6 +63,7 @@ import { AvailabilitySection } from "@/components/AvailabilitySection";
 import { AuditLogSection } from "@/components/AuditLogSection";
 import { FinanceSection } from "@/components/FinanceSection";
 import { SongLibraryAdminSection } from "@/components/SongLibraryAdminSection";
+import { NotificationBadge, AdminNotificationCenter } from "@/components/AdminNotificationCenter";
 import {
   formatCurrency,
   calculateStudioTotals,
@@ -71,7 +74,12 @@ import {
   type OperatingExpenseRecord,
 } from "@/lib/finance";
 import { recordAuditLog, type AuditLog, type AvailabilityRequest } from "@/lib/audit";
-import { calculateStaffingMetrics, doEventsOverlap } from "@/lib/scheduling";
+import {
+  calculateStaffingMetrics,
+  doEventsOverlap,
+  findAllShootConflicts,
+  findWorkerConflicts,
+} from "@/lib/scheduling";
 import {
   approveRegistration,
   checkUserAccess,
@@ -182,6 +190,7 @@ function Index() {
   const [payroll, setPayroll] = useState<PayrollObligationRecord[]>([]);
   const [workerPayments, setWorkerPayments] = useState<WorkerPaymentRecord[]>([]);
   const [expenses, setExpenses] = useState<OperatingExpenseRecord[]>([]);
+  const [pendingSongClientsCount, setPendingSongClientsCount] = useState(0);
   const [dataError, setDataError] = useState("");
   const [loadingData, setLoadingData] = useState(false);
 
@@ -276,6 +285,7 @@ function Index() {
         prResult,
         wpResult,
         expResult,
+        songClientsResult,
       ] = await Promise.all([
         supabase.from("shoots").select("*").order("event_date", { ascending: true }),
         supabase.from("team_members").select("*").order("full_name", { ascending: true }),
@@ -285,23 +295,48 @@ function Index() {
           : Promise.resolve({ data: null, error: null }),
         supabase.from("availability_requests").select("*").order("start_date", { ascending: true }),
         isAdmin
-          ? supabase.from("audit_logs").select("*").order("created_at", { ascending: false }).limit(50)
+          ? supabase
+              .from("audit_logs")
+              .select("*")
+              .order("created_at", { ascending: false })
+              .limit(50)
           : Promise.resolve({ data: null, error: null }),
         isAdmin
-          ? (supabase.from("client_invoices" as any).select("*").order("issue_date", { ascending: false }) as any)
+          ? (supabase
+              .from("client_invoices" as any)
+              .select("*")
+              .order("issue_date", { ascending: false }) as any)
           : Promise.resolve({ data: null, error: null }),
         isAdmin
-          ? (supabase.from("client_payments" as any).select("*").order("payment_date", { ascending: false }) as any)
+          ? (supabase
+              .from("client_payments" as any)
+              .select("*")
+              .order("payment_date", { ascending: false }) as any)
           : Promise.resolve({ data: null, error: null }),
         isAdmin
-          ? (supabase.from("payroll_obligations" as any).select("*").order("created_at", { ascending: false }) as any)
+          ? (supabase
+              .from("payroll_obligations" as any)
+              .select("*")
+              .order("created_at", { ascending: false }) as any)
           : Promise.resolve({ data: null, error: null }),
         isAdmin
-          ? (supabase.from("worker_payments" as any).select("*").order("disbursement_date", { ascending: false }) as any)
+          ? (supabase
+              .from("worker_payments" as any)
+              .select("*")
+              .order("disbursement_date", { ascending: false }) as any)
           : Promise.resolve({ data: null, error: null }),
         isAdmin
-          ? (supabase.from("operating_expenses" as any).select("*").order("expense_date", { ascending: false }) as any)
+          ? (supabase
+              .from("operating_expenses" as any)
+              .select("*")
+              .order("expense_date", { ascending: false }) as any)
           : Promise.resolve({ data: null, error: null }),
+        isAdmin
+          ? (supabase
+              .from("client_profiles" as any)
+              .select("*", { count: "exact", head: true })
+              .eq("approval_status", "pending") as any)
+          : Promise.resolve({ count: 0, data: null, error: null }),
       ]);
 
       if (shootResult.error) throw shootResult.error;
@@ -327,6 +362,7 @@ function Index() {
       setPayroll(prResult?.data ? (prResult.data as unknown as PayrollObligationRecord[]) : []);
       setWorkerPayments(wpResult?.data ? (wpResult.data as unknown as WorkerPaymentRecord[]) : []);
       setExpenses(expResult?.data ? (expResult.data as unknown as OperatingExpenseRecord[]) : []);
+      setPendingSongClientsCount(songClientsResult?.count ?? 0);
     } catch (error) {
       setDataError(error instanceof Error ? error.message : "We couldn't load your studio data.");
     } finally {
@@ -334,7 +370,11 @@ function Index() {
     }
   }, [isAdmin]);
 
-  async function saveShoot(values: ShootInput, shootId?: string) {
+  async function saveShoot(
+    values: ShootInput,
+    crewAssignments?: AssignmentInput[],
+    shootId?: string,
+  ) {
     if (!isAdmin) throw new Error("Only the studio owner can save shoots.");
     if (!session) throw new Error("Sign in as the studio owner to save shoots.");
 
@@ -356,6 +396,21 @@ function Index() {
       recordId: result.data.id,
       details: { couple: result.data.couple_name, event_type: result.data.event_type },
     });
+
+    if (crewAssignments !== undefined) {
+      const { error: assignError } = await supabase.rpc("replace_shoot_assignments", {
+        p_shoot_id: result.data.id,
+        p_assignments: crewAssignments,
+      });
+      if (assignError) throw assignError;
+
+      const { data: updatedAssignments, error: loadError } = await supabase
+        .from("shoot_assignments")
+        .select("*");
+      if (!loadError && updatedAssignments) {
+        setAssignments(updatedAssignments);
+      }
+    }
 
     setShoots((current) =>
       [...current.filter((shoot) => shoot.id !== result.data.id), result.data].sort((a, b) =>
@@ -388,8 +443,7 @@ function Index() {
 
   async function saveShootAssignments(shootId: string, values: AssignmentInput[]) {
     if (!isAdmin) throw new Error("Only the studio owner can manage shoot assignments.");
-    if (!session)
-      throw new Error("Sign in as the studio owner to manage shoot assignments.");
+    if (!session) throw new Error("Sign in as the studio owner to manage shoot assignments.");
 
     const { error } = await supabase.rpc("replace_shoot_assignments", {
       p_shoot_id: shootId,
@@ -503,7 +557,11 @@ function Index() {
   // ERP & Finance Ledger Handlers
   async function handleCreateInvoice(input: any) {
     if (!session) throw new Error("Sign in required.");
-    const { data, error } = await supabase.from("client_invoices" as any).insert(input).select().single();
+    const { data, error } = await supabase
+      .from("client_invoices" as any)
+      .insert(input)
+      .select()
+      .single();
     if (error) throw error;
 
     void recordAuditLog({
@@ -521,7 +579,11 @@ function Index() {
 
   async function handleRecordClientPayment(input: any) {
     if (!session) throw new Error("Sign in required.");
-    const { data, error } = await supabase.from("client_payments" as any).insert(input).select().single();
+    const { data, error } = await supabase
+      .from("client_payments" as any)
+      .insert(input)
+      .select()
+      .single();
     if (error) throw error;
 
     void recordAuditLog({
@@ -543,7 +605,7 @@ function Index() {
       0,
       Number(input.base_amount || 0) +
         Number(input.allowance_amount || 0) -
-        Number(input.deduction_amount || 0)
+        Number(input.deduction_amount || 0),
     );
 
     const { data, error } = await supabase
@@ -568,7 +630,11 @@ function Index() {
 
   async function handleDisburseWorkerPayment(input: any) {
     if (!session) throw new Error("Sign in required.");
-    const { data, error } = await supabase.from("worker_payments" as any).insert(input).select().single();
+    const { data, error } = await supabase
+      .from("worker_payments" as any)
+      .insert(input)
+      .select()
+      .single();
     if (error) throw error;
 
     void recordAuditLog({
@@ -657,8 +723,60 @@ function Index() {
   }
 
   useEffect(() => {
-    if (access === "allowed") void loadWorkspace();
-  }, [access, loadWorkspace]);
+    if (access !== "allowed" || !session) return;
+    void loadWorkspace();
+
+    const channel = supabase
+      .channel("studio-workspace-live")
+      .on("postgres_changes", { event: "*", schema: "public", table: "shoots" }, () => {
+        void loadWorkspace();
+      })
+      .on("postgres_changes", { event: "*", schema: "public", table: "shoot_assignments" }, () => {
+        void loadWorkspace();
+      })
+      .on("postgres_changes", { event: "*", schema: "public", table: "team_members" }, () => {
+        void loadWorkspace();
+      })
+      .on("postgres_changes", { event: "*", schema: "public", table: "profiles" }, () => {
+        void loadWorkspace();
+      })
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "availability_requests" },
+        () => {
+          void loadWorkspace();
+        },
+      )
+      .on("postgres_changes", { event: "*", schema: "public", table: "operating_expenses" }, () => {
+        void loadWorkspace();
+      })
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "payroll_obligations" },
+        () => {
+          void loadWorkspace();
+        },
+      )
+      .on("postgres_changes", { event: "*", schema: "public", table: "client_profiles" }, () => {
+        void loadWorkspace();
+      })
+      .subscribe();
+
+    const handleFocus = () => {
+      void loadWorkspace();
+    };
+    window.addEventListener("focus", handleFocus);
+
+    const pollInterval = window.setInterval(() => {
+      void loadWorkspace();
+    }, 60000);
+
+    return () => {
+      void supabase.removeChannel(channel);
+      window.removeEventListener("focus", handleFocus);
+      window.clearInterval(pollInterval);
+    };
+  }, [access, session, loadWorkspace]);
 
   async function handleSignOut() {
     const { error } = await supabase.auth.signOut();
@@ -703,9 +821,7 @@ function Index() {
   }
 
   if (!session || access === "signed-out") {
-    return (
-      <AuthScreen error={authError} onDismissError={() => setAuthError("")} />
-    );
+    return <AuthScreen error={authError} onDismissError={() => setAuthError("")} />;
   }
 
   if (access === "checking") {
@@ -744,6 +860,8 @@ function Index() {
       availabilityRequests={availabilityRequests}
       auditLogs={auditLogs}
       currentUserId={session?.user?.id}
+      currentUserEmail={session?.user?.email}
+      pendingSongClientsCount={pendingSongClientsCount}
       onSubmitAvailabilityRequest={submitAvailabilityRequest}
       onReviewAvailabilityRequest={reviewAvailabilityRequest}
       invoices={invoices}
@@ -938,8 +1056,9 @@ function AuthScreen({
                 <span>Supabase Configuration Required</span>
               </div>
               <p className="mt-1 leading-5 text-amber-800">
-                Studio environment variables <code className="font-mono">VITE_SUPABASE_URL</code> and{" "}
-                <code className="font-mono">VITE_SUPABASE_PUBLISHABLE_KEY</code> must be configured in your environment before signing in.
+                Studio environment variables <code className="font-mono">VITE_SUPABASE_URL</code>{" "}
+                and <code className="font-mono">VITE_SUPABASE_PUBLISHABLE_KEY</code> must be
+                configured in your environment before signing in.
               </p>
             </div>
           )}
@@ -1303,6 +1422,8 @@ function Workspace({
   availabilityRequests,
   auditLogs,
   currentUserId,
+  currentUserEmail,
+  pendingSongClientsCount = 0,
   onSubmitAvailabilityRequest,
   onReviewAvailabilityRequest,
   invoices,
@@ -1333,7 +1454,11 @@ function Workspace({
   error: string;
   onRefresh: () => void;
   onSignOut: () => void;
-  onSaveShoot: (values: ShootInput, shootId?: string) => Promise<void>;
+  onSaveShoot: (
+    values: ShootInput,
+    crewAssignments?: AssignmentInput[],
+    shootId?: string,
+  ) => Promise<void>;
   onDeleteShoot: (shootId: string) => Promise<void>;
   onSaveAssignments: (shootId: string, values: AssignmentInput[]) => Promise<void>;
   onSaveTeamMember: (values: TeamMemberInput, memberId?: string) => Promise<void>;
@@ -1341,8 +1466,13 @@ function Workspace({
   availabilityRequests: AvailabilityRequest[];
   auditLogs: AuditLog[];
   currentUserId?: string;
+  currentUserEmail?: string;
+  pendingSongClientsCount?: number;
   onSubmitAvailabilityRequest: (input: any) => Promise<void>;
-  onReviewAvailabilityRequest: (requestId: string, status: "approved" | "rejected") => Promise<void>;
+  onReviewAvailabilityRequest: (
+    requestId: string,
+    status: "approved" | "rejected",
+  ) => Promise<void>;
   invoices: ClientInvoiceRecord[];
   clientPayments: ClientPaymentRecord[];
   payroll: PayrollObligationRecord[];
@@ -1356,10 +1486,63 @@ function Workspace({
   onApprovePayroll?: (obligationId: string) => Promise<void>;
   onApproveExpense?: (expenseId: string) => Promise<void>;
 }) {
-  const pendingCount = useMemo(
+  const currentWorker = useMemo(() => {
+    if (isAdmin || (!currentUserId && !currentUserEmail)) return null;
+    return (
+      team.find((m) => m.user_id && m.user_id === currentUserId) ||
+      team.find(
+        (m) =>
+          m.email && currentUserEmail && m.email.toLowerCase() === currentUserEmail.toLowerCase(),
+      ) ||
+      null
+    );
+  }, [isAdmin, currentUserId, currentUserEmail, team]);
+
+  const displayedShoots = useMemo(() => {
+    if (isAdmin || !currentWorker) return shoots;
+    const workerShootIds = new Set(
+      assignments.filter((a) => a.team_member_id === currentWorker.id).map((a) => a.shoot_id),
+    );
+    return shoots.filter((s) => workerShootIds.has(s.id));
+  }, [isAdmin, currentWorker, shoots, assignments]);
+
+  const pendingRegistrationsCount = useMemo(
     () => registrations.filter((r) => r.approval_status === "pending").length,
     [registrations],
   );
+
+  const pendingLeaveCount = useMemo(
+    () => availabilityRequests.filter((r) => r.status === "pending").length,
+    [availabilityRequests],
+  );
+
+  const understaffedShoots = useMemo(() => {
+    return shoots
+      .filter((s) => s.status === "Upcoming" || s.status === "In Progress")
+      .map((shoot) => {
+        const shootAssignments = assignments.filter((a) => a.shoot_id === shoot.id);
+        const metrics = calculateStaffingMetrics(shoot.planned_team_size, shootAssignments);
+        return { shoot, metrics };
+      })
+      .filter(({ metrics }) => metrics.additionalCrewRequired > 0);
+  }, [shoots, assignments]);
+
+  const understaffedShootsCount = understaffedShoots.length;
+
+  const pendingExpenses = useMemo(
+    () => expenses.filter((e) => e.status === "submitted"),
+    [expenses],
+  );
+
+  const pendingPayroll = useMemo(
+    () =>
+      payroll.filter(
+        (p) => p.status === "submitted" || (p.status === "approved" && p.balance_due > 0),
+      ),
+    [payroll],
+  );
+
+  const pendingFinanceCount = pendingExpenses.length;
 
   const navigationItems = useMemo(() => {
     if (!isAdmin) return baseNavigation;
@@ -1422,32 +1605,45 @@ function Workspace({
           Workspace
         </p>
         <nav className="space-y-1" aria-label="Main navigation">
-          {navigationItems.map(({ id, label, icon: Icon }) => (
-            <button
-              key={id}
-              type="button"
-              onClick={() => onSectionChange(id)}
-              aria-current={section === id ? "page" : undefined}
-              className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm transition-colors ${
-                section === id
-                  ? "bg-[#eef0eb] font-medium text-[#344234]"
-                  : "text-[#74766e] hover:bg-[#f7f6f2] hover:text-[#343a33]"
-              }`}
-            >
-              <Icon className="size-[17px]" strokeWidth={1.8} aria-hidden="true" />
-              {label}
-              {id === "shoots" && shoots.length > 0 && (
-                <span className="ml-auto rounded-full bg-white px-2 py-0.5 text-[10px] text-[#77786f]">
-                  {shoots.length}
-                </span>
-              )}
-              {id === "approvals" && pendingCount > 0 && (
-                <span className="ml-auto rounded-full bg-amber-500 text-white font-medium px-2 py-0.5 text-[10px]">
-                  {pendingCount}
-                </span>
-              )}
-            </button>
-          ))}
+          {navigationItems.map(({ id, label, icon: Icon }) => {
+            const badgeCount =
+              id === "approvals"
+                ? pendingRegistrationsCount
+                : id === "availability"
+                  ? pendingLeaveCount
+                  : id === "shoots"
+                    ? understaffedShootsCount
+                    : id === "finance"
+                      ? pendingFinanceCount
+                      : id === "songs"
+                        ? (pendingSongClientsCount ?? 0)
+                        : 0;
+
+            const badgeVariant =
+              id === "approvals" ? "danger" : id === "songs" ? "info" : "warning";
+
+            return (
+              <button
+                key={id}
+                type="button"
+                onClick={() => onSectionChange(id)}
+                aria-current={section === id ? "page" : undefined}
+                className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm transition-colors ${
+                  section === id
+                    ? "bg-[#eef0eb] font-medium text-[#344234]"
+                    : "text-[#74766e] hover:bg-[#f7f6f2] hover:text-[#343a33]"
+                }`}
+              >
+                <Icon className="size-[17px] shrink-0" strokeWidth={1.8} aria-hidden="true" />
+                <span className="truncate">{label}</span>
+                {isAdmin && badgeCount > 0 && (
+                  <span className="ml-auto shrink-0">
+                    <NotificationBadge count={badgeCount} variant={badgeVariant} />
+                  </span>
+                )}
+              </button>
+            );
+          })}
         </nav>
         <div className="mt-auto rounded-xl bg-[#f7f6f2] p-4">
           <p className="font-serif text-sm italic text-[#586651]">
@@ -1481,20 +1677,37 @@ function Workspace({
               className="flex items-center gap-1 overflow-x-auto lg:hidden"
               aria-label="Mobile navigation"
             >
-              {navigationItems.map(({ id, mobileLabel }) => (
-                <button
-                  key={id}
-                  type="button"
-                  onClick={() => onSectionChange(id)}
-                  aria-current={section === id ? "page" : undefined}
-                  className={`whitespace-nowrap rounded-md px-2.5 py-2 text-xs ${
-                    section === id ? "bg-[#eef0eb] font-medium text-[#344234]" : "text-[#76776f]"
-                  }`}
-                >
-                  {mobileLabel}
-                  {id === "approvals" && pendingCount > 0 && ` (${pendingCount})`}
-                </button>
-              ))}
+              {navigationItems.map(({ id, mobileLabel }) => {
+                const badgeCount =
+                  id === "approvals"
+                    ? pendingRegistrationsCount
+                    : id === "availability"
+                      ? pendingLeaveCount
+                      : id === "shoots"
+                        ? understaffedShootsCount
+                        : id === "finance"
+                          ? pendingFinanceCount
+                          : id === "songs"
+                            ? (pendingSongClientsCount ?? 0)
+                            : 0;
+
+                return (
+                  <button
+                    key={id}
+                    type="button"
+                    onClick={() => onSectionChange(id)}
+                    aria-current={section === id ? "page" : undefined}
+                    className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-md px-2.5 py-2 text-xs ${
+                      section === id ? "bg-[#eef0eb] font-medium text-[#344234]" : "text-[#76776f]"
+                    }`}
+                  >
+                    <span>{mobileLabel}</span>
+                    {isAdmin && badgeCount > 0 && (
+                      <NotificationBadge count={badgeCount} variant="danger" />
+                    )}
+                  </button>
+                );
+              })}
             </nav>
             <label className="relative hidden max-w-sm flex-1 md:block lg:ml-5">
               <Search
@@ -1528,6 +1741,17 @@ function Workspace({
               />
             </label>
             <div className="ml-auto flex items-center gap-3">
+              {isAdmin && (
+                <AdminNotificationCenter
+                  pendingRegistrations={registrations}
+                  pendingAvailability={availabilityRequests}
+                  understaffedShoots={understaffedShoots}
+                  pendingExpenses={pendingExpenses}
+                  pendingPayroll={pendingPayroll}
+                  pendingSongClientsCount={pendingSongClientsCount ?? 0}
+                  onNavigate={onSectionChange}
+                />
+              )}
               <Link
                 to="/client"
                 className="hidden sm:inline-flex items-center gap-1.5 rounded-lg border border-[#dedbd2] bg-[#f8f7f4] px-3 py-1.5 text-xs font-medium text-[#344234] hover:bg-[#edeae2] transition-colors shadow-2xs"
@@ -1598,13 +1822,13 @@ function Workspace({
             </div>
           ) : section === "overview" ? (
             <Overview
-              shoots={shoots}
+              shoots={displayedShoots}
               team={team}
               assignments={assignments}
               loading={loading}
               onNavigate={onSectionChange}
               isAdmin={isAdmin}
-              pendingRegistrationsCount={pendingCount}
+              pendingRegistrationsCount={pendingRegistrationsCount}
               invoices={invoices}
               clientPayments={clientPayments}
               payroll={payroll}
@@ -1613,7 +1837,7 @@ function Workspace({
             />
           ) : section === "shoots" ? (
             <ShootsView
-              shoots={shoots}
+              shoots={displayedShoots}
               assignments={assignments}
               loading={loading}
               externalQuery={globalQuery}
@@ -1622,10 +1846,16 @@ function Workspace({
               onDeleteShoot={onDeleteShoot}
               team={team}
               allShoots={shoots}
+              availabilityRequests={availabilityRequests}
               onSaveAssignments={onSaveAssignments}
             />
           ) : section === "calendar" ? (
-            <CalendarView shoots={shoots} loading={loading} />
+            <CalendarView
+              shoots={displayedShoots}
+              loading={loading}
+              team={team}
+              assignments={assignments}
+            />
           ) : section === "team" ? (
             <TeamView
               team={team}
@@ -1665,11 +1895,7 @@ function Workspace({
               loading={loading}
             />
           ) : section === "analytics" && isAdmin ? (
-            <AnalyticsSection
-              shoots={shoots}
-              team={team}
-              assignments={assignments}
-            />
+            <AnalyticsSection shoots={shoots} team={team} assignments={assignments} />
           ) : section === "audit" && isAdmin ? (
             <AuditLogSection logs={auditLogs} loading={loading} />
           ) : section === "approvals" && isAdmin ? (
@@ -2171,7 +2397,7 @@ function Overview({
       clientPayments || [],
       payroll || [],
       workerPayments || [],
-      expenses || []
+      expenses || [],
     );
   }, [isAdmin, invoices, clientPayments, payroll, workerPayments, expenses]);
 
@@ -2198,7 +2424,9 @@ function Overview({
 
           <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-6">
             <div className="rounded-xl border border-white/5 bg-white/[0.03] p-3.5">
-              <span className="text-[10px] uppercase tracking-wider text-[#a08d96]">Revenue Billed</span>
+              <span className="text-[10px] uppercase tracking-wider text-[#a08d96]">
+                Revenue Billed
+              </span>
               <p className="mt-1 font-serif text-xl font-medium text-white">
                 {formatCurrency(studioTotals.totalRevenueBilled)}
               </p>
@@ -2206,7 +2434,9 @@ function Overview({
             </div>
 
             <div className="rounded-xl border border-white/5 bg-white/[0.03] p-3.5">
-              <span className="text-[10px] uppercase tracking-wider text-[#a08d96]">Cash Collected</span>
+              <span className="text-[10px] uppercase tracking-wider text-[#a08d96]">
+                Cash Collected
+              </span>
               <p className="mt-1 font-serif text-xl font-medium text-[#71d8aa]">
                 {formatCurrency(studioTotals.totalCashCollected)}
               </p>
@@ -2214,7 +2444,9 @@ function Overview({
             </div>
 
             <div className="rounded-xl border border-white/5 bg-white/[0.03] p-3.5">
-              <span className="text-[10px] uppercase tracking-wider text-[#a08d96]">Client Balance Due</span>
+              <span className="text-[10px] uppercase tracking-wider text-[#a08d96]">
+                Client Balance Due
+              </span>
               <p className="mt-1 font-serif text-xl font-medium text-amber-300">
                 {formatCurrency(studioTotals.totalClientOutstanding)}
               </p>
@@ -2222,7 +2454,9 @@ function Overview({
             </div>
 
             <div className="rounded-xl border border-white/5 bg-white/[0.03] p-3.5">
-              <span className="text-[10px] uppercase tracking-wider text-[#a08d96]">Payroll Due</span>
+              <span className="text-[10px] uppercase tracking-wider text-[#a08d96]">
+                Payroll Due
+              </span>
               <p className="mt-1 font-serif text-xl font-medium text-rose-300">
                 {formatCurrency(studioTotals.totalPayrollOutstanding)}
               </p>
@@ -2230,7 +2464,9 @@ function Overview({
             </div>
 
             <div className="rounded-xl border border-white/5 bg-white/[0.03] p-3.5">
-              <span className="text-[10px] uppercase tracking-wider text-[#a08d96]">Operating Expenses</span>
+              <span className="text-[10px] uppercase tracking-wider text-[#a08d96]">
+                Operating Expenses
+              </span>
               <p className="mt-1 font-serif text-xl font-medium text-white">
                 {formatCurrency(studioTotals.totalOperatingExpenses)}
               </p>
@@ -2238,8 +2474,12 @@ function Overview({
             </div>
 
             <div className="rounded-xl border border-white/5 bg-[#762d40]/20 p-3.5 border-[#c56c7d]/30">
-              <span className="text-[10px] uppercase tracking-wider text-[#d9b98c]">Est. Net Profit</span>
-              <p className={`mt-1 font-serif text-xl font-semibold ${studioTotals.estimatedNetProfit >= 0 ? "text-[#71d8aa]" : "text-rose-400"}`}>
+              <span className="text-[10px] uppercase tracking-wider text-[#d9b98c]">
+                Est. Net Profit
+              </span>
+              <p
+                className={`mt-1 font-serif text-xl font-semibold ${studioTotals.estimatedNetProfit >= 0 ? "text-[#71d8aa]" : "text-rose-400"}`}
+              >
                 {formatCurrency(studioTotals.estimatedNetProfit)}
               </p>
               <span className="text-[10px] text-white/70">Accrual operational estimate</span>
@@ -2363,24 +2603,40 @@ function Overview({
             />
           ) : (
             <div className="divide-y divide-[#f0efe9]">
-              {upcoming.slice(0, 5).map((shoot) => (
-                <ShootRow
-                  key={shoot.id}
-                  shoot={shoot}
-                  assignedCount={
-                    new Set(
-                      onSiteAssignments
-                        .filter((assignment) => assignment.shoot_id === shoot.id)
-                        .map((a) => a.team_member_id),
-                    ).size
-                  }
-                />
-              ))}
+              {upcoming.slice(0, 5).map((shoot) => {
+                const shootAssignments = assignments.filter((a) => a.shoot_id === shoot.id);
+                const assignedMembers = shootAssignments.map((a) => {
+                  const member = team.find((t) => t.id === a.team_member_id);
+                  return {
+                    id: a.team_member_id,
+                    name: member?.full_name ?? "Unknown Worker",
+                    role: member?.role ?? "Crew",
+                    type: a.assignment_type,
+                  };
+                });
+                const metrics = calculateStaffingMetrics(shoot.planned_team_size, shootAssignments);
+
+                return (
+                  <ShootRow
+                    key={shoot.id}
+                    shoot={shoot}
+                    assignedMembers={assignedMembers}
+                    staffingMetrics={metrics}
+                    assignedCount={metrics.assignedCrew}
+                  />
+                );
+              })}
             </div>
           )}
         </section>
 
-        <CalendarView shoots={shoots} loading={loading} compact />
+        <CalendarView
+          shoots={shoots}
+          loading={loading}
+          compact
+          team={team}
+          assignments={assignments}
+        />
       </div>
 
       <section className="grid gap-4 xl:grid-cols-[1fr_1fr]">
@@ -2513,6 +2769,7 @@ function ShootsView({
   onDeleteShoot,
   team,
   allShoots,
+  availabilityRequests = [],
   onSaveAssignments,
 }: {
   shoots: Shoot[];
@@ -2520,10 +2777,15 @@ function ShootsView({
   loading: boolean;
   externalQuery?: string;
   editable: boolean;
-  onSaveShoot: (values: ShootInput, shootId?: string) => Promise<void>;
+  onSaveShoot: (
+    values: ShootInput,
+    crewAssignments?: AssignmentInput[],
+    shootId?: string,
+  ) => Promise<void>;
   onDeleteShoot: (shootId: string) => Promise<void>;
   team: TeamMember[];
   allShoots: Shoot[];
+  availabilityRequests?: AvailabilityRequest[];
   onSaveAssignments: (shootId: string, values: AssignmentInput[]) => Promise<void>;
 }) {
   const [query, setQuery] = useState(externalQuery);
@@ -2638,26 +2900,32 @@ function ShootsView({
           />
         ) : (
           <div className="divide-y divide-[#f0efe9]">
-            {filteredShoots.map((shoot) => (
-              <ShootRow
-                key={shoot.id}
-                shoot={shoot}
-                assignedCount={
-                  new Set(
-                    assignments
-                      .filter(
-                        (assignment) =>
-                          assignment.shoot_id === shoot.id &&
-                          assignment.assignment_type === "on_site",
-                      )
-                      .map((a) => a.team_member_id),
-                  ).size
-                }
-                onEdit={editable ? () => setEditingShoot(shoot) : undefined}
-                onDelete={editable ? () => void confirmDelete(shoot) : undefined}
-                onAssign={editable ? () => setAssigningShoot(shoot) : undefined}
-              />
-            ))}
+            {filteredShoots.map((shoot) => {
+              const shootAssignments = assignments.filter((a) => a.shoot_id === shoot.id);
+              const assignedMembers = shootAssignments.map((a) => {
+                const member = team.find((t) => t.id === a.team_member_id);
+                return {
+                  id: a.team_member_id,
+                  name: member?.full_name ?? "Unknown Worker",
+                  role: member?.role ?? "Crew",
+                  type: a.assignment_type,
+                };
+              });
+              const metrics = calculateStaffingMetrics(shoot.planned_team_size, shootAssignments);
+
+              return (
+                <ShootRow
+                  key={shoot.id}
+                  shoot={shoot}
+                  assignedMembers={assignedMembers}
+                  staffingMetrics={metrics}
+                  assignedCount={metrics.assignedCrew}
+                  onEdit={editable ? () => setEditingShoot(shoot) : undefined}
+                  onDelete={editable ? () => void confirmDelete(shoot) : undefined}
+                  onAssign={editable ? () => setAssigningShoot(shoot) : undefined}
+                />
+              );
+            })}
           </div>
         )}
       </section>
@@ -2665,6 +2933,10 @@ function ShootsView({
         <ShootEditor
           key={editingShoot?.id ?? "new-shoot"}
           shoot={editingShoot}
+          team={team}
+          shoots={allShoots}
+          assignments={assignments}
+          availabilityRequests={availabilityRequests}
           onClose={() => setEditingShoot(undefined)}
           onSave={onSaveShoot}
         />
@@ -2683,42 +2955,186 @@ function ShootsView({
   );
 }
 
+const ALL_STUDIO_ROLES = [
+  "All roles",
+  "Photographer",
+  "Videographer",
+  "Cinematographer / Creative Director",
+  "Drone Operator",
+  "Assistant Photographer",
+  "Assistant Videographer",
+  "Lighting Assistant",
+  "Data Manager / Footage Backup Assistant",
+  "Photo Editor",
+  "Video Editor",
+  "Album Designer",
+];
+
 function ShootEditor({
   shoot,
+  team,
+  shoots,
+  assignments,
+  availabilityRequests = [],
   onClose,
   onSave,
 }: {
   shoot: Shoot | null;
+  team: TeamMember[];
+  shoots: Shoot[];
+  assignments: Assignment[];
+  availabilityRequests?: AvailabilityRequest[];
   onClose: () => void;
-  onSave: (values: ShootInput, shootId?: string) => Promise<void>;
+  onSave: (
+    values: ShootInput,
+    crewAssignments: AssignmentInput[],
+    shootId?: string,
+  ) => Promise<void>;
 }) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [conflictReviewed, setConflictReviewed] = useState(false);
+
+  // Form field state for live calculations & conflict checks
+  const [plannedTeamSize, setPlannedTeamSize] = useState<number>(shoot?.planned_team_size ?? 7);
+  const [eventDate, setEventDate] = useState<string>(
+    shoot?.event_date ?? format(new Date(), "yyyy-MM-dd"),
+  );
+  const [startTime, setStartTime] = useState<string>(shoot?.start_time?.slice(0, 5) ?? "09:00");
+  const [endTime, setEndTime] = useState<string>(shoot?.end_time?.slice(0, 5) ?? "");
+
+  // Crew search and role filters
+  const [workerSearch, setWorkerSearch] = useState("");
+  const [roleFilter, setRoleFilter] = useState("All roles");
+
+  // Selected crew assignments
+  const [selectedCrew, setSelectedCrew] = useState<AssignmentInput[]>(() => {
+    if (!shoot) return [];
+    return assignments
+      .filter((a) => a.shoot_id === shoot.id)
+      .map(({ team_member_id, assignment_type }) => ({ team_member_id, assignment_type }));
+  });
+
+  // Only approved, active workers may be selected
+  const activeWorkers = useMemo(() => {
+    return team.filter((member) => member.status !== "inactive");
+  }, [team]);
+
+  const filteredWorkers = useMemo(() => {
+    const q = workerSearch.trim().toLowerCase();
+    return activeWorkers.filter((member) => {
+      const matchesQuery =
+        !q || member.full_name.toLowerCase().includes(q) || member.role.toLowerCase().includes(q);
+      const matchesRole = roleFilter === "All roles" || member.role === roleFilter;
+      return matchesQuery && matchesRole;
+    });
+  }, [activeWorkers, workerSearch, roleFilter]);
+
+  const staffingMetrics = useMemo(() => {
+    return calculateStaffingMetrics(plannedTeamSize, selectedCrew);
+  }, [plannedTeamSize, selectedCrew]);
+
+  const conflicts = useMemo(() => {
+    const onSiteIds = selectedCrew
+      .filter((c) => c.assignment_type === "on_site")
+      .map((c) => c.team_member_id);
+
+    return findAllShootConflicts({
+      shoot: {
+        id: shoot?.id,
+        event_date: eventDate,
+        start_time: startTime,
+        end_time: endTime || null,
+      },
+      selectedWorkerIds: onSiteIds,
+      team,
+      shoots,
+      assignments,
+      availabilityRequests,
+    });
+  }, [
+    selectedCrew,
+    shoot?.id,
+    eventDate,
+    startTime,
+    endTime,
+    team,
+    shoots,
+    assignments,
+    availabilityRequests,
+  ]);
+
+  function toggleWorker(workerId: string) {
+    setSelectedCrew((prev) => {
+      const exists = prev.some((item) => item.team_member_id === workerId);
+      if (exists) {
+        return prev.filter((item) => item.team_member_id !== workerId);
+      }
+      const onSiteCount = prev.filter((item) => item.assignment_type === "on_site").length;
+      if (onSiteCount >= 20) {
+        setError(
+          "Maximum capacity reached: A shoot cannot have more than 20 on-site crew members.",
+        );
+        return prev;
+      }
+      return [...prev, { team_member_id: workerId, assignment_type: "on_site" }];
+    });
+  }
+
+  function removeWorker(workerId: string) {
+    setSelectedCrew((prev) => prev.filter((item) => item.team_member_id !== workerId));
+  }
+
+  function updateAssignmentType(workerId: string, type: "on_site" | "post_production") {
+    setSelectedCrew((prev) => {
+      if (type === "on_site") {
+        const onSiteCount = prev.filter((item) => item.assignment_type === "on_site").length;
+        if (onSiteCount >= 20) {
+          setError(
+            "Maximum capacity reached: A shoot cannot have more than 20 on-site crew members.",
+          );
+          return prev;
+        }
+      }
+      return prev.map((item) =>
+        item.team_member_id === workerId ? { ...item, assignment_type: type } : item,
+      );
+    });
+  }
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setSaving(true);
     setError("");
+
+    if (conflicts.length > 0 && !conflictReviewed) {
+      setError("Please review or acknowledge the scheduling conflicts before saving.");
+      setSaving(false);
+      return;
+    }
+
     const form = new FormData(event.currentTarget);
     const venue = String(form.get("venue") ?? "").trim();
     const notes = String(form.get("notes") ?? "").trim();
     const values: ShootInput = {
       couple_name: String(form.get("couple_name") ?? "").trim(),
       event_type: String(form.get("event_type") ?? "Wedding"),
-      event_date: String(form.get("event_date") ?? ""),
+      event_date: eventDate,
       location: String(form.get("location") ?? "").trim(),
       venue: venue || null,
-      start_time: String(form.get("start_time") ?? ""),
-      end_time: String(form.get("end_time") ?? "") || null,
-      planned_team_size: Number(form.get("planned_team_size")),
+      start_time: startTime,
+      end_time: endTime || null,
+      planned_team_size: plannedTeamSize,
       status: String(form.get("status") ?? "Upcoming"),
       notes: notes || null,
     };
     try {
-      await onSave(values, shoot?.id);
+      await onSave(values, selectedCrew, shoot?.id);
       onClose();
-    } catch (error) {
-      setError(error instanceof Error ? error.message : "Could not save this shoot.");
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "Could not save this shoot and crew assignments.",
+      );
     } finally {
       setSaving(false);
     }
@@ -2732,7 +3148,7 @@ function ShootEditor({
       }}
     >
       <section
-        className="studio-modal"
+        className="studio-modal max-w-3xl"
         role="dialog"
         aria-modal="true"
         aria-labelledby="shoot-editor-title"
@@ -2772,7 +3188,8 @@ function ShootEditor({
               <Input
                 name="event_date"
                 type="date"
-                defaultValue={shoot?.event_date ?? format(new Date(), "yyyy-MM-dd")}
+                value={eventDate}
+                onChange={(e) => setEventDate(e.target.value)}
                 required
               />
             </label>
@@ -2789,7 +3206,8 @@ function ShootEditor({
               <Input
                 name="start_time"
                 type="time"
-                defaultValue={shoot?.start_time.slice(0, 5) ?? "09:00"}
+                value={startTime}
+                onChange={(e) => setStartTime(e.target.value)}
                 required
               />
             </label>
@@ -2798,7 +3216,8 @@ function ShootEditor({
               <Input
                 name="end_time"
                 type="time"
-                defaultValue={shoot?.end_time?.slice(0, 5) ?? ""}
+                value={endTime}
+                onChange={(e) => setEndTime(e.target.value)}
               />
             </label>
             <label className="studio-field">
@@ -2808,7 +3227,10 @@ function ShootEditor({
                 type="number"
                 min={7}
                 max={20}
-                defaultValue={shoot?.planned_team_size ?? 7}
+                value={plannedTeamSize}
+                onChange={(e) =>
+                  setPlannedTeamSize(Math.max(7, Math.min(20, Number(e.target.value) || 7)))
+                }
                 required
               />
             </label>
@@ -2823,9 +3245,202 @@ function ShootEditor({
             </label>
             <label className="studio-field sm:col-span-2">
               Notes <span className="font-normal text-[#82767d]">· optional</span>
-              <textarea name="notes" maxLength={2000} defaultValue={shoot?.notes ?? ""} rows={3} />
+              <textarea name="notes" maxLength={2000} defaultValue={shoot?.notes ?? ""} rows={2} />
             </label>
           </div>
+
+          {/* Assigned Crew Members Section */}
+          <div className="mt-6 border-t border-[#30282e] pt-5">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h3 className="font-serif text-lg text-[#f7f0ee]">Assigned Crew Members</h3>
+                <p className="text-xs text-[#82767d]">
+                  Select approved studio workers. Search by name, filter by role, and set assignment
+                  nature.
+                </p>
+              </div>
+              <div className="flex flex-wrap items-center gap-2 text-xs">
+                <span className="rounded-lg border border-[#30282e] bg-[#120f12] px-2.5 py-1 text-[#f7f0ee]">
+                  Selected crew:{" "}
+                  <strong className="font-semibold text-[#d9b98c]">
+                    {staffingMetrics.assignedCrew}
+                  </strong>
+                </span>
+                <span className="rounded-lg border border-[#30282e] bg-[#120f12] px-2.5 py-1 text-[#b8adb2]">
+                  Planned crew:{" "}
+                  <strong className="font-semibold">{staffingMetrics.plannedTeamSize}</strong>
+                </span>
+                <span
+                  className={`rounded-lg border px-2.5 py-1 font-medium ${
+                    staffingMetrics.additionalCrewRequired > 0
+                      ? "border-amber-500/30 bg-amber-500/10 text-amber-300"
+                      : "border-emerald-500/30 bg-emerald-500/10 text-emerald-300"
+                  }`}
+                >
+                  {staffingMetrics.additionalCrewRequired > 0
+                    ? `Additional crew required: ${staffingMetrics.additionalCrewRequired}`
+                    : "Staffing fulfilled"}
+                </span>
+                <span className="rounded-lg border border-[#30282e] bg-[#120f12] px-2.5 py-1 text-[#82767d]">
+                  Remaining capacity: {staffingMetrics.remainingCapacity}
+                </span>
+              </div>
+            </div>
+
+            {/* Conflicts Warning */}
+            {conflicts.length > 0 && (
+              <div
+                className="mt-4 rounded-xl border border-amber-500/40 bg-amber-500/10 p-3.5 text-xs text-amber-200"
+                role="alert"
+              >
+                <div className="flex items-start gap-2.5">
+                  <AlertTriangle className="size-4 shrink-0 text-amber-400 mt-0.5" />
+                  <div className="flex-1 space-y-1">
+                    <p className="font-semibold text-amber-300">Scheduling conflict notice</p>
+                    {conflicts.map((c, idx) => (
+                      <p key={idx} className="text-[11px] text-amber-200/90 leading-tight">
+                        • {c.message}
+                      </p>
+                    ))}
+                    {!conflictReviewed && (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setConflictReviewed(true)}
+                        className="mt-2 h-7 border-amber-500/40 bg-amber-500/20 text-[11px] text-amber-200 hover:bg-amber-500/30"
+                      >
+                        Acknowledge conflicts & continue
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Selected Workers Chips Preview */}
+            {selectedCrew.length > 0 && (
+              <div className="mt-3 flex flex-wrap gap-1.5 p-2 rounded-xl border border-[#30282e]/80 bg-[#161217]">
+                {selectedCrew.map((assignment) => {
+                  const worker = team.find((m) => m.id === assignment.team_member_id);
+                  if (!worker) return null;
+                  return (
+                    <span
+                      key={assignment.team_member_id}
+                      className="inline-flex items-center gap-1.5 rounded-lg border border-[#40343e] bg-[#221c25] px-2.5 py-1 text-xs text-[#f7f0ee]"
+                    >
+                      <span className="font-medium">{worker.full_name}</span>
+                      <span className="text-[10px] text-[#d9b98c]">({worker.role})</span>
+                      <span className="text-[9px] uppercase tracking-wider text-[#82767d]">
+                        [{assignment.assignment_type === "on_site" ? "On-site" : "Post-prod"}]
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => removeWorker(worker.id)}
+                        className="ml-1 text-[#82767d] hover:text-red-400"
+                        aria-label={`Remove ${worker.full_name}`}
+                      >
+                        <X className="size-3" />
+                      </button>
+                    </span>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* Search and Role Filter Bar */}
+            <div className="mt-3 grid gap-2 sm:grid-cols-2">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-[#82767d]" />
+                <Input
+                  value={workerSearch}
+                  onChange={(e) => setWorkerSearch(e.target.value)}
+                  placeholder="Search workers by name or role…"
+                  className="h-9 pl-8 text-xs bg-[#120f12] border-[#30282e] text-[#f7f0ee]"
+                />
+              </div>
+              <select
+                value={roleFilter}
+                onChange={(e) => setRoleFilter(e.target.value)}
+                className="h-9 rounded-md border border-[#30282e] bg-[#120f12] px-3 text-xs text-[#f7f0ee]"
+              >
+                {ALL_STUDIO_ROLES.map((role) => (
+                  <option key={role} value={role}>
+                    {role}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Workers Multi-Select List */}
+            <div className="mt-3 max-h-[240px] space-y-1.5 overflow-y-auto pr-1">
+              {filteredWorkers.length === 0 ? (
+                <p className="py-6 text-center text-xs text-[#82767d]">
+                  No active workers matching "{workerSearch || roleFilter}".
+                </p>
+              ) : (
+                filteredWorkers.map((member) => {
+                  const isSelected = selectedCrew.some((i) => i.team_member_id === member.id);
+                  const currentAssign = selectedCrew.find((i) => i.team_member_id === member.id);
+                  const workerConflicts = conflicts.filter((c) => c.workerId === member.id);
+
+                  return (
+                    <div
+                      key={member.id}
+                      className={`flex flex-wrap items-center justify-between gap-3 rounded-xl border p-2.5 transition-colors text-xs ${
+                        isSelected
+                          ? "border-[#762d40] bg-[#221c25]"
+                          : "border-[#30282e]/80 bg-[#161217] hover:border-[#40343e]"
+                      }`}
+                    >
+                      <label className="flex items-center gap-3 cursor-pointer flex-1 min-w-[200px]">
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={() => toggleWorker(member.id)}
+                          className="size-4 rounded border-[#40343e] accent-[#762d40]"
+                        />
+                        <div>
+                          <p className="font-medium text-[#f7f0ee]">{member.full_name}</p>
+                          <p className="text-[11px] text-[#82767d]">
+                            {member.role} ·{" "}
+                            <span
+                              className={member.available ? "text-[#71d8aa]" : "text-amber-400"}
+                            >
+                              {member.available ? "Available" : "Busy"}
+                            </span>
+                            {member.status === "on_leave" && " (On Leave)"}
+                          </p>
+                          {workerConflicts.length > 0 && (
+                            <p className="text-[10px] text-amber-300 font-medium">
+                              ⚠️ {workerConflicts[0].message}
+                            </p>
+                          )}
+                        </div>
+                      </label>
+
+                      {isSelected && (
+                        <select
+                          value={currentAssign?.assignment_type ?? "on_site"}
+                          onChange={(e) =>
+                            updateAssignmentType(
+                              member.id,
+                              e.target.value as "on_site" | "post_production",
+                            )
+                          }
+                          className="h-7 rounded border border-[#40343e] bg-[#120f12] px-2 text-[11px] text-[#f7f0ee]"
+                        >
+                          <option value="on_site">On site</option>
+                          <option value="post_production">Post production</option>
+                        </select>
+                      )}
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </div>
+
           {error && (
             <p
               className="rounded-md border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-300"
@@ -2919,7 +3534,9 @@ function AssignmentEditor({
       }
       const onSiteCount = current.filter((i) => i.assignment_type === "on_site").length;
       if (onSiteCount >= 20) {
-        setError("Maximum capacity reached: A shoot cannot have more than 20 on-site crew members.");
+        setError(
+          "Maximum capacity reached: A shoot cannot have more than 20 on-site crew members.",
+        );
         return current;
       }
       return [...current, { team_member_id: memberId, assignment_type: "on_site" }];
@@ -3077,10 +3694,16 @@ function CalendarView({
   shoots,
   loading,
   compact = false,
+  team = [],
+  assignments = [],
+  onEditShoot,
 }: {
   shoots: Shoot[];
   loading: boolean;
   compact?: boolean;
+  team?: TeamMember[];
+  assignments?: Assignment[];
+  onEditShoot?: (shoot: Shoot) => void;
 }) {
   const [anchor, setAnchor] = useState(() => new Date());
   const [view, setView] = useState<"month" | "week">("month");
@@ -3341,7 +3964,86 @@ function CalendarView({
                 </div>
               )}
             </dl>
-            <div className="mt-5 flex justify-end">
+            {/* Assigned Crew Section */}
+            {selectedShoot &&
+              (() => {
+                const shootAssignments = assignments.filter((a) => a.shoot_id === selectedShoot.id);
+                const assignedDetails = shootAssignments
+                  .map((a) => ({
+                    ...a,
+                    member: team.find((m) => m.id === a.team_member_id),
+                  }))
+                  .filter((a): a is typeof a & { member: TeamMember } => Boolean(a.member));
+                const metrics = calculateStaffingMetrics(
+                  selectedShoot.planned_team_size,
+                  shootAssignments,
+                );
+
+                return (
+                  <div className="mt-4 border-t border-[#30282e] pt-4">
+                    <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+                      <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#d9b98c]">
+                        Assigned Crew ({assignedDetails.length})
+                      </p>
+                      <span
+                        className={`inline-block rounded-full px-2.5 py-0.5 text-[10px] font-medium ${
+                          metrics.staffingStatus === "Fully Staffed"
+                            ? "bg-emerald-500/10 text-emerald-300 border border-emerald-500/20"
+                            : metrics.staffingStatus === "Overstaffed"
+                              ? "bg-amber-500/10 text-amber-300 border border-amber-500/20"
+                              : "bg-red-500/10 text-red-300 border border-red-500/20"
+                        }`}
+                      >
+                        {metrics.staffingStatus} ({metrics.assignedCrew}/
+                        {selectedShoot.planned_team_size} on-site)
+                      </span>
+                    </div>
+
+                    {assignedDetails.length === 0 ? (
+                      <p className="text-xs text-[#82767d] italic">
+                        No crew assigned to this celebration yet.
+                      </p>
+                    ) : (
+                      <div className="grid gap-2 sm:grid-cols-2 max-h-[160px] overflow-y-auto pr-1">
+                        {assignedDetails.map(({ member, assignment_type }) => (
+                          <div
+                            key={member.id}
+                            className="flex items-center gap-2.5 rounded-xl border border-[#30282e] bg-[#1a161c] p-2 text-xs"
+                          >
+                            <Avatar name={member.full_name} />
+                            <div className="min-w-0 flex-1">
+                              <p className="truncate font-medium text-[#f7f0ee]">
+                                {member.full_name}
+                              </p>
+                              <p className="truncate text-[11px] text-[#82767d]">
+                                {member.role} ·{" "}
+                                <span className="capitalize">
+                                  {assignment_type.replace("_", " ")}
+                                </span>
+                              </p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
+
+            <div className="mt-5 flex justify-end gap-2 border-t border-[#30282e] pt-4">
+              {onEditShoot && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    const target = selectedShoot;
+                    setSelectedShoot(null);
+                    onEditShoot(target);
+                  }}
+                >
+                  Edit shoot & crew
+                </Button>
+              )}
               <Button type="button" onClick={() => setSelectedShoot(null)}>
                 Close
               </Button>
@@ -3590,7 +4292,10 @@ function TeamMemberEditor({
     const adminNotes = String(form.get("admin_notes") ?? "").trim();
     const skillsRaw = String(form.get("additional_skills") ?? "").trim();
     const additionalSkills = skillsRaw
-      ? skillsRaw.split(",").map((s) => s.trim()).filter(Boolean)
+      ? skillsRaw
+          .split(",")
+          .map((s) => s.trim())
+          .filter(Boolean)
       : [];
 
     const values: TeamMemberInput = {
@@ -3681,7 +4386,8 @@ function TeamMemberEditor({
               <Input name="phone" defaultValue={member?.phone ?? ""} maxLength={32} />
             </label>
             <label className="studio-field sm:col-span-2">
-              Additional Skills <span className="font-normal text-[#82767d]">· comma separated</span>
+              Additional Skills{" "}
+              <span className="font-normal text-[#82767d]">· comma separated</span>
               <Input
                 name="additional_skills"
                 placeholder="e.g. Drone Piloting, Gimbal Operator, Color Grading"
@@ -3705,7 +4411,8 @@ function TeamMemberEditor({
               <textarea name="notes" maxLength={1000} defaultValue={member?.notes ?? ""} rows={2} />
             </label>
             <label className="studio-field sm:col-span-2">
-              Administrative Notes <span className="font-normal text-[#e7a0ad]">· confidential</span>
+              Administrative Notes{" "}
+              <span className="font-normal text-[#e7a0ad]">· confidential</span>
               <textarea
                 name="admin_notes"
                 placeholder="Internal notes visible to administrators only"
@@ -3740,12 +4447,16 @@ function TeamMemberEditor({
 function ShootRow({
   shoot,
   assignedCount,
+  assignedMembers = [],
+  staffingMetrics,
   onEdit,
   onDelete,
   onAssign,
 }: {
   shoot: Shoot;
   assignedCount?: number;
+  assignedMembers?: Array<{ id: string; name: string; role: string; type: string }>;
+  staffingMetrics?: ReturnType<typeof calculateStaffingMetrics>;
   onEdit?: () => void;
   onDelete?: () => void;
   onAssign?: () => void;
@@ -3762,12 +4473,32 @@ function ShootRow({
       </div>
       <div className="min-w-[155px] flex-1">
         <p className="text-sm font-medium text-[#42483f]">{shoot.couple_name}</p>
-        <p className="mt-1 text-xs text-[#8d8b81]">
-          {shoot.event_type}
-          {assignedCount !== undefined
-            ? ` · ${assignedCount}/${shoot.planned_team_size} assigned`
-            : ""}
-        </p>
+        <div className="mt-1 flex flex-wrap items-center gap-1.5 text-xs text-[#8d8b81]">
+          <span>{shoot.event_type}</span>
+          {staffingMetrics ? (
+            <>
+              <span>·</span>
+              <span className="font-medium text-[#42483f]">
+                {staffingMetrics.assignedCrew}/{shoot.planned_team_size} crew
+              </span>
+              {staffingMetrics.additionalCrewRequired > 0 && (
+                <span className="rounded border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800">
+                  Needs {staffingMetrics.additionalCrewRequired} more
+                </span>
+              )}
+              {staffingMetrics.remainingCapacity === 0 && (
+                <span className="rounded border border-rose-200 bg-rose-50 px-1.5 py-0.5 text-[10px] font-semibold text-rose-800">
+                  Max capacity (20)
+                </span>
+              )}
+            </>
+          ) : assignedCount !== undefined ? (
+            <span>
+              {" "}
+              · {assignedCount}/{shoot.planned_team_size} assigned
+            </span>
+          ) : null}
+        </div>
       </div>
       <div className="hidden min-w-[150px] items-center gap-2 text-xs text-[#77786f] md:flex">
         <MapPin className="size-3.5 shrink-0 text-[#a19e93]" aria-hidden="true" />
@@ -3812,6 +4543,25 @@ function ShootRow({
               <Trash2 className="size-3.5" />
             </Button>
           )}
+        </div>
+      )}
+      {assignedMembers.length > 0 && (
+        <div className="mt-1 flex w-full flex-wrap items-center gap-1.5 border-t border-[#f4f3ee] pt-2 text-xs">
+          <span className="text-[10px] font-semibold uppercase tracking-wider text-[#99968c]">
+            Crew ({assignedMembers.length}):
+          </span>
+          {assignedMembers.map((m) => (
+            <span
+              key={m.id + m.type}
+              className="inline-flex items-center gap-1 rounded-md border border-[#e9e7df] bg-[#f8f7f4] px-2 py-0.5 text-[11px] text-[#42483f]"
+            >
+              <span className="font-medium">{m.name}</span>
+              <span className="text-[#8d8b81]">({m.role})</span>
+              {m.type === "post_production" && (
+                <span className="rounded bg-[#dedad2] px-1 text-[9px] text-[#555]">Post</span>
+              )}
+            </span>
+          ))}
         </div>
       )}
     </article>
