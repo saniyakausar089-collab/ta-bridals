@@ -55,8 +55,15 @@ export async function deleteAuditLog(id: string): Promise<void> {
  * Clears ALL audit log entries (admin only).
  */
 export async function clearAllAuditLogs(): Promise<void> {
-  const { error } = await supabase.from("audit_logs").delete().neq("id", "00000000-0000-0000-0000-000000000000");
-  if (error) throw new Error(error.message);
+  // Use gte on the epoch start to match every row (Supabase requires a filter for DELETE)
+  const { error } = await supabase
+    .from("audit_logs")
+    .delete()
+    .gte("created_at", "1970-01-01T00:00:00.000Z");
+  if (error) {
+    console.error("[Audit] clearAllAuditLogs failed:", error);
+    throw new Error(error.message || error.details || "Failed to clear audit logs. Check RLS policy.");
+  }
 }
 
 /**
