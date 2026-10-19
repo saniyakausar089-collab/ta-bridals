@@ -16,7 +16,8 @@ export function AuditLogSection({ logs, loading = false }: AuditLogSectionProps)
         <div>
           <h2 className="font-serif text-2xl text-[#f7f0ee]">Studio Audit Trail</h2>
           <p className="mt-1 text-xs text-[#82767d]">
-            Immutable record of administrative actions, role adjustments, worker approvals, and shoot modifications.
+            Immutable record of administrative actions, role adjustments, worker approvals, and
+            shoot modifications.
           </p>
         </div>
         <div className="flex items-center gap-2 rounded-lg border border-[#30282e] bg-[#1b181d] px-3 py-1.5 text-xs text-[#d9b98c]">
@@ -70,9 +71,7 @@ export function AuditLogSection({ logs, loading = false }: AuditLogSectionProps)
                         {log.action}
                       </span>
                     </td>
-                    <td className="py-3.5 px-4 text-[#d9b98c] capitalize">
-                      {log.record_type}
-                    </td>
+                    <td className="py-3.5 px-4 text-[#d9b98c] capitalize">{log.record_type}</td>
                     <td className="py-3.5 px-5 text-[#b8adb2] max-w-xs truncate">
                       {typeof log.details === "object"
                         ? JSON.stringify(log.details)

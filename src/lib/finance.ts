@@ -47,7 +47,8 @@ export interface PayrollObligationRecord {
   worker_id: string;
   shoot_id?: string | null;
   period_label: string;
-  compensation_type: "monthly_salary" | "per_shoot" | "per_day" | "per_assignment" | "bonus" | "adjustment";
+  compensation_type:
+    "monthly_salary" | "per_shoot" | "per_day" | "per_assignment" | "bonus" | "adjustment";
   base_amount: number;
   allowance_amount: number;
   deduction_amount: number;
@@ -155,7 +156,7 @@ export function computeInvoiceBalance(
   additionalCharges: number,
   discountAmount: number,
   taxAmount: number,
-  payments: { amount: number; is_reversed?: boolean }[]
+  payments: { amount: number; is_reversed?: boolean }[],
 ) {
   const totalBilled = Math.max(0, agreedPrice + additionalCharges - discountAmount + taxAmount);
   const validPayments = payments.filter((p) => !p.is_reversed);
@@ -187,7 +188,7 @@ export function computePayrollBalance(
   baseAmount: number,
   allowanceAmount: number,
   deductionAmount: number,
-  disbursements: { amount: number; is_reversed?: boolean }[]
+  disbursements: { amount: number; is_reversed?: boolean }[],
 ) {
   const netPayable = Math.max(0, baseAmount + allowanceAmount - deductionAmount);
   const validDisbursements = disbursements.filter((d) => !d.is_reversed);
@@ -221,12 +222,14 @@ export function calculateShootProfitability(
   payroll: PayrollObligationRecord[],
   expenses: OperatingExpenseRecord[],
   totalStudioOverhead: number = 0,
-  totalActiveShootsCount: number = 1
+  totalActiveShootsCount: number = 1,
 ): ShootProfitabilitySummary {
   const shootInvoices = invoices.filter((i) => i.shoot_id === shoot.id && i.status !== "cancelled");
   const shootPayments = payments.filter((p) => p.shoot_id === shoot.id && !p.is_reversed);
   const shootPayroll = payroll.filter((p) => p.shoot_id === shoot.id && p.status !== "cancelled");
-  const shootExpenses = expenses.filter((e) => e.shoot_id === shoot.id && e.is_direct_cost && e.status !== "cancelled");
+  const shootExpenses = expenses.filter(
+    (e) => e.shoot_id === shoot.id && e.is_direct_cost && e.status !== "cancelled",
+  );
 
   const agreedPrice = shootInvoices.reduce((sum, i) => sum + Number(i.agreed_price), 0);
   const recognizedRevenue = shootInvoices.reduce((sum, i) => sum + Number(i.total_billed), 0);
@@ -241,12 +244,14 @@ export function calculateShootProfitability(
 
   // Overhead allocated evenly or conservatively
   const safeCount = Math.max(1, totalActiveShootsCount);
-  const allocatedOverhead = Math.round(((totalStudioOverhead / safeCount) + Number.EPSILON) * 100) / 100;
+  const allocatedOverhead =
+    Math.round((totalStudioOverhead / safeCount + Number.EPSILON) * 100) / 100;
   const estimatedNetProfit = contributionMargin - allocatedOverhead;
 
-  const profitMarginPct = recognizedRevenue > 0
-    ? Math.round(((estimatedNetProfit / recognizedRevenue) * 100 + Number.EPSILON) * 10) / 10
-    : 0;
+  const profitMarginPct =
+    recognizedRevenue > 0
+      ? Math.round(((estimatedNetProfit / recognizedRevenue) * 100 + Number.EPSILON) * 10) / 10
+      : 0;
 
   return {
     shootId: shoot.id,
@@ -277,7 +282,7 @@ export function calculateStudioTotals(
   clientPayments: ClientPaymentRecord[],
   payroll: PayrollObligationRecord[],
   workerPayments: WorkerPaymentRecord[],
-  expenses: OperatingExpenseRecord[]
+  expenses: OperatingExpenseRecord[],
 ): StudioFinancialOverview {
   const validInvoices = invoices.filter((i) => i.status !== "cancelled");
   const validClientPayments = clientPayments.filter((p) => !p.is_reversed);
@@ -686,4 +691,3 @@ export const demoExpenses: OperatingExpenseRecord[] = [
     notes: "40-page flush mount album with custom wooden presentation box.",
   },
 ];
-

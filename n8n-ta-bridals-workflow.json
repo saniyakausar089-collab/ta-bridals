@@ -11,10 +11,7 @@
       "name": "TA Bridals Chat Trigger",
       "type": "@n8n/n8n-nodes-langchain.chatTrigger",
       "typeVersion": 1.1,
-      "position": [
-        -208,
-        -112
-      ],
+      "position": [-208, -112],
       "webhookId": "5ca3c1d5-c2ea-4cea-b458-d55a14c909ce"
     },
     {
@@ -29,10 +26,7 @@
       "name": "TA Bridals AI Agent",
       "type": "@n8n/n8n-nodes-langchain.agent",
       "typeVersion": 2.2,
-      "position": [
-        96,
-        -112
-      ]
+      "position": [96, -112]
     },
     {
       "parameters": {
@@ -48,10 +42,7 @@
       "name": "Anthropic Chat Model",
       "type": "@n8n/n8n-nodes-langchain.lmChatAnthropic",
       "typeVersion": 1.6,
-      "position": [
-        -32,
-        96
-      ],
+      "position": [-32, 96],
       "credentials": {
         "anthropicApi": {
           "id": null,
@@ -70,10 +61,7 @@
       "name": "Simple Memory",
       "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
       "typeVersion": 1.3,
-      "position": [
-        144,
-        160
-      ]
+      "position": [144, 160]
     },
     {
       "parameters": {
@@ -98,10 +86,7 @@
       "name": "get_studio_data",
       "type": "@n8n/n8n-nodes-langchain.toolHttpRequest",
       "typeVersion": 1.1,
-      "position": [
-        400,
-        80
-      ]
+      "position": [400, 80]
     }
   ],
   "pinData": {},

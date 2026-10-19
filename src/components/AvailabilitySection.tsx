@@ -20,11 +20,12 @@ export type AvailabilityRequestInput = TablesInsert<"availability_requests">;
 interface AvailabilitySectionProps {
   isAdmin: boolean;
   requests: AvailabilityRequest[];
-  currentUserId?: string;
-  currentUserName?: string;
+  currentUserId?: string | undefined;
+  currentUserName?: string | undefined;
   onRequestSubmit: (input: AvailabilityRequestInput) => Promise<void>;
-  onRequestReview?: (requestId: string, status: "approved" | "rejected") => Promise<void>;
-  loading?: boolean;
+  onRequestReview?:
+    ((requestId: string, status: "approved" | "rejected") => Promise<void>) | undefined;
+  loading?: boolean | undefined;
 }
 
 export function AvailabilitySection({
@@ -57,9 +58,7 @@ export function AvailabilitySection({
 
     const form = new FormData(event.currentTarget);
     const requestType = String(form.get("request_type") ?? "unavailable") as
-      | "available"
-      | "unavailable"
-      | "leave";
+      "available" | "unavailable" | "leave";
     const startDate = String(form.get("start_date") ?? "");
     const endDate = String(form.get("end_date") ?? "") || startDate;
     const startTime = String(form.get("start_time") ?? "") || null;

@@ -1,11 +1,5 @@
 import { useMemo, useState } from "react";
-import {
-  format,
-  parseISO,
-  startOfMonth,
-  endOfMonth,
-  subMonths,
-} from "date-fns";
+import { format, parseISO, startOfMonth, endOfMonth, subMonths } from "date-fns";
 import {
   AlertCircle,
   ArrowDownRight,
@@ -72,14 +66,14 @@ interface FinanceSectionProps {
   payroll: PayrollObligationRecord[];
   workerPayments: WorkerPaymentRecord[];
   expenses: OperatingExpenseRecord[];
-  onCreateInvoice?: (data: any) => Promise<void>;
-  onRecordClientPayment?: (data: any) => Promise<void>;
-  onCreatePayrollObligation?: (data: any) => Promise<void>;
-  onDisburseWorkerPayment?: (data: any) => Promise<void>;
-  onRecordExpense?: (data: any) => Promise<void>;
-  onApprovePayroll?: (obligationId: string) => Promise<void>;
-  onApproveExpense?: (expenseId: string) => Promise<void>;
-  loading?: boolean;
+  onCreateInvoice?: ((data: any) => Promise<void>) | undefined;
+  onRecordClientPayment?: ((data: any) => Promise<void>) | undefined;
+  onCreatePayrollObligation?: ((data: any) => Promise<void>) | undefined;
+  onDisburseWorkerPayment?: ((data: any) => Promise<void>) | undefined;
+  onRecordExpense?: ((data: any) => Promise<void>) | undefined;
+  onApprovePayroll?: ((obligationId: string) => Promise<void>) | undefined;
+  onApproveExpense?: ((expenseId: string) => Promise<void>) | undefined;
+  loading?: boolean | undefined;
 }
 
 const LUXURY_PALETTE = [
@@ -114,7 +108,9 @@ export function FinanceSection({
   const [activeTab, setActiveTab] = useState<
     "overview" | "shoots" | "payroll" | "expenses" | "billing" | "reports"
   >("overview");
-  const [dateFilter, setDateFilter] = useState<"all" | "thisMonth" | "lastMonth" | "thisYear">("all");
+  const [dateFilter, setDateFilter] = useState<"all" | "thisMonth" | "lastMonth" | "thisYear">(
+    "all",
+  );
   const [selectedShootId, setSelectedShootId] = useState<string>("all");
 
   // Modal Dialog States
@@ -177,7 +173,7 @@ export function FinanceSection({
       filteredClientPayments,
       filteredPayroll,
       workerPayments,
-      filteredExpenses
+      filteredExpenses,
     );
   }, [filteredInvoices, filteredClientPayments, filteredPayroll, workerPayments, filteredExpenses]);
 
@@ -196,15 +192,17 @@ export function FinanceSection({
         payroll,
         expenses,
         totalOverhead,
-        activeShoots.length
-      )
+        activeShoots.length,
+      ),
     );
   }, [shoots, invoices, clientPayments, payroll, expenses]);
 
   // Monthly Revenue vs Expense Trend
   const monthlyTrends = useMemo(() => {
-    const monthsMap: Record<string, { month: string; revenue: number; expense: number; profit: number }> =
-      {};
+    const monthsMap: Record<
+      string,
+      { month: string; revenue: number; expense: number; profit: number }
+    > = {};
     // Last 6 months
     for (let i = 5; i >= 0; i--) {
       const d = subMonths(new Date(), i);
@@ -354,10 +352,12 @@ export function FinanceSection({
           p.worker_id === workerId &&
           p.period_label.toLowerCase() === periodLabel.toLowerCase() &&
           p.compensation_type === "monthly_salary" &&
-          p.status !== "cancelled"
+          p.status !== "cancelled",
       );
       if (duplicate) {
-        setActionError(`A salary obligation for ${periodLabel} already exists for this team member.`);
+        setActionError(
+          `A salary obligation for ${periodLabel} already exists for this team member.`,
+        );
         setSubmitting(false);
         return;
       }
@@ -478,7 +478,8 @@ export function FinanceSection({
             </span>
           </div>
           <p className="mt-1 text-xs text-[#82767d]">
-            Private manual accounting ledger, client receivables, crew payroll, operating expenses, and event profitability.
+            Private manual accounting ledger, client receivables, crew payroll, operating expenses,
+            and event profitability.
           </p>
         </div>
 
@@ -700,8 +701,12 @@ export function FinanceSection({
           {/* Monthly Trend Chart */}
           <section className="rounded-2xl border border-[#30282e] bg-[#151317] p-6">
             <div className="mb-4">
-              <h3 className="font-serif text-xl text-[#f7f0ee]">6-Month Revenue, Expenses & Net Profit Trend</h3>
-              <p className="text-xs text-[#82767d]">Monthly recognized billings versus total attributable expenses</p>
+              <h3 className="font-serif text-xl text-[#f7f0ee]">
+                6-Month Revenue, Expenses & Net Profit Trend
+              </h3>
+              <p className="text-xs text-[#82767d]">
+                Monthly recognized billings versus total attributable expenses
+              </p>
             </div>
             <div className="h-72 w-full">
               <ResponsiveContainer width="100%" height="100%">
@@ -719,8 +724,18 @@ export function FinanceSection({
                     formatter={(val: any) => formatCurrency(Number(val))}
                   />
                   <Legend wrapperStyle={{ fontSize: "11px", color: "#b8adb2" }} />
-                  <Bar dataKey="revenue" name="Revenue Billed" fill="#c56c7d" radius={[4, 4, 0, 0]} />
-                  <Bar dataKey="expense" name="Costs & Expenses" fill="#762d40" radius={[4, 4, 0, 0]} />
+                  <Bar
+                    dataKey="revenue"
+                    name="Revenue Billed"
+                    fill="#c56c7d"
+                    radius={[4, 4, 0, 0]}
+                  />
+                  <Bar
+                    dataKey="expense"
+                    name="Costs & Expenses"
+                    fill="#762d40"
+                    radius={[4, 4, 0, 0]}
+                  />
                   <Bar dataKey="profit" name="Net Profit" fill="#d9b98c" radius={[4, 4, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
@@ -735,7 +750,8 @@ export function FinanceSection({
           <div className="border-b border-[#30282e] p-5">
             <h3 className="font-serif text-xl text-[#f7f0ee]">Event Profitability Ledger</h3>
             <p className="text-xs text-[#82767d]">
-              Direct attribution of revenue, crew payroll, rented equipment, and allocated overhead per wedding.
+              Direct attribution of revenue, crew payroll, rented equipment, and allocated overhead
+              per wedding.
             </p>
           </div>
           <div className="overflow-x-auto">
@@ -810,9 +826,12 @@ export function FinanceSection({
           <section className="overflow-hidden rounded-2xl border border-[#30282e] bg-[#151317]">
             <div className="flex flex-wrap items-center justify-between gap-4 border-b border-[#30282e] p-5">
               <div>
-                <h3 className="font-serif text-xl text-[#f7f0ee]">Worker Compensation & Payroll Obligations</h3>
+                <h3 className="font-serif text-xl text-[#f7f0ee]">
+                  Worker Compensation & Payroll Obligations
+                </h3>
                 <p className="text-xs text-[#82767d]">
-                  Approve and disburse salary, per-shoot fees, allowances, and authorized deductions.
+                  Approve and disburse salary, per-shoot fees, allowances, and authorized
+                  deductions.
                 </p>
               </div>
               {isAdmin && (
@@ -944,7 +963,9 @@ export function FinanceSection({
                 <tbody className="divide-y divide-[#242026]">
                   {filteredInvoices.map((inv) => (
                     <tr key={inv.id} className="hover:bg-[#1b181d] transition-colors">
-                      <td className="py-3.5 px-5 font-medium text-[#e7a0ad]">{inv.invoice_number}</td>
+                      <td className="py-3.5 px-5 font-medium text-[#e7a0ad]">
+                        {inv.invoice_number}
+                      </td>
                       <td className="py-3.5 px-4 font-medium text-[#f7f0ee]">{inv.client_name}</td>
                       <td className="py-3.5 px-4 text-[#82767d]">
                         {format(parseISO(inv.issue_date), "MMM d, yyyy")}
@@ -987,7 +1008,9 @@ export function FinanceSection({
       {activeTab === "expenses" && (
         <section className="overflow-hidden rounded-2xl border border-[#30282e] bg-[#151317]">
           <div className="border-b border-[#30282e] p-5">
-            <h3 className="font-serif text-xl text-[#f7f0ee]">Operating Expenses & Supplier Ledger</h3>
+            <h3 className="font-serif text-xl text-[#f7f0ee]">
+              Operating Expenses & Supplier Ledger
+            </h3>
             <p className="text-xs text-[#82767d]">
               Direct shoot rentals, album manufacturing, travel, studio rent, and software overhead.
             </p>
@@ -1014,10 +1037,14 @@ export function FinanceSection({
                 <tbody className="divide-y divide-[#242026]">
                   {filteredExpenses.map((exp) => (
                     <tr key={exp.id} className="hover:bg-[#1b181d] transition-colors">
-                      <td className="py-3.5 px-5 font-medium text-[#b8adb2]">{exp.expense_number}</td>
+                      <td className="py-3.5 px-5 font-medium text-[#b8adb2]">
+                        {exp.expense_number}
+                      </td>
                       <td className="py-3.5 px-4 font-medium text-[#d9b98c]">{exp.category}</td>
                       <td className="py-3.5 px-4 text-[#f7f0ee]">{exp.payee_supplier}</td>
-                      <td className="py-3.5 px-4 text-[#82767d] max-w-xs truncate">{exp.description}</td>
+                      <td className="py-3.5 px-4 text-[#82767d] max-w-xs truncate">
+                        {exp.description}
+                      </td>
                       <td className="py-3.5 px-4 font-medium text-[#f16c78]">
                         {formatCurrency(exp.amount)}
                       </td>
@@ -1047,7 +1074,9 @@ export function FinanceSection({
           {/* Expense Category Donut */}
           <section className="rounded-2xl border border-[#30282e] bg-[#151317] p-6">
             <h3 className="font-serif text-xl text-[#f7f0ee]">Expense Distribution by Category</h3>
-            <p className="text-xs text-[#82767d] mb-4">Breakdown of studio outflows across production, crew and overhead</p>
+            <p className="text-xs text-[#82767d] mb-4">
+              Breakdown of studio outflows across production, crew and overhead
+            </p>
             <div className="h-72 w-full">
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
@@ -1061,7 +1090,10 @@ export function FinanceSection({
                     dataKey="value"
                   >
                     {expenseCategoryBreakdown.map((_, idx) => (
-                      <Cell key={`cell-${idx}`} fill={LUXURY_PALETTE[idx % LUXURY_PALETTE.length]} />
+                      <Cell
+                        key={`cell-${idx}`}
+                        fill={LUXURY_PALETTE[idx % LUXURY_PALETTE.length]}
+                      />
                     ))}
                   </Pie>
                   <Tooltip
@@ -1083,7 +1115,9 @@ export function FinanceSection({
           {/* Revenue by Event Type */}
           <section className="rounded-2xl border border-[#30282e] bg-[#151317] p-6">
             <h3 className="font-serif text-xl text-[#f7f0ee]">Revenue by Shoot Type</h3>
-            <p className="text-xs text-[#82767d] mb-4">Contract value generated per celebration category</p>
+            <p className="text-xs text-[#82767d] mb-4">
+              Contract value generated per celebration category
+            </p>
             <div className="h-72 w-full">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart
@@ -1091,32 +1125,48 @@ export function FinanceSection({
                     {
                       type: "Wedding",
                       revenue: invoices
-                        .filter((i) => shoots.find((s) => s.id === i.shoot_id)?.event_type === "Wedding")
+                        .filter(
+                          (i) => shoots.find((s) => s.id === i.shoot_id)?.event_type === "Wedding",
+                        )
                         .reduce((sum, i) => sum + Number(i.total_billed), 0),
                     },
                     {
                       type: "Reception",
                       revenue: invoices
-                        .filter((i) => shoots.find((s) => s.id === i.shoot_id)?.event_type === "Reception")
+                        .filter(
+                          (i) =>
+                            shoots.find((s) => s.id === i.shoot_id)?.event_type === "Reception",
+                        )
                         .reduce((sum, i) => sum + Number(i.total_billed), 0),
                     },
                     {
                       type: "Engagement",
                       revenue: invoices
-                        .filter((i) => shoots.find((s) => s.id === i.shoot_id)?.event_type === "Engagement")
+                        .filter(
+                          (i) =>
+                            shoots.find((s) => s.id === i.shoot_id)?.event_type === "Engagement",
+                        )
                         .reduce((sum, i) => sum + Number(i.total_billed), 0),
                     },
                     {
                       type: "Pre-wedding",
                       revenue: invoices
-                        .filter((i) => shoots.find((s) => s.id === i.shoot_id)?.event_type === "Pre-wedding")
+                        .filter(
+                          (i) =>
+                            shoots.find((s) => s.id === i.shoot_id)?.event_type === "Pre-wedding",
+                        )
                         .reduce((sum, i) => sum + Number(i.total_billed), 0),
                     },
                   ]}
                   layout="vertical"
                   margin={{ left: 20 }}
                 >
-                  <XAxis type="number" stroke="#82767d" fontSize={11} tickFormatter={(v) => `₹${v / 1000}k`} />
+                  <XAxis
+                    type="number"
+                    stroke="#82767d"
+                    fontSize={11}
+                    tickFormatter={(v) => `₹${v / 1000}k`}
+                  />
                   <YAxis dataKey="type" type="category" stroke="#82767d" fontSize={11} width={80} />
                   <Tooltip
                     contentStyle={{
@@ -1128,7 +1178,12 @@ export function FinanceSection({
                     }}
                     formatter={(val: any) => formatCurrency(Number(val))}
                   />
-                  <Bar dataKey="revenue" name="Billed Revenue" fill="#c56c7d" radius={[0, 4, 4, 0]} />
+                  <Bar
+                    dataKey="revenue"
+                    name="Billed Revenue"
+                    fill="#c56c7d"
+                    radius={[0, 4, 4, 0]}
+                  />
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -1193,7 +1248,12 @@ export function FinanceSection({
               <div className="grid gap-3 sm:grid-cols-2">
                 <label className="studio-field">
                   Issue Date
-                  <Input name="issue_date" type="date" defaultValue={format(new Date(), "yyyy-MM-dd")} required />
+                  <Input
+                    name="issue_date"
+                    type="date"
+                    defaultValue={format(new Date(), "yyyy-MM-dd")}
+                    required
+                  />
                 </label>
                 <label className="studio-field">
                   Payment Due Date
@@ -1203,14 +1263,22 @@ export function FinanceSection({
 
               <label className="studio-field">
                 Notes
-                <textarea name="notes" rows={2} className="rounded-md border border-[#30282e] bg-[#1d171d] p-2 text-xs text-[#f7f0ee]" />
+                <textarea
+                  name="notes"
+                  rows={2}
+                  className="rounded-md border border-[#30282e] bg-[#1d171d] p-2 text-xs text-[#f7f0ee]"
+                />
               </label>
 
               <div className="flex justify-end gap-2 border-t border-[#30282e] pt-4">
                 <Button type="button" variant="outline" onClick={() => setShowInvoiceModal(false)}>
                   Cancel
                 </Button>
-                <Button type="submit" disabled={submitting} className="bg-[#c56c7d] text-[#0b0a0c] hover:bg-[#e7a0ad]">
+                <Button
+                  type="submit"
+                  disabled={submitting}
+                  className="bg-[#c56c7d] text-[#0b0a0c] hover:bg-[#e7a0ad]"
+                >
                   {submitting ? "Issuing…" : "Issue Invoice"}
                 </Button>
               </div>
@@ -1240,7 +1308,8 @@ export function FinanceSection({
                 <select name="invoice_id" required>
                   {invoices.map((inv) => (
                     <option key={inv.id} value={inv.id}>
-                      {inv.invoice_number} · {inv.client_name} (Due: {formatCurrency(inv.outstanding_balance)})
+                      {inv.invoice_number} · {inv.client_name} (Due:{" "}
+                      {formatCurrency(inv.outstanding_balance)})
                     </option>
                   ))}
                 </select>
@@ -1253,7 +1322,12 @@ export function FinanceSection({
                 </label>
                 <label className="studio-field">
                   Payment Date
-                  <Input name="payment_date" type="date" defaultValue={format(new Date(), "yyyy-MM-dd")} required />
+                  <Input
+                    name="payment_date"
+                    type="date"
+                    defaultValue={format(new Date(), "yyyy-MM-dd")}
+                    required
+                  />
                 </label>
               </div>
 
@@ -1278,7 +1352,11 @@ export function FinanceSection({
                 <Button type="button" variant="outline" onClick={() => setShowPaymentModal(false)}>
                   Cancel
                 </Button>
-                <Button type="submit" disabled={submitting} className="bg-[#71d8aa] text-[#0b0a0c] hover:bg-[#8eedc0]">
+                <Button
+                  type="submit"
+                  disabled={submitting}
+                  className="bg-[#71d8aa] text-[#0b0a0c] hover:bg-[#8eedc0]"
+                >
                   {submitting ? "Recording…" : "Record Payment & Print Receipt"}
                 </Button>
               </div>
@@ -1300,7 +1378,9 @@ export function FinanceSection({
               <p className="text-[10px] font-medium uppercase tracking-[0.2em] text-[#d9b98c]">
                 CREW PAYROLL
               </p>
-              <h2 className="mt-1 font-serif text-2xl text-[#f7f0ee]">Add Compensation Obligation</h2>
+              <h2 className="mt-1 font-serif text-2xl text-[#f7f0ee]">
+                Add Compensation Obligation
+              </h2>
             </div>
             <form onSubmit={handleCreatePayrollSubmit} className="space-y-4">
               <label className="studio-field">
@@ -1340,7 +1420,11 @@ export function FinanceSection({
 
               <label className="studio-field">
                 Period Label / Shoot Description
-                <Input name="period_label" required placeholder="e.g. October 2026 or Maya & Arjun Wedding" />
+                <Input
+                  name="period_label"
+                  required
+                  placeholder="e.g. October 2026 or Maya & Arjun Wedding"
+                />
               </label>
 
               <div className="grid gap-3 sm:grid-cols-3">
@@ -1362,7 +1446,11 @@ export function FinanceSection({
                 <Button type="button" variant="outline" onClick={() => setShowPayrollModal(false)}>
                   Cancel
                 </Button>
-                <Button type="submit" disabled={submitting} className="bg-[#c56c7d] text-[#0b0a0c] hover:bg-[#e7a0ad]">
+                <Button
+                  type="submit"
+                  disabled={submitting}
+                  className="bg-[#c56c7d] text-[#0b0a0c] hover:bg-[#e7a0ad]"
+                >
                   {submitting ? "Approving…" : "Approve Obligation"}
                 </Button>
               </div>
@@ -1384,7 +1472,9 @@ export function FinanceSection({
               <p className="text-[10px] font-medium uppercase tracking-[0.2em] text-[#e7a0ad]">
                 DISBURSEMENT VOUCHER
               </p>
-              <h2 className="mt-1 font-serif text-2xl text-[#f7f0ee]">Record Worker Disbursement</h2>
+              <h2 className="mt-1 font-serif text-2xl text-[#f7f0ee]">
+                Record Worker Disbursement
+              </h2>
             </div>
             <form onSubmit={handleDisburseWorkerPaymentSubmit} className="space-y-4">
               <label className="studio-field">
@@ -1396,7 +1486,8 @@ export function FinanceSection({
                       const worker = team.find((w) => w.id === p.worker_id);
                       return (
                         <option key={p.id} value={p.id}>
-                          {worker?.full_name}: {p.period_label} (Due: {formatCurrency(p.balance_due)})
+                          {worker?.full_name}: {p.period_label} (Due:{" "}
+                          {formatCurrency(p.balance_due)})
                         </option>
                       );
                     })}
@@ -1410,7 +1501,12 @@ export function FinanceSection({
                 </label>
                 <label className="studio-field">
                   Disbursement Date
-                  <Input name="disbursement_date" type="date" defaultValue={format(new Date(), "yyyy-MM-dd")} required />
+                  <Input
+                    name="disbursement_date"
+                    type="date"
+                    defaultValue={format(new Date(), "yyyy-MM-dd")}
+                    required
+                  />
                 </label>
               </div>
 
@@ -1434,7 +1530,11 @@ export function FinanceSection({
                 <Button type="button" variant="outline" onClick={() => setShowDisburseModal(false)}>
                   Cancel
                 </Button>
-                <Button type="submit" disabled={submitting} className="bg-[#c56c7d] text-[#0b0a0c] hover:bg-[#e7a0ad]">
+                <Button
+                  type="submit"
+                  disabled={submitting}
+                  className="bg-[#c56c7d] text-[#0b0a0c] hover:bg-[#e7a0ad]"
+                >
                   {submitting ? "Disbursing…" : "Confirm Disbursement Voucher"}
                 </Button>
               </div>
@@ -1483,7 +1583,11 @@ export function FinanceSection({
 
               <label className="studio-field">
                 Description of Expense
-                <Input name="description" required placeholder="e.g. 2x Sony A7IV Cine bodies + 70-200 GM lens" />
+                <Input
+                  name="description"
+                  required
+                  placeholder="e.g. 2x Sony A7IV Cine bodies + 70-200 GM lens"
+                />
               </label>
 
               <div className="grid gap-3 sm:grid-cols-2">
@@ -1493,7 +1597,12 @@ export function FinanceSection({
                 </label>
                 <label className="studio-field">
                   Date
-                  <Input name="expense_date" type="date" defaultValue={format(new Date(), "yyyy-MM-dd")} required />
+                  <Input
+                    name="expense_date"
+                    type="date"
+                    defaultValue={format(new Date(), "yyyy-MM-dd")}
+                    required
+                  />
                 </label>
               </div>
 
@@ -1529,7 +1638,11 @@ export function FinanceSection({
                 <Button type="button" variant="outline" onClick={() => setShowExpenseModal(false)}>
                   Cancel
                 </Button>
-                <Button type="submit" disabled={submitting} className="bg-[#c56c7d] text-[#0b0a0c] hover:bg-[#e7a0ad]">
+                <Button
+                  type="submit"
+                  disabled={submitting}
+                  className="bg-[#c56c7d] text-[#0b0a0c] hover:bg-[#e7a0ad]"
+                >
                   {submitting ? "Logging…" : "Record Expense"}
                 </Button>
               </div>

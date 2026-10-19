@@ -78,10 +78,7 @@ export function doesCrossMidnight(startTime: string, endTime?: string | null): b
  * Handles missing end times (defaults to 3 hours or end of day)
  * and events crossing midnight (where endTime < startTime).
  */
-export function doEventsOverlap(
-  eventA: TimeInterval,
-  eventB: TimeInterval
-): boolean {
+export function doEventsOverlap(eventA: TimeInterval, eventB: TimeInterval): boolean {
   const startA = parseTimeToMinutes(eventA.startTime);
   let endA = parseTimeToMinutes(eventA.endTime);
   if (endA === -1) {
@@ -383,7 +380,7 @@ export function findAllShootConflicts({
  */
 export function calculateStaffingMetrics(
   plannedTeamSize: number,
-  assignments: { team_member_id: string; assignment_type: string }[]
+  assignments: { team_member_id: string; assignment_type: string }[],
 ) {
   // Count unique on-site workers and post-production workers
   const onSiteAssignments = assignments.filter((a) => a.assignment_type === "on_site");

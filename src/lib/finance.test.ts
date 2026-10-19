@@ -31,7 +31,13 @@ describe("TA Bridals Financial ERP & Profitability Engine", () => {
       { amount: 20000, is_reversed: true }, // Reversed payment should not be counted
     ];
 
-    const result = computeInvoiceBalance(agreedPrice, additionalCharges, discountAmount, taxAmount, payments);
+    const result = computeInvoiceBalance(
+      agreedPrice,
+      additionalCharges,
+      discountAmount,
+      taxAmount,
+      payments,
+    );
 
     expect(result.totalBilled).toBe(130000);
     expect(result.totalPaid).toBe(80000);
@@ -148,7 +154,15 @@ describe("TA Bridals Financial ERP & Profitability Engine", () => {
     ];
 
     // Total overhead = 40000 distributed over 2 active shoots = 20000 per shoot
-    const prof = calculateShootProfitability(shoot, invoices, payments, payroll, expenses, 40000, 2);
+    const prof = calculateShootProfitability(
+      shoot,
+      invoices,
+      payments,
+      payroll,
+      expenses,
+      40000,
+      2,
+    );
 
     expect(prof.recognizedRevenue).toBe(200000);
     expect(prof.cashCollected).toBe(150000);
@@ -261,7 +275,13 @@ describe("TA Bridals Financial ERP & Profitability Engine", () => {
       },
     ];
 
-    const totals = calculateStudioTotals(invoices, clientPayments, payroll, workerPayments, expenses);
+    const totals = calculateStudioTotals(
+      invoices,
+      clientPayments,
+      payroll,
+      workerPayments,
+      expenses,
+    );
 
     expect(totals.totalRevenueBilled).toBe(100000);
     expect(totals.totalCashCollected).toBe(60000);

@@ -124,6 +124,7 @@ const baseNavigation: {
   { id: "calendar", label: "Calendar", mobileLabel: "Calendar", icon: CalendarDays },
   { id: "team", label: "Team Overview", mobileLabel: "Team", icon: Users },
   { id: "availability", label: "Availability", mobileLabel: "Availability", icon: CalendarClock },
+  { id: "songs", label: "Song Libraries", mobileLabel: "Songs", icon: Music2 },
 ];
 
 const sectionCopy: Record<Section, { title: string; description: string }> = {
@@ -1561,12 +1562,6 @@ function Workspace({
         icon: BarChart3,
       },
       {
-        id: "songs" as Section,
-        label: "Song Libraries",
-        mobileLabel: "Songs",
-        icon: Music2,
-      },
-      {
         id: "approvals" as Section,
         label: "Registrations",
         mobileLabel: "Registrations",
@@ -1587,8 +1582,7 @@ function Workspace({
       (section === "approvals" ||
         section === "audit" ||
         section === "analytics" ||
-        section === "finance" ||
-        section === "songs")
+        section === "finance")
     ) {
       onSectionChange("overview");
     }
@@ -1903,7 +1897,7 @@ function Workspace({
               registrations={registrations}
               onRegistrationsChange={onRegistrationsChange}
             />
-          ) : section === "songs" && isAdmin ? (
+          ) : section === "songs" ? (
             <SongLibraryAdminSection />
           ) : (
             <Overview
@@ -4454,12 +4448,12 @@ function ShootRow({
   onAssign,
 }: {
   shoot: Shoot;
-  assignedCount?: number;
-  assignedMembers?: Array<{ id: string; name: string; role: string; type: string }>;
-  staffingMetrics?: ReturnType<typeof calculateStaffingMetrics>;
-  onEdit?: () => void;
-  onDelete?: () => void;
-  onAssign?: () => void;
+  assignedCount?: number | undefined;
+  assignedMembers?: Array<{ id: string; name: string; role: string; type: string }> | undefined;
+  staffingMetrics?: ReturnType<typeof calculateStaffingMetrics> | undefined;
+  onEdit?: (() => void) | undefined;
+  onDelete?: (() => void) | undefined;
+  onAssign?: (() => void) | undefined;
 }) {
   return (
     <article className="flex flex-wrap items-center gap-4 px-5 py-4 sm:px-6">

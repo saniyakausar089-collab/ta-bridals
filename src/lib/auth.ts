@@ -26,9 +26,7 @@ export interface ProfileRecord {
   updated_at: string;
 }
 
-const OWNER_EMAILS = [
-  "saniyakausar089@gmail.com",
-];
+const OWNER_EMAILS = ["saniyakausar089@gmail.com"];
 
 export function isOwnerEmail(email?: string | null): boolean {
   const normalized = (email ?? "").trim().toLowerCase();
@@ -71,8 +69,8 @@ export async function checkUserAccess(session: Session | null): Promise<UserAcce
       (ProfileRecord & { display_name?: string; approval_status?: ApprovalStatus }) | null;
     const displayName =
       profile?.display_name ||
-      user.user_metadata?.full_name ||
-      user.user_metadata?.display_name ||
+      user.user_metadata?.["full_name"] ||
+      user.user_metadata?.["display_name"] ||
       userEmail.split("@")[0] ||
       (hasAdminRole ? "Studio owner" : "Team member");
 

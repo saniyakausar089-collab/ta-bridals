@@ -73,7 +73,7 @@ export function AnalyticsSection({ shoots, team, assignments }: AnalyticsSection
   const shootIdsSet = useMemo(() => new Set(filteredShoots.map((s) => s.id)), [filteredShoots]);
   const activeAssignments = useMemo(
     () => assignments.filter((a) => shootIdsSet.has(a.shoot_id)),
-    [assignments, shootIdsSet]
+    [assignments, shootIdsSet],
   );
 
   // 1. Role Distribution (Pie / Donut)
@@ -87,20 +87,23 @@ export function AnalyticsSection({ shoots, team, assignments }: AnalyticsSection
 
   // 2. Assignments by Worker (Bar Chart)
   const workerAssignmentData = useMemo(() => {
-    const counts: Record<string, { name: string; onSite: number; postProd: number; total: number }> =
-      {};
+    const counts: Record<
+      string,
+      { name: string; onSite: number; postProd: number; total: number }
+    > = {};
     team.forEach((m) => {
       counts[m.id] = { name: m.full_name, onSite: 0, postProd: 0, total: 0 };
     });
 
     activeAssignments.forEach((a) => {
-      if (counts[a.team_member_id]) {
+      const entry = counts[a.team_member_id];
+      if (entry) {
         if (a.assignment_type === "on_site") {
-          counts[a.team_member_id].onSite += 1;
+          entry.onSite += 1;
         } else {
-          counts[a.team_member_id].postProd += 1;
+          entry.postProd += 1;
         }
-        counts[a.team_member_id].total += 1;
+        entry.total += 1;
       }
     });
 
@@ -166,7 +169,9 @@ export function AnalyticsSection({ shoots, team, assignments }: AnalyticsSection
       {/* KPI Cards */}
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <div className="rounded-xl border border-[#30282e] bg-[#151317] p-5">
-          <p className="text-xs font-medium uppercase tracking-wider text-[#82767d]">Total Shoots</p>
+          <p className="text-xs font-medium uppercase tracking-wider text-[#82767d]">
+            Total Shoots
+          </p>
           <p className="mt-2 font-serif text-3xl text-[#f7f0ee]">{filteredShoots.length}</p>
           <p className="mt-1 text-[11px] text-[#b8adb2]">In selected timeframe</p>
         </div>
@@ -178,7 +183,9 @@ export function AnalyticsSection({ shoots, team, assignments }: AnalyticsSection
           <p className="mt-1 text-[11px] text-[#b8adb2]">Across all shoots</p>
         </div>
         <div className="rounded-xl border border-[#30282e] bg-[#151317] p-5">
-          <p className="text-xs font-medium uppercase tracking-wider text-[#82767d]">Active Team Members</p>
+          <p className="text-xs font-medium uppercase tracking-wider text-[#82767d]">
+            Active Team Members
+          </p>
           <p className="mt-2 font-serif text-3xl text-[#d9b98c]">{team.length}</p>
           <p className="mt-1 text-[11px] text-[#b8adb2]">In studio directory</p>
         </div>
@@ -263,13 +270,7 @@ export function AnalyticsSection({ shoots, team, assignments }: AnalyticsSection
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={workerAssignmentData} layout="vertical" margin={{ left: 20 }}>
                   <XAxis type="number" stroke="#82767d" fontSize={11} />
-                  <YAxis
-                    dataKey="name"
-                    type="category"
-                    stroke="#82767d"
-                    fontSize={11}
-                    width={90}
-                  />
+                  <YAxis dataKey="name" type="category" stroke="#82767d" fontSize={11} width={90} />
                   <Tooltip
                     contentStyle={{
                       backgroundColor: "#1b181d",
@@ -279,8 +280,20 @@ export function AnalyticsSection({ shoots, team, assignments }: AnalyticsSection
                       fontSize: "12px",
                     }}
                   />
-                  <Bar dataKey="onSite" name="On-site" stackId="a" fill="#c56c7d" radius={[0, 4, 4, 0]} />
-                  <Bar dataKey="postProd" name="Post-production" stackId="a" fill="#d9b98c" radius={[0, 4, 4, 0]} />
+                  <Bar
+                    dataKey="onSite"
+                    name="On-site"
+                    stackId="a"
+                    fill="#c56c7d"
+                    radius={[0, 4, 4, 0]}
+                  />
+                  <Bar
+                    dataKey="postProd"
+                    name="Post-production"
+                    stackId="a"
+                    fill="#d9b98c"
+                    radius={[0, 4, 4, 0]}
+                  />
                 </BarChart>
               </ResponsiveContainer>
             </div>

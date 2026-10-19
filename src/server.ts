@@ -3,6 +3,8 @@ import "./lib/error-capture";
 import { consumeLastCapturedError } from "./lib/error-capture";
 import { renderErrorPage } from "./lib/error-page";
 
+import { searchYouTubeServer } from "./lib/youtubeService.server";
+
 type ServerEntry = {
   fetch: (request: Request, env: unknown, ctx: unknown) => Promise<Response> | Response;
 };
@@ -47,6 +49,30 @@ function isH3SwallowedErrorBody(body: string): boolean {
 export default {
   async fetch(request: Request, env: unknown, ctx: unknown) {
     try {
+      const url = new URL(request.url);
+
+      // Server-side YouTube API proxy endpoint
+      if (url.pathname === "/api/youtube/search") {
+        if (request.method !== "GET") {
+          return new Response(JSON.stringify({ error: "Method not allowed" }), {
+            status: 405,
+            headers: { "Content-Type": "application/json" },
+          });
+        }
+
+        const query = url.searchParams.get("q") || "";
+        const limit = parseInt(url.searchParams.get("limit") || "12", 10);
+        const searchRes = await searchYouTubeServer(query, limit);
+
+        return new Response(JSON.stringify(searchRes), {
+          status: searchRes.success ? 200 : 500,
+          headers: {
+            "Content-Type": "application/json",
+            "Cache-Control": "public, max-age=1800",
+          },
+        });
+      }
+
       const handler = await getServerEntry();
       const response = await handler.fetch(request, env, ctx);
       return await normalizeCatastrophicSsrResponse(response);

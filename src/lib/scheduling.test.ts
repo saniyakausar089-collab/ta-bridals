@@ -20,21 +20,21 @@ describe("Scheduling and Staffing Calculations", () => {
     // Overlapping events: 10:00-14:00 and 12:00-16:00
     const overlap = doEventsOverlap(
       { date: "2026-10-25", startTime: "10:00", endTime: "14:00" },
-      { date: "2026-10-25", startTime: "12:00", endTime: "16:00" }
+      { date: "2026-10-25", startTime: "12:00", endTime: "16:00" },
     );
     expect(overlap).toBe(true);
 
     // Non-overlapping events: 09:00-12:00 and 13:00-17:00
     const nonOverlap = doEventsOverlap(
       { date: "2026-10-25", startTime: "09:00", endTime: "12:00" },
-      { date: "2026-10-25", startTime: "13:00", endTime: "17:00" }
+      { date: "2026-10-25", startTime: "13:00", endTime: "17:00" },
     );
     expect(nonOverlap).toBe(false);
 
     // Different dates
     const differentDates = doEventsOverlap(
       { date: "2026-10-25", startTime: "10:00", endTime: "14:00" },
-      { date: "2026-10-26", startTime: "10:00", endTime: "14:00" }
+      { date: "2026-10-26", startTime: "10:00", endTime: "14:00" },
     );
     expect(differentDates).toBe(false);
   });
@@ -44,14 +44,14 @@ describe("Scheduling and Staffing Calculations", () => {
     // Event B starts at 12:00
     const overlap = doEventsOverlap(
       { date: "2026-10-25", startTime: "10:00", endTime: null },
-      { date: "2026-10-25", startTime: "12:00", endTime: "15:00" }
+      { date: "2026-10-25", startTime: "12:00", endTime: "15:00" },
     );
     expect(overlap).toBe(true);
 
     // Event B starts at 14:00 (after 13:00)
     const noOverlap = doEventsOverlap(
       { date: "2026-10-25", startTime: "10:00", endTime: null },
-      { date: "2026-10-25", startTime: "14:00", endTime: "16:00" }
+      { date: "2026-10-25", startTime: "14:00", endTime: "16:00" },
     );
     expect(noOverlap).toBe(false);
   });
@@ -64,7 +64,7 @@ describe("Scheduling and Staffing Calculations", () => {
     // Event B on same day starts at 23:00
     const overlapSameDay = doEventsOverlap(
       { date: "2026-10-25", startTime: "22:00", endTime: "02:00" },
-      { date: "2026-10-25", startTime: "23:00", endTime: "23:59" }
+      { date: "2026-10-25", startTime: "23:00", endTime: "23:59" },
     );
     expect(overlapSameDay).toBe(true);
 
