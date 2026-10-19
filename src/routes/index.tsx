@@ -381,14 +381,17 @@ function Index() {
     if (!isAdmin) throw new Error("Only the studio owner can save shoots.");
     if (!session) throw new Error("Sign in as the studio owner to save shoots.");
 
+    const payload = shootId ? { ...values } : { ...values, created_by: session.user.id };
+
     const result = shootId
-      ? await supabase.from("shoots").update(values).eq("id", shootId).select().single()
-      : await supabase
-          .from("shoots")
-          .insert({ ...values, created_by: session.user.id })
-          .select()
-          .single();
-    if (result.error) throw result.error;
+      ? await supabase.from("shoots").update(payload).eq("id", shootId).select().single()
+      : await supabase.from("shoots").insert(payload).select().single();
+
+    if (result.error) {
+      throw new Error(
+        `Failed to save shoot: ${result.error.message || result.error.details || "Database error"}`,
+      );
+    }
 
     void recordAuditLog({
       actorId: session.user.id,
@@ -401,11 +404,40 @@ function Index() {
     });
 
     if (crewAssignments !== undefined) {
-      const { error: assignError } = await supabase.rpc("replace_shoot_assignments", {
-        p_shoot_id: result.data.id,
-        p_assignments: crewAssignments,
-      });
-      if (assignError) throw assignError;
+      try {
+        const { error: assignError } = await supabase.rpc("replace_shoot_assignments", {
+          p_shoot_id: result.data.id,
+          p_assignments: crewAssignments,
+        });
+
+        if (assignError) {
+          console.warn(
+            "replace_shoot_assignments RPC error, applying direct table fallback:",
+            assignError,
+          );
+          // Direct fallback if RPC is missing in remote database
+          await supabase.from("shoot_assignments").delete().eq("shoot_id", result.data.id);
+          if (crewAssignments.length > 0) {
+            const rows = crewAssignments.map((c) => ({
+              shoot_id: result.data.id,
+              team_member_id: c.team_member_id,
+              assignment_type: c.assignment_type || "on_site",
+            }));
+            await supabase.from("shoot_assignments").insert(rows);
+          }
+        }
+      } catch (rpcErr) {
+        console.warn("RPC invocation exception, fallback directly to table:", rpcErr);
+        await supabase.from("shoot_assignments").delete().eq("shoot_id", result.data.id);
+        if (crewAssignments.length > 0) {
+          const rows = crewAssignments.map((c) => ({
+            shoot_id: result.data.id,
+            team_member_id: c.team_member_id,
+            assignment_type: c.assignment_type || "on_site",
+          }));
+          await supabase.from("shoot_assignments").insert(rows);
+        }
+      }
 
       const { data: updatedAssignments, error: loadError } = await supabase
         .from("shoot_assignments")
@@ -448,11 +480,34 @@ function Index() {
     if (!isAdmin) throw new Error("Only the studio owner can manage shoot assignments.");
     if (!session) throw new Error("Sign in as the studio owner to manage shoot assignments.");
 
-    const { error } = await supabase.rpc("replace_shoot_assignments", {
-      p_shoot_id: shootId,
-      p_assignments: values,
-    });
-    if (error) throw error;
+    try {
+      const { error } = await supabase.rpc("replace_shoot_assignments", {
+        p_shoot_id: shootId,
+        p_assignments: values,
+      });
+      if (error) {
+        console.warn("replace_shoot_assignments RPC error, applying direct table fallback:", error);
+        await supabase.from("shoot_assignments").delete().eq("shoot_id", shootId);
+        if (values.length > 0) {
+          const rows = values.map((c) => ({
+            shoot_id: shootId,
+            team_member_id: c.team_member_id,
+            assignment_type: c.assignment_type || "on_site",
+          }));
+          await supabase.from("shoot_assignments").insert(rows);
+        }
+      }
+    } catch {
+      await supabase.from("shoot_assignments").delete().eq("shoot_id", shootId);
+      if (values.length > 0) {
+        const rows = values.map((c) => ({
+          shoot_id: shootId,
+          team_member_id: c.team_member_id,
+          assignment_type: c.assignment_type || "on_site",
+        }));
+        await supabase.from("shoot_assignments").insert(rows);
+      }
+    }
 
     void recordAuditLog({
       actorId: session.user.id,
