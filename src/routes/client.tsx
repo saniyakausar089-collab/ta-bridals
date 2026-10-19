@@ -24,10 +24,12 @@ import {
   ExternalLink,
   Plus,
   FileText,
+  Settings,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { AccountSettingsModal } from "@/components/AccountSettingsModal";
 import { songLibraryConfig } from "@/config/songLibraryConfig";
 import {
   clientLogin,
@@ -178,6 +180,8 @@ function ClientRouteComponent() {
     setSongs([]);
     setSelectedSongIds(new Set());
   };
+
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
   const handleRefreshStatus = async () => {
     if (!session) return;
@@ -576,6 +580,15 @@ function ClientRouteComponent() {
               <Button
                 variant="outline"
                 size="sm"
+                onClick={() => setIsSettingsOpen(true)}
+                className="border-stone-200 text-xs text-stone-700 hover:bg-stone-100"
+              >
+                <Settings className="size-3.5 mr-1 text-stone-600" />
+                Settings
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
                 onClick={handleSignOut}
                 className="border-stone-200 text-xs text-stone-700"
               >
@@ -585,6 +598,18 @@ function ClientRouteComponent() {
             </div>
           </div>
         </header>
+
+        <AccountSettingsModal
+          isOpen={isSettingsOpen}
+          onClose={() => setIsSettingsOpen(false)}
+          currentName={session.fullName}
+          userEmail={session.email}
+          role="client"
+          clientId={session.id}
+          onNameUpdated={(newName) => {
+            setSession((prev) => (prev ? { ...prev, fullName: newName } : null));
+          }}
+        />
 
         <main className="flex-1 mx-auto w-full max-w-6xl px-4 py-8">
           <div className="rounded-2xl border border-stone-200 bg-white p-8 text-center shadow-xs">

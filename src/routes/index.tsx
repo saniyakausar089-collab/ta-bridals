@@ -52,6 +52,7 @@ import {
   Wallet,
   AlertTriangle,
   Bell,
+  Settings,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -64,6 +65,7 @@ import { AuditLogSection } from "@/components/AuditLogSection";
 import { FinanceSection } from "@/components/FinanceSection";
 import { SongLibraryAdminSection } from "@/components/SongLibraryAdminSection";
 import { NotificationBadge, AdminNotificationCenter } from "@/components/AdminNotificationCenter";
+import { AccountSettingsModal } from "@/components/AccountSettingsModal";
 import {
   formatCurrency,
   calculateStudioTotals,
@@ -1507,6 +1509,9 @@ function Workspace({
     return shoots.filter((s) => workerShootIds.has(s.id));
   }, [isAdmin, currentWorker, shoots, assignments]);
 
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [displayedName, setDisplayedName] = useState(profileName);
+
   const pendingRegistrationsCount = useMemo(
     () => registrations.filter((r) => r.approval_status === "pending").length,
     [registrations],
@@ -1753,18 +1758,29 @@ function Workspace({
                 <Music2 className="size-3.5 text-[#526052]" />
                 Client Song Portal &rarr;
               </Link>
-              <div className="hidden text-right sm:block">
-                <p className="text-xs font-medium text-[#42483f]">{profileName}</p>
-                <p className="mt-0.5 text-[10px] text-[#99968c]">
-                  {isAdmin ? "Studio owner" : "Team member"}
-                </p>
-              </div>
-              <div
-                className="grid size-9 place-items-center rounded-full bg-[#e9ece5] text-xs font-semibold text-[#435040]"
-                aria-hidden="true"
+              <button
+                type="button"
+                onClick={() => setIsSettingsOpen(true)}
+                title="Account Settings (Change Name / Password)"
+                className="flex items-center gap-2 rounded-xl p-1.5 hover:bg-white/10 text-left transition-colors cursor-pointer group"
               >
-                {firstName.slice(0, 1).toUpperCase()}
-              </div>
+                <div className="hidden text-right sm:block">
+                  <p className="text-xs font-medium text-[#42483f] group-hover:text-[#e7a0ad] transition-colors">
+                    {displayedName}
+                  </p>
+                  <p className="mt-0.5 text-[10px] text-[#99968c]">
+                    {isAdmin ? "Studio owner" : "Team member"}
+                  </p>
+                </div>
+                <div
+                  className="grid size-9 place-items-center rounded-full bg-[#e9ece5] text-xs font-semibold text-[#435040] border border-transparent group-hover:border-[#c56c7d] transition-all"
+                  aria-hidden="true"
+                >
+                  {displayedName.slice(0, 1).toUpperCase() || firstName.slice(0, 1).toUpperCase()}
+                </div>
+                <Settings className="size-3.5 text-[#82767d] group-hover:text-[#e7a0ad] transition-colors" />
+              </button>
+
               <button
                 type="button"
                 onClick={onSignOut}
@@ -1776,6 +1792,15 @@ function Workspace({
             </div>
           </div>
         </header>
+
+        <AccountSettingsModal
+          isOpen={isSettingsOpen}
+          onClose={() => setIsSettingsOpen(false)}
+          currentName={displayedName}
+          userEmail={currentUserEmail || ""}
+          role={isAdmin ? "admin" : "worker"}
+          onNameUpdated={(newName) => setDisplayedName(newName)}
+        />
 
         <main className="studio-main mx-auto max-w-[1440px] px-5 py-6 sm:px-7">
           <div className="mb-8 flex flex-wrap items-end justify-between gap-4">

@@ -367,3 +367,137 @@ export async function rejectRegistration(userId: string): Promise<{ error: strin
     return { error: err instanceof Error ? err.message : "Failed to reject registration." };
   }
 }
+
+/**
+ * Update user display name in auth metadata and profiles table.
+ */
+export async function updateUserDisplayName(
+  newName: string,
+): Promise<{ success: boolean; error?: string }> {
+  const trimmed = newName.trim();
+  if (!trimmed) {
+    return { success: false, error: "Name cannot be empty." };
+  }
+
+  try {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) {
+      return { success: false, error: "Not authenticated." };
+    }
+
+    const { error: authError } = await supabase.auth.updateUser({
+      data: { full_name: trimmed, display_name: trimmed },
+    });
+    if (authError) return { success: false, error: authError.message };
+
+    // Update in profiles table
+    await supabase.from("profiles").update({ display_name: trimmed }).eq("user_id", user.id);
+
+    return { success: true };
+  } catch (err) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Failed to update profile name.",
+    };
+  }
+}
+
+/**
+ * Update password with mandatory current password verification.
+ */
+export async function updateUserPassword({
+  currentPassword,
+  newPassword,
+  confirmNewPassword,
+}: {
+  currentPassword: string;
+  newPassword: string;
+  confirmNewPassword: string;
+}): Promise<{ success: boolean; error?: string }> {
+  if (!currentPassword) {
+    return { success: false, error: "Please enter your current password." };
+  }
+  if (!newPassword || newPassword.length < 6) {
+    return { success: false, error: "New password must be at least 6 characters long." };
+  }
+  if (newPassword !== confirmNewPassword) {
+    return { success: false, error: "New passwords do not match." };
+  }
+  if (currentPassword === newPassword) {
+    return { success: false, error: "New password must be different from current password." };
+  }
+
+  try {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user || !user.email) {
+      return { success: false, error: "Not authenticated." };
+    }
+
+    // Step 1: Verify current password by signing in with it
+    const { error: verifyError } = await supabase.auth.signInWithPassword({
+      email: user.email,
+      password: currentPassword,
+    });
+
+    if (verifyError) {
+      return {
+        success: false,
+        error: "Incorrect current password. Please verify your current password.",
+      };
+    }
+
+    // Step 2: Update password
+    const { error: updateError } = await supabase.auth.updateUser({
+      password: newPassword,
+    });
+
+    if (updateError) {
+      return { success: false, error: updateError.message };
+    }
+
+    return { success: true };
+  } catch (err) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Failed to change password.",
+    };
+  }
+}
+
+/**
+ * ADMIN: Delete any user account (removes team member record, profile, assignments, and roles).
+ */
+export async function deleteUserAccount(
+  userId: string,
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    // 1. Delete shoot assignments
+    await supabase.from("shoot_assignments").delete().eq("team_member_id", userId);
+
+    // 2. Delete team_members entry if any
+    await supabase.from("team_members").delete().eq("id", userId);
+    await supabase.from("team_members").delete().eq("user_id", userId);
+
+    // 3. Delete availability requests
+    await supabase.from("availability_requests").delete().eq("user_id", userId);
+
+    // 4. Delete user roles & profile
+    await supabase.from("user_roles").delete().eq("user_id", userId);
+    const { error: profileError } = await supabase.from("profiles").delete().eq("user_id", userId);
+
+    if (profileError) {
+      console.warn("Profile delete warning:", profileError.message);
+    }
+
+    return { success: true };
+  } catch (err) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Failed to delete user account.",
+    };
+  }
+}

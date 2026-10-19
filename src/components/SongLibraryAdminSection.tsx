@@ -50,6 +50,7 @@ import {
   getSongPlaybackUrl,
   uploadSongAudio,
   getClientCompleteSelections,
+  deleteClientProfile,
 } from "@/lib/songLibraryService";
 import {
   WEDDING_EVENT_GROUPS,
@@ -267,6 +268,34 @@ export function SongLibraryAdminSection() {
       await loadData();
     } catch (err) {
       setErrorMessage(err instanceof Error ? err.message : "Error executing rejection.");
+    }
+  };
+
+  const [deletingClientId, setDeletingClientId] = useState<string | null>(null);
+
+  const handleDeleteClient = async (clientId: string, clientName: string) => {
+    if (
+      !window.confirm(
+        `Are you sure you want to permanently delete client "${clientName}"? This action cannot be undone.`,
+      )
+    ) {
+      return;
+    }
+    setDeletingClientId(clientId);
+    setErrorMessage("");
+    setSuccessMessage("");
+    try {
+      const res = await deleteClientProfile(clientId);
+      if (!res.success) {
+        setErrorMessage(res.error || "Failed to delete client account.");
+        return;
+      }
+      setSuccessMessage(`Client "${clientName}" has been permanently deleted.`);
+      await loadData();
+    } catch (err) {
+      setErrorMessage(err instanceof Error ? err.message : "Error deleting client account.");
+    } finally {
+      setDeletingClientId(null);
     }
   };
 
@@ -956,6 +985,18 @@ export function SongLibraryAdminSection() {
                                 </span>
                               </div>
                             )}
+
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => void handleDeleteClient(client.id, client.fullName)}
+                              disabled={deletingClientId === client.id}
+                              title="Delete Client Account"
+                              className="h-7 px-2 text-rose-500 hover:text-rose-400 hover:bg-rose-500/10 rounded-lg ml-1"
+                            >
+                              <Trash2 className="size-3.5 text-rose-400" />
+                              <span className="sr-only">Delete</span>
+                            </Button>
                           </td>
                         </tr>
                       );

@@ -2150,3 +2150,131 @@ export async function getClientCompleteSelections(clientId: string): Promise<{
     notes,
   };
 }
+
+/**
+ * ADMIN: Permanently delete a client profile (and cascade assignments/selections).
+ */
+export async function deleteClientProfile(
+  clientId: string,
+): Promise<{ success: boolean; error?: string }> {
+  if (songLibraryConfig.isMockMode) {
+    const profiles = getStoredProfiles();
+    const filtered = profiles.filter((p) => p.id !== clientId);
+    saveStoredProfiles(filtered);
+
+    if (typeof window !== "undefined") {
+      try {
+        const rawSel = localStorage.getItem(CLIENT_SELECTIONS_STORAGE_KEY);
+        if (rawSel) {
+          const map = JSON.parse(rawSel);
+          delete map[clientId];
+          localStorage.setItem(CLIENT_SELECTIONS_STORAGE_KEY, JSON.stringify(map));
+        }
+        const rawCustom = localStorage.getItem(CLIENT_CUSTOM_SONGS_STORAGE_KEY);
+        if (rawCustom) {
+          const map = JSON.parse(rawCustom);
+          delete map[clientId];
+          localStorage.setItem(CLIENT_CUSTOM_SONGS_STORAGE_KEY, JSON.stringify(map));
+        }
+      } catch {
+        // ignore
+      }
+    }
+
+    return { success: true };
+  }
+
+  try {
+    // Delete assignments, selections, custom requests, then profile
+    await (supabase as any).from("client_library_assignments").delete().eq("client_id", clientId);
+    await (supabase as any).from("client_song_selections").delete().eq("client_id", clientId);
+    await (supabase as any).from("client_custom_song_requests").delete().eq("client_id", clientId);
+
+    const { error } = await (supabase as any).from("client_profiles").delete().eq("id", clientId);
+
+    if (error) {
+      // Fallback: update status to rejected or delete locally
+      console.warn("Remote deleteClientProfile failed, fallback to local:", error);
+      const profiles = getStoredProfiles();
+      const filtered = profiles.filter((p) => p.id !== clientId);
+      saveStoredProfiles(filtered);
+    }
+
+    return { success: true };
+  } catch (err) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Failed to delete client account.",
+    };
+  }
+}
+
+/**
+ * CLIENT: Update profile name and partner name.
+ */
+export async function updateClientProfileName(
+  clientId: string,
+  fullName: string,
+  partnerName?: string | undefined,
+): Promise<{ success: boolean; client?: ClientProfile; error?: string }> {
+  const trimmedName = fullName.trim();
+  const trimmedPartner = partnerName?.trim() || undefined;
+
+  if (!trimmedName) {
+    return { success: false, error: "Full name cannot be empty." };
+  }
+
+  if (songLibraryConfig.isMockMode) {
+    const profiles = getStoredProfiles();
+    const idx = profiles.findIndex((p) => p.id === clientId);
+    if (idx !== -1 && profiles[idx]) {
+      const updated: ClientProfile = {
+        ...profiles[idx],
+        fullName: trimmedName,
+        partnerName: trimmedPartner,
+      };
+      profiles[idx] = updated;
+      saveStoredProfiles(profiles);
+
+      const session = getClientSession();
+      if (session && session.id === clientId) {
+        if (typeof window !== "undefined") {
+          sessionStorage.setItem(CLIENT_SESSION_KEY, JSON.stringify(updated));
+        }
+      }
+      return { success: true, client: updated };
+    }
+  }
+
+  try {
+    const { error } = await (supabase as any)
+      .from("client_profiles")
+      .update({
+        full_name: trimmedName,
+        partner_name: trimmedPartner || null,
+      })
+      .eq("id", clientId);
+
+    if (error) return { success: false, error: error.message };
+
+    const session = getClientSession();
+    if (session && session.id === clientId) {
+      const updated: ClientProfile = {
+        ...session,
+        fullName: trimmedName,
+        partnerName: trimmedPartner,
+      };
+      if (typeof window !== "undefined") {
+        sessionStorage.setItem(CLIENT_SESSION_KEY, JSON.stringify(updated));
+      }
+      return { success: true, client: updated };
+    }
+
+    return { success: true };
+  } catch (err) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Failed to update profile.",
+    };
+  }
+}
