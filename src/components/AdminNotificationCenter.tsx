@@ -31,7 +31,6 @@ export type Section =
   | "finance"
   | "analytics"
   | "approvals"
-  | "audit"
   | "songs";
 
 interface NotificationItem {

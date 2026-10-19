@@ -48,7 +48,6 @@ import {
   BarChart3,
   CalendarClock,
   DollarSign,
-  History,
   Wallet,
   AlertTriangle,
   Bell,
@@ -61,7 +60,6 @@ import { supabase, getSupabaseConfig } from "@/integrations/supabase/client";
 import type { Tables, TablesInsert } from "@/integrations/supabase/types";
 import { AnalyticsSection } from "@/components/AnalyticsSection";
 import { AvailabilitySection } from "@/components/AvailabilitySection";
-import { AuditLogSection } from "@/components/AuditLogSection";
 import { FinanceSection } from "@/components/FinanceSection";
 import { SongLibraryAdminSection } from "@/components/SongLibraryAdminSection";
 import { NotificationBadge, AdminNotificationCenter } from "@/components/AdminNotificationCenter";
@@ -75,7 +73,7 @@ import {
   type WorkerPaymentRecord,
   type OperatingExpenseRecord,
 } from "@/lib/finance";
-import { recordAuditLog, type AuditLog, type AvailabilityRequest } from "@/lib/audit";
+import type { AvailabilityRequest } from "@/lib/audit";
 import {
   calculateStaffingMetrics,
   doEventsOverlap,
@@ -112,7 +110,6 @@ type Section =
   | "finance"
   | "analytics"
   | "approvals"
-  | "audit"
   | "songs";
 
 const baseNavigation: {
@@ -162,10 +159,6 @@ const sectionCopy: Record<Section, { title: string; description: string }> = {
     title: "Team registrations",
     description: "Review pending signups and manage studio workspace permissions.",
   },
-  audit: {
-    title: "Audit Log",
-    description: "Comprehensive trail of administrative actions and record changes.",
-  },
   songs: {
     title: "Song Libraries & Client Approvals",
     description: "Approve wedding clients, organize custom song libraries, and assign playlists.",
@@ -187,7 +180,6 @@ function Index() {
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [registrations, setRegistrations] = useState<ProfileRecord[]>([]);
   const [availabilityRequests, setAvailabilityRequests] = useState<AvailabilityRequest[]>([]);
-  const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
   const [invoices, setInvoices] = useState<ClientInvoiceRecord[]>([]);
   const [clientPayments, setClientPayments] = useState<ClientPaymentRecord[]>([]);
   const [payroll, setPayroll] = useState<PayrollObligationRecord[]>([]);
@@ -282,7 +274,6 @@ function Index() {
         assignmentResult,
         regResult,
         availResult,
-        auditResult,
         invResult,
         cpResult,
         prResult,
@@ -297,13 +288,6 @@ function Index() {
           ? supabase.from("profiles").select("*").order("created_at", { ascending: false })
           : Promise.resolve({ data: null, error: null }),
         supabase.from("availability_requests").select("*").order("start_date", { ascending: true }),
-        isAdmin
-          ? supabase
-              .from("audit_logs")
-              .select("*")
-              .order("created_at", { ascending: false })
-              .limit(50)
-          : Promise.resolve({ data: null, error: null }),
         isAdmin
           ? (supabase
               .from("client_invoices" as any)
@@ -371,9 +355,6 @@ function Index() {
       if (availResult?.data) {
         setAvailabilityRequests(availResult.data as unknown as AvailabilityRequest[]);
       }
-      if (auditResult?.data) {
-        setAuditLogs(auditResult.data as unknown as AuditLog[]);
-      }
 
       setInvoices(invResult?.data ? (invResult.data as unknown as ClientInvoiceRecord[]) : []);
       setClientPayments(cpResult?.data ? (cpResult.data as unknown as ClientPaymentRecord[]) : []);
@@ -420,16 +401,6 @@ function Index() {
       couple_name: savedTitle,
       "shoot name": savedTitle,
     };
-
-    void recordAuditLog({
-      actorId: session.user.id,
-      actorName: profileName,
-      actorEmail: session.user.email,
-      action: shootId ? "SHOOT_UPDATED" : "SHOOT_CREATED",
-      recordType: "shoot",
-      recordId: (result.data as any).id,
-      details: { couple: savedTitle, event_type: (result.data as any)?.event_type },
-    });
 
     if (crewAssignments !== undefined) {
       try {
@@ -486,19 +457,8 @@ function Index() {
     if (!isAdmin) throw new Error("Only the studio owner can delete shoots.");
     if (!session) throw new Error("Sign in as the studio owner to delete shoots.");
 
-    const shootToDelete = shoots.find((s) => s.id === shootId);
     const { error } = await supabase.from("shoots").delete().eq("id", shootId);
     if (error) throw error;
-
-    void recordAuditLog({
-      actorId: session.user.id,
-      actorName: profileName,
-      actorEmail: session.user.email,
-      action: "SHOOT_DELETED",
-      recordType: "shoot",
-      recordId: shootId,
-      details: { couple: shootToDelete?.couple_name },
-    });
 
     setShoots((current) => current.filter((shoot) => shoot.id !== shootId));
     setAssignments((current) => current.filter((assignment) => assignment.shoot_id !== shootId));
@@ -537,16 +497,6 @@ function Index() {
       }
     }
 
-    void recordAuditLog({
-      actorId: session.user.id,
-      actorName: profileName,
-      actorEmail: session.user.email,
-      action: "ASSIGNMENTS_UPDATED",
-      recordType: "shoot_assignments",
-      recordId: shootId,
-      details: { assignmentCount: values.length },
-    });
-
     const { data, error: loadError } = await supabase.from("shoot_assignments").select("*");
     if (loadError) throw loadError;
     setAssignments(data ?? []);
@@ -561,16 +511,6 @@ function Index() {
       : await supabase.from("team_members").insert(values).select().single();
     if (result.error) throw result.error;
 
-    void recordAuditLog({
-      actorId: session.user.id,
-      actorName: profileName,
-      actorEmail: session.user.email,
-      action: memberId ? "WORKER_UPDATED" : "WORKER_ADDED",
-      recordType: "team_member",
-      recordId: result.data.id,
-      details: { name: result.data.full_name, role: result.data.role },
-    });
-
     setTeam((current) =>
       [...current.filter((member) => member.id !== result.data.id), result.data].sort((a, b) =>
         a.full_name.localeCompare(b.full_name),
@@ -582,19 +522,8 @@ function Index() {
     if (!isAdmin) throw new Error("Only the studio owner can remove team members.");
     if (!session) throw new Error("Sign in as the studio owner to remove team members.");
 
-    const memberToDelete = team.find((m) => m.id === memberId);
     const { error } = await supabase.from("team_members").delete().eq("id", memberId);
     if (error) throw error;
-
-    void recordAuditLog({
-      actorId: session.user.id,
-      actorName: profileName,
-      actorEmail: session.user.email,
-      action: "WORKER_REMOVED",
-      recordType: "team_member",
-      recordId: memberId,
-      details: { name: memberToDelete?.full_name },
-    });
 
     setTeam((current) => current.filter((member) => member.id !== memberId));
     setAssignments((current) =>
@@ -627,16 +556,6 @@ function Index() {
       .eq("id", requestId);
     if (error) throw error;
 
-    void recordAuditLog({
-      actorId: session.user.id,
-      actorName: profileName,
-      actorEmail: session.user.email,
-      action: status === "approved" ? "AVAILABILITY_APPROVED" : "AVAILABILITY_REJECTED",
-      recordType: "availability_request",
-      recordId: requestId,
-      details: { status },
-    });
-
     await loadWorkspace();
   }
 
@@ -650,16 +569,6 @@ function Index() {
       .single();
     if (error) throw error;
 
-    void recordAuditLog({
-      actorId: session.user.id,
-      actorName: profileName,
-      actorEmail: session.user.email,
-      action: "INVOICE_CREATED",
-      recordType: "client_invoice",
-      recordId: (data as any)?.id,
-      details: { invoice_number: (data as any)?.invoice_number, amount: input.agreed_price },
-    });
-
     await loadWorkspace();
   }
 
@@ -671,16 +580,6 @@ function Index() {
       .select()
       .single();
     if (error) throw error;
-
-    void recordAuditLog({
-      actorId: session.user.id,
-      actorName: profileName,
-      actorEmail: session.user.email,
-      action: "PAYMENT_RECORDED",
-      recordType: "client_payment",
-      recordId: (data as any)?.id,
-      details: { amount: input.amount, receipt_number: (data as any)?.receipt_number },
-    });
 
     await loadWorkspace();
   }
@@ -701,16 +600,6 @@ function Index() {
       .single();
     if (error) throw error;
 
-    void recordAuditLog({
-      actorId: session.user.id,
-      actorName: profileName,
-      actorEmail: session.user.email,
-      action: "COMPENSATION_APPROVED",
-      recordType: "payroll_obligation",
-      recordId: (data as any)?.id,
-      details: { net_payable: net, worker_id: input.worker_id },
-    });
-
     await loadWorkspace();
   }
 
@@ -722,16 +611,6 @@ function Index() {
       .select()
       .single();
     if (error) throw error;
-
-    void recordAuditLog({
-      actorId: session.user.id,
-      actorName: profileName,
-      actorEmail: session.user.email,
-      action: "PAYROLL_DISBURSED",
-      recordType: "worker_payment",
-      recordId: (data as any)?.id,
-      details: { amount: input.amount, voucher: (data as any)?.payment_voucher_no },
-    });
 
     await loadWorkspace();
   }
@@ -753,16 +632,6 @@ function Index() {
       .single();
     if (error) throw error;
 
-    void recordAuditLog({
-      actorId: session.user.id,
-      actorName: profileName,
-      actorEmail: session.user.email,
-      action: "EXPENSE_RECORDED",
-      recordType: "operating_expense",
-      recordId: (data as any)?.id,
-      details: { category: input.category, amount },
-    });
-
     await loadWorkspace();
   }
 
@@ -774,16 +643,6 @@ function Index() {
       .eq("id", obligationId);
     if (error) throw error;
 
-    void recordAuditLog({
-      actorId: session.user.id,
-      actorName: profileName,
-      actorEmail: session.user.email,
-      action: "COMPENSATION_APPROVED",
-      recordType: "payroll_obligation",
-      recordId: obligationId,
-      details: { status: "approved" },
-    });
-
     await loadWorkspace();
   }
 
@@ -794,16 +653,6 @@ function Index() {
       .update({ status: "approved" })
       .eq("id", expenseId);
     if (error) throw error;
-
-    void recordAuditLog({
-      actorId: session.user.id,
-      actorName: profileName,
-      actorEmail: session.user.email,
-      action: "EXPENSE_APPROVED",
-      recordType: "operating_expense",
-      recordId: expenseId,
-      details: { status: "approved" },
-    });
 
     await loadWorkspace();
   }
@@ -944,7 +793,6 @@ function Index() {
       onSaveTeamMember={saveTeamMember}
       onDeleteTeamMember={deleteTeamMember}
       availabilityRequests={availabilityRequests}
-      auditLogs={auditLogs}
       currentUserId={session?.user?.id}
       currentUserEmail={session?.user?.email}
       pendingSongClientsCount={pendingSongClientsCount}
@@ -1506,7 +1354,6 @@ function Workspace({
   onSaveTeamMember,
   onDeleteTeamMember,
   availabilityRequests,
-  auditLogs,
   currentUserId,
   currentUserEmail,
   pendingSongClientsCount = 0,
@@ -1550,7 +1397,6 @@ function Workspace({
   onSaveTeamMember: (values: TeamMemberInput, memberId?: string) => Promise<void>;
   onDeleteTeamMember: (memberId: string) => Promise<void>;
   availabilityRequests: AvailabilityRequest[];
-  auditLogs: AuditLog[];
   currentUserId?: string | undefined;
   currentUserEmail?: string | undefined;
   pendingSongClientsCount?: number | undefined;
@@ -1655,12 +1501,6 @@ function Workspace({
         mobileLabel: "Registrations",
         icon: UserCheck,
       },
-      {
-        id: "audit" as Section,
-        label: "Audit Log",
-        mobileLabel: "Audit",
-        icon: History,
-      },
     ];
   }, [isAdmin]);
 
@@ -1668,7 +1508,6 @@ function Workspace({
     if (
       !isAdmin &&
       (section === "approvals" ||
-        section === "audit" ||
         section === "analytics" ||
         section === "finance")
     ) {
@@ -1998,8 +1837,6 @@ function Workspace({
             />
           ) : section === "analytics" && isAdmin ? (
             <AnalyticsSection shoots={shoots} team={team} assignments={assignments} />
-          ) : section === "audit" && isAdmin ? (
-            <AuditLogSection logs={auditLogs} loading={loading} onRefresh={onRefresh} />
           ) : section === "approvals" && isAdmin ? (
             <RegistrationsView
               registrations={registrations}
