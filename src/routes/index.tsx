@@ -4097,8 +4097,8 @@ function TeamView({
 
   return (
     <>
-      <section className="overflow-hidden rounded-2xl border border-[#e9e7df] bg-white">
-        <div className="flex flex-wrap items-center justify-between gap-4 border-b border-[#efeee9] px-5 py-5 sm:px-6">
+      <section className="overflow-hidden rounded-2xl border border-[#30282e] bg-[#151317]">
+        <div className="flex flex-wrap items-center justify-between gap-4 border-b border-[#30282e] px-5 py-5 sm:px-6">
           <div>
             <h2 className="font-serif text-xl text-[#3e453d]">Meet your team</h2>
             <p className="mt-1 text-xs text-[#929086]">
@@ -4175,9 +4175,9 @@ function TeamView({
             }
           />
         ) : (
-          <div className="grid gap-px bg-[#f0efe9] sm:grid-cols-2 xl:grid-cols-3">
+          <div className="grid gap-px bg-[#30282e] sm:grid-cols-2 xl:grid-cols-3">
             {filteredTeam.map((member) => (
-              <article key={member.id} className="flex min-w-0 items-start gap-3 bg-white p-5">
+              <article key={member.id} className="flex min-w-0 items-start gap-3 bg-[#151317] p-5">
                 <Avatar name={member.full_name} />
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center justify-between gap-2">
