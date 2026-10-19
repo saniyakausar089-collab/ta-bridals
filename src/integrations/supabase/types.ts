@@ -83,6 +83,7 @@ export type Database = {
       shoots: {
         Row: {
           couple_name: string;
+          "shoot name"?: string | null;
           created_at: string;
           created_by: string | null;
           end_time: string | null;
@@ -91,6 +92,7 @@ export type Database = {
           id: string;
           location: string;
           notes: string | null;
+          package_amount?: number | null;
           planned_team_size: number;
           start_time: string;
           status: string;
@@ -98,7 +100,8 @@ export type Database = {
           venue: string | null;
         };
         Insert: {
-          couple_name: string;
+          couple_name?: string | null;
+          "shoot name"?: string | null;
           created_at?: string;
           created_by?: string | null;
           end_time?: string | null;
@@ -107,6 +110,7 @@ export type Database = {
           id?: string;
           location: string;
           notes?: string | null;
+          package_amount?: number | null;
           planned_team_size?: number;
           start_time: string;
           status?: string;
@@ -114,7 +118,8 @@ export type Database = {
           venue?: string | null;
         };
         Update: {
-          couple_name?: string;
+          couple_name?: string | null;
+          "shoot name"?: string | null;
           created_at?: string;
           created_by?: string | null;
           end_time?: string | null;
@@ -123,6 +128,7 @@ export type Database = {
           id?: string;
           location?: string;
           notes?: string | null;
+          package_amount?: number | null;
           planned_team_size?: number;
           start_time?: string;
           status?: string;

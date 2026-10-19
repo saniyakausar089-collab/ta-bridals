@@ -343,7 +343,16 @@ function Index() {
       if (teamResult.error) throw teamResult.error;
       if (assignmentResult.error) throw assignmentResult.error;
 
-      setShoots(shootResult.data ?? []);
+      const normalizedShoots = (shootResult.data ?? []).map((shoot) => {
+        const title = shoot.couple_name || (shoot as any)["shoot name"] || "Untitled Shoot";
+        return {
+          ...shoot,
+          couple_name: title,
+          "shoot name": title,
+        };
+      });
+
+      setShoots(normalizedShoots);
       setTeam(teamResult.data ?? []);
       setAssignments(assignmentResult.data ?? []);
 
@@ -378,14 +387,28 @@ function Index() {
     if (!isAdmin) throw new Error("Only the studio owner can save shoots.");
     if (!session) throw new Error("Sign in as the studio owner to save shoots.");
 
+    const shootTitle = values.couple_name || (values as any)["shoot name"] || "Untitled Shoot";
+    const sanitizedValues: ShootInput = {
+      ...values,
+      couple_name: shootTitle,
+      "shoot name": shootTitle,
+    };
+
     const result = shootId
-      ? await supabase.from("shoots").update(values).eq("id", shootId).select().single()
+      ? await supabase.from("shoots").update(sanitizedValues).eq("id", shootId).select().single()
       : await supabase
           .from("shoots")
-          .insert({ ...values, created_by: session.user.id })
+          .insert({ ...sanitizedValues, created_by: session.user.id })
           .select()
           .single();
     if (result.error) throw result.error;
+
+    const savedTitle = result.data.couple_name || (result.data as any)["shoot name"] || shootTitle;
+    const normalizedSavedShoot = {
+      ...result.data,
+      couple_name: savedTitle,
+      "shoot name": savedTitle,
+    };
 
     void recordAuditLog({
       actorId: session.user.id,
@@ -394,7 +417,7 @@ function Index() {
       action: shootId ? "SHOOT_UPDATED" : "SHOOT_CREATED",
       recordType: "shoot",
       recordId: result.data.id,
-      details: { couple: result.data.couple_name, event_type: result.data.event_type },
+      details: { couple: savedTitle, event_type: result.data.event_type },
     });
 
     if (crewAssignments !== undefined) {
@@ -413,7 +436,7 @@ function Index() {
     }
 
     setShoots((current) =>
-      [...current.filter((shoot) => shoot.id !== result.data.id), result.data].sort((a, b) =>
+      [...current.filter((shoot) => shoot.id !== normalizedSavedShoot.id), normalizedSavedShoot].sort((a, b) =>
         a.event_date.localeCompare(b.event_date),
       ),
     );
@@ -3116,8 +3139,10 @@ function ShootEditor({
     const form = new FormData(event.currentTarget);
     const venue = String(form.get("venue") ?? "").trim();
     const notes = String(form.get("notes") ?? "").trim();
+    const shootTitle = String(form.get("couple_name") ?? "").trim();
     const values: ShootInput = {
-      couple_name: String(form.get("couple_name") ?? "").trim(),
+      couple_name: shootTitle,
+      "shoot name": shootTitle,
       event_type: String(form.get("event_type") ?? "Wedding"),
       event_date: eventDate,
       location: String(form.get("location") ?? "").trim(),
@@ -3164,10 +3189,10 @@ function ShootEditor({
         <form className="space-y-4" onSubmit={handleSubmit}>
           <div className="grid gap-4 sm:grid-cols-2">
             <label className="studio-field sm:col-span-2">
-              Couple / client
+              Shoot name / Couple
               <Input
                 name="couple_name"
-                defaultValue={shoot?.couple_name}
+                defaultValue={shoot?.couple_name || (shoot as any)?.["shoot name"] || ""}
                 maxLength={120}
                 required
                 autoFocus
