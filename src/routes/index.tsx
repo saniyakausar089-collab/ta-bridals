@@ -401,7 +401,13 @@ function Index() {
       : await supabase.from("shoots").insert(payload).select().single();
 
     // If couple_name is not recognized by the remote shoots schema, fallback without failing
-    if (result.error && (result.error.message?.includes("couple_name") || result.error.details?.includes("couple_name"))) {
+    const isCoupleNameError = (err: any) => {
+      if (!err) return false;
+      const str = JSON.stringify(err);
+      return str.includes("couple_name");
+    };
+
+    if (result.error && isCoupleNameError(result.error)) {
       console.warn("Remote shoots table missing couple_name, adapting payload:", result.error);
       const fallbackPayload: Record<string, unknown> = { ...payload };
       delete fallbackPayload["couple_name"];
@@ -410,8 +416,8 @@ function Index() {
         fallbackPayload["notes"] = values.notes ? `[Couple: ${values.couple_name}] ${values.notes}` : `Couple: ${values.couple_name}`;
       }
       result = (shootId
-        ? await supabase.from("shoots").update(fallbackPayload as any).eq("id", shootId).select().single()
-        : await supabase.from("shoots").insert(fallbackPayload as any).select().single()) as typeof result;
+        ? await supabase.from("shoots").update(fallbackPayload as any).eq("id", shootId).select("id, event_type, event_date, location, venue, start_time, end_time, planned_team_size, status, notes, created_by, created_at, updated_at").single()
+        : await supabase.from("shoots").insert(fallbackPayload as any).select("id, event_type, event_date, location, venue, start_time, end_time, planned_team_size, status, notes, created_by, created_at, updated_at").single()) as typeof result;
     }
 
     if (result.error) {
@@ -426,8 +432,8 @@ function Index() {
       actorEmail: session.user.email,
       action: shootId ? "SHOOT_UPDATED" : "SHOOT_CREATED",
       recordType: "shoot",
-      recordId: result.data.id,
-      details: { couple: result.data.couple_name || values.couple_name, event_type: result.data.event_type },
+      recordId: (result.data as any).id,
+      details: { couple: (result.data as any)?.couple_name || values.couple_name, event_type: (result.data as any)?.event_type },
     });
 
     if (crewAssignments !== undefined) {
@@ -1998,7 +2004,7 @@ function Workspace({
           ) : section === "analytics" && isAdmin ? (
             <AnalyticsSection shoots={shoots} team={team} assignments={assignments} />
           ) : section === "audit" && isAdmin ? (
-            <AuditLogSection logs={auditLogs} loading={loading} />
+            <AuditLogSection logs={auditLogs} loading={loading} onRefresh={onRefresh} />
           ) : section === "approvals" && isAdmin ? (
             <RegistrationsView
               registrations={registrations}
