@@ -1940,6 +1940,56 @@ function RegistrationsView({
     setProcessingId(null);
   }
 
+  async function handleDelete(userId: string, name: string) {
+    if (!window.confirm(`Permanently delete the registration record for ${name || "this applicant"}?`)) {
+      return;
+    }
+    setProcessingId(userId);
+    setActionError("");
+    setActionNotice("");
+
+    try {
+      const { error: rpcErr } = await (supabase.rpc as any)("delete_registration_profile", {
+        p_user_id: userId,
+      });
+      if (rpcErr) {
+        const { error: directErr } = await supabase.from("profiles").delete().eq("user_id", userId);
+        if (directErr) throw directErr;
+      }
+      onRegistrationsChange(registrations.filter((r) => r.user_id !== userId));
+      setActionNotice(`Registration for ${name || "applicant"} was deleted.`);
+      await reload();
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : "Failed to delete registration record.");
+    } finally {
+      setProcessingId(null);
+    }
+  }
+
+  async function handleClearRejected() {
+    if (!window.confirm(`Permanently delete all ${rejectedCount} rejected registration records?`)) {
+      return;
+    }
+    setRefreshing(true);
+    setActionError("");
+    setActionNotice("");
+
+    try {
+      const { error: rpcErr } = await (supabase.rpc as any)("clear_rejected_registrations");
+      if (rpcErr) {
+        const { error: directErr } = await supabase.from("profiles").delete().eq("approval_status", "rejected");
+        if (directErr) throw directErr;
+      }
+      onRegistrationsChange(registrations.filter((r) => r.approval_status !== "rejected"));
+      setActionNotice("All rejected registration history has been permanently deleted.");
+      await reload();
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : "Failed to clear rejected registrations.");
+    } finally {
+      setRefreshing(false);
+    }
+  }
+
   return (
     <div className="space-y-6">
       <div className="grid gap-4 sm:grid-cols-3">
@@ -2068,6 +2118,19 @@ function RegistrationsView({
           </div>
 
           <div className="flex items-center gap-2">
+            {rejectedCount > 0 && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => void handleClearRejected()}
+                disabled={refreshing}
+                className="h-9 border-red-200 text-xs font-medium text-red-700 hover:bg-red-50 hover:text-red-800"
+                title="Permanently remove all rejected registrations"
+              >
+                <Trash2 className="size-3.5 mr-1" />
+                Clear Rejected ({rejectedCount})
+              </Button>
+            )}
             <label className="relative block w-full sm:w-[220px]">
               <Search
                 className="absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-[#a09d93]"
@@ -2192,16 +2255,29 @@ function RegistrationsView({
                     )}
 
                     {reg.approval_status === "rejected" && (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => handleApprove(reg.user_id, reg.display_name)}
-                        disabled={isProcessing}
-                        className="h-8 text-xs text-[#40543c] hover:bg-[#f1f4ee]"
-                      >
-                        <UserCheck className="size-3 mr-1" />
-                        Re-approve
-                      </Button>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleApprove(reg.user_id, reg.display_name)}
+                          disabled={isProcessing}
+                          className="h-8 text-xs text-[#40543c] hover:bg-[#f1f4ee]"
+                        >
+                          <UserCheck className="size-3 mr-1" />
+                          Re-approve
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleDelete(reg.user_id, reg.display_name)}
+                          disabled={isProcessing}
+                          className="h-8 border-[#dedbd2] text-red-700 hover:bg-red-50 text-xs font-medium"
+                          title="Permanently delete registration record"
+                        >
+                          <Trash2 className="size-3 mr-1" />
+                          Delete
+                        </Button>
+                      </div>
                     )}
                   </div>
                 </article>
