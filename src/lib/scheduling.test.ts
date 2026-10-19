@@ -72,14 +72,14 @@ describe("Scheduling and Staffing Calculations", () => {
     // Event B on 2026-10-26 starts at 01:00 and ends at 05:00
     const overlapNextDay = doEventsOverlap(
       { date: "2026-10-25", startTime: "22:00", endTime: "02:00" },
-      { date: "2026-10-26", startTime: "01:00", endTime: "05:00" }
+      { date: "2026-10-26", startTime: "01:00", endTime: "05:00" },
     );
     expect(overlapNextDay).toBe(true);
 
     // Event B on 2026-10-26 starts at 03:00 (after 02:00)
     const noOverlapNextDay = doEventsOverlap(
       { date: "2026-10-25", startTime: "22:00", endTime: "02:00" },
-      { date: "2026-10-26", startTime: "03:00", endTime: "07:00" }
+      { date: "2026-10-26", startTime: "03:00", endTime: "07:00" },
     );
     expect(noOverlapNextDay).toBe(false);
   });
@@ -165,8 +165,8 @@ describe("Scheduling and Staffing Calculations", () => {
       assignments,
     });
     expect(conflicts1.length).toBe(1);
-    expect(conflicts1[0].type).toBe("shoot_overlap");
-    expect(conflicts1[0].message).toContain("Priya & Rahul");
+    expect(conflicts1[0]?.type).toBe("shoot_overlap");
+    expect(conflicts1[0]?.message).toContain("Priya & Rahul");
 
     // Check worker-2 on target shoot at 12:00 -> cancelled shoot should NOT block worker-2
     const conflicts2 = findWorkerConflicts({
@@ -214,7 +214,7 @@ describe("Scheduling and Staffing Calculations", () => {
     });
 
     expect(conflicts.length).toBe(1);
-    expect(conflicts[0].type).toBe("approved_leave");
-    expect(conflicts[0].message).toContain("Family Vacation");
+    expect(conflicts[0]?.type).toBe("approved_leave");
+    expect(conflicts[0]?.message).toContain("Family Vacation");
   });
 });

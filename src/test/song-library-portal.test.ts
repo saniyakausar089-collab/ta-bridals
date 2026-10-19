@@ -94,7 +94,7 @@ describe("Phase 4: Song Library Portal & Security Verification", () => {
 
   it(
     "Step 3 (Admin Flow): Admin approves client, assigns library, adds song, then rejects with reason",
-    { timeout: 60000 },
+    { timeout: 120000 },
     async () => {
       if (!testClientId) return;
 

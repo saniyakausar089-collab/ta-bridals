@@ -39,7 +39,7 @@ interface NotificationItem {
   category: "registration" | "leave" | "shoot" | "expense" | "payroll" | "songs";
   title: string;
   subtitle: string;
-  time?: string;
+  time?: string | undefined;
   targetSection: Section;
   severity: "danger" | "warning" | "info";
 }
@@ -151,7 +151,7 @@ export function AdminNotificationCenter({
           category: "expense",
           title: `Expense ${exp.expense_number}`,
           subtitle: `${exp.payee_supplier} (${exp.category}) · ₹${exp.amount.toLocaleString("en-IN")}`,
-          time: exp.created_at ? format(parseISO(exp.created_at), "MMM d, h:mm a") : undefined,
+          time: exp.expense_date ? format(parseISO(exp.expense_date), "MMM d, h:mm a") : undefined,
           targetSection: "finance",
           severity: "warning",
         });
@@ -208,8 +208,11 @@ export function AdminNotificationCenter({
     }
     if (isOpen) {
       document.addEventListener("mousedown", handleClickOutside);
-      return () => document.removeEventListener("mousedown", handleClickOutside);
+      return () => {
+        document.removeEventListener("mousedown", handleClickOutside);
+      };
     }
+    return undefined;
   }, [isOpen]);
 
   function handleSelect(item: NotificationItem) {

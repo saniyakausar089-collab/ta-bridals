@@ -1466,9 +1466,9 @@ function Workspace({
   onDeleteTeamMember: (memberId: string) => Promise<void>;
   availabilityRequests: AvailabilityRequest[];
   auditLogs: AuditLog[];
-  currentUserId?: string;
-  currentUserEmail?: string;
-  pendingSongClientsCount?: number;
+  currentUserId?: string | undefined;
+  currentUserEmail?: string | undefined;
+  pendingSongClientsCount?: number | undefined;
   onSubmitAvailabilityRequest: (input: any) => Promise<void>;
   onReviewAvailabilityRequest: (
     requestId: string,
@@ -1907,7 +1907,7 @@ function Workspace({
               loading={loading}
               onNavigate={onSectionChange}
               isAdmin={isAdmin}
-              pendingRegistrationsCount={pendingCount}
+              pendingRegistrationsCount={pendingRegistrationsCount}
               invoices={invoices}
               clientPayments={clientPayments}
               payroll={payroll}
@@ -3407,7 +3407,7 @@ function ShootEditor({
                           </p>
                           {workerConflicts.length > 0 && (
                             <p className="text-[10px] text-amber-300 font-medium">
-                              ⚠️ {workerConflicts[0].message}
+                              ⚠️ {workerConflicts[0]?.message}
                             </p>
                           )}
                         </div>

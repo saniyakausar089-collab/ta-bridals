@@ -117,7 +117,6 @@ describe("Feature 1 & 2 Integration: Crew Assignments & Live Badges", () => {
       created_by: "admin",
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
-      package_amount: null,
     };
 
     const existingShoots: Shoot[] = [
@@ -136,7 +135,6 @@ describe("Feature 1 & 2 Integration: Crew Assignments & Live Badges", () => {
         created_by: "admin",
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
-        package_amount: null,
       },
       {
         id: "shoot-cancelled",
@@ -153,7 +151,6 @@ describe("Feature 1 & 2 Integration: Crew Assignments & Live Badges", () => {
         created_by: "admin",
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
-        package_amount: null,
       },
     ];
 
@@ -184,8 +181,8 @@ describe("Feature 1 & 2 Integration: Crew Assignments & Live Badges", () => {
       availabilityRequests: [],
     });
     expect(conflicts.length).toBe(1);
-    expect(conflicts[0].type).toBe("shoot_overlap");
-    expect(conflicts[0].message).toContain("Sana & Farhan");
+    expect(conflicts[0]?.type).toBe("shoot_overlap");
+    expect(conflicts[0]?.message).toContain("Sana & Farhan");
 
     // Cancelled shoot did not trigger a conflict
     const hasCancelledConflict = conflicts.some((c) => c.message.includes("Cancelled Couple"));
@@ -212,7 +209,7 @@ describe("Feature 1 & 2 Integration: Crew Assignments & Live Badges", () => {
       ],
     });
     expect(leaveConflicts.length).toBe(1);
-    expect(leaveConflicts[0].type).toBe("approved_leave");
+    expect(leaveConflicts[0]?.type).toBe("approved_leave");
   });
 
   it("Enforces RLS: Unauthenticated users are denied execution of replace_shoot_assignments", async () => {
