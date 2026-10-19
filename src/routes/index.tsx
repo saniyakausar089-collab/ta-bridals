@@ -3070,7 +3070,7 @@ function ShootEditor({
   const [conflictReviewed, setConflictReviewed] = useState(false);
 
   // Form field state for live calculations & conflict checks
-  const [plannedTeamSize, setPlannedTeamSize] = useState<number>(shoot?.planned_team_size ?? 7);
+  const [plannedTeamSize, setPlannedTeamSize] = useState<number>(shoot?.planned_team_size ?? 2);
   const [eventDate, setEventDate] = useState<string>(
     shoot?.event_date ?? format(new Date(), "yyyy-MM-dd"),
   );
@@ -3299,11 +3299,11 @@ function ShootEditor({
               <Input
                 name="planned_team_size"
                 type="number"
-                min={7}
+                min={1}
                 max={20}
                 value={plannedTeamSize}
                 onChange={(e) =>
-                  setPlannedTeamSize(Math.max(7, Math.min(20, Number(e.target.value) || 7)))
+                  setPlannedTeamSize(Math.max(1, Math.min(20, Number(e.target.value) || 1)))
                 }
                 required
               />
