@@ -346,7 +346,20 @@ function Index() {
       if (teamResult.error) throw teamResult.error;
       if (assignmentResult.error) throw assignmentResult.error;
 
-      setShoots(shootResult.data ?? []);
+      // Normalize shoots in case couple_name column was absent in remote table
+      const normalizedShoots = (shootResult.data ?? []).map((s: any) => {
+        let coupleName = s.couple_name;
+        if (!coupleName && s.notes) {
+          const match = s.notes.match(/^\[Couple:\s*([^\]]+)\]/);
+          if (match) coupleName = match[1];
+        }
+        return {
+          ...s,
+          couple_name: coupleName || "Wedding Couple",
+        };
+      });
+
+      setShoots(normalizedShoots);
       setTeam(teamResult.data ?? []);
       setAssignments(assignmentResult.data ?? []);
 
@@ -383,9 +396,23 @@ function Index() {
 
     const payload = shootId ? { ...values } : { ...values, created_by: session.user.id };
 
-    const result = shootId
+    let result = shootId
       ? await supabase.from("shoots").update(payload).eq("id", shootId).select().single()
       : await supabase.from("shoots").insert(payload).select().single();
+
+    // If couple_name is not recognized by the remote shoots schema, fallback without failing
+    if (result.error && (result.error.message?.includes("couple_name") || result.error.details?.includes("couple_name"))) {
+      console.warn("Remote shoots table missing couple_name, adapting payload:", result.error);
+      const fallbackPayload: Record<string, unknown> = { ...payload };
+      delete fallbackPayload["couple_name"];
+      // Store couple_name in notes if notes field exists
+      if (values.couple_name) {
+        fallbackPayload["notes"] = values.notes ? `[Couple: ${values.couple_name}] ${values.notes}` : `Couple: ${values.couple_name}`;
+      }
+      result = (shootId
+        ? await supabase.from("shoots").update(fallbackPayload as any).eq("id", shootId).select().single()
+        : await supabase.from("shoots").insert(fallbackPayload as any).select().single()) as typeof result;
+    }
 
     if (result.error) {
       throw new Error(
@@ -400,7 +427,7 @@ function Index() {
       action: shootId ? "SHOOT_UPDATED" : "SHOOT_CREATED",
       recordType: "shoot",
       recordId: result.data.id,
-      details: { couple: result.data.couple_name, event_type: result.data.event_type },
+      details: { couple: result.data.couple_name || values.couple_name, event_type: result.data.event_type },
     });
 
     if (crewAssignments !== undefined) {
