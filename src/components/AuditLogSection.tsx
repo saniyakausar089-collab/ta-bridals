@@ -1,6 +1,7 @@
 import { format, parseISO } from "date-fns";
-import { Activity, Shield, RefreshCw } from "lucide-react";
+import { Activity, Shield, RefreshCw, Trash2, AlertTriangle } from "lucide-react";
 import { useState } from "react";
+import { deleteAuditLog, clearAllAuditLogs } from "@/lib/audit";
 import type { Tables } from "@/integrations/supabase/types";
 
 type AuditLog = Tables<"audit_logs">;
@@ -12,20 +13,41 @@ interface AuditLogSectionProps {
 }
 
 export function AuditLogSection({ logs, loading = false, onRefresh }: AuditLogSectionProps) {
-  const [refreshing, setRefreshing] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [clearing, setClearing] = useState(false);
+  const [confirmClear, setConfirmClear] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-  async function handleRefresh() {
-    if (!onRefresh || refreshing) return;
-    setRefreshing(true);
+  async function handleDeleteRow(id: string) {
+    setDeletingId(id);
+    setErrorMsg(null);
     try {
-      await Promise.resolve(onRefresh());
+      await deleteAuditLog(id);
+      onRefresh?.();
+    } catch (e) {
+      setErrorMsg(e instanceof Error ? e.message : "Failed to delete entry.");
     } finally {
-      setTimeout(() => setRefreshing(false), 600);
+      setDeletingId(null);
+    }
+  }
+
+  async function handleClearAll() {
+    setClearing(true);
+    setErrorMsg(null);
+    try {
+      await clearAllAuditLogs();
+      setConfirmClear(false);
+      onRefresh?.();
+    } catch (e) {
+      setErrorMsg(e instanceof Error ? e.message : "Failed to clear logs.");
+    } finally {
+      setClearing(false);
     }
   }
 
   return (
     <div className="space-y-6">
+      {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-4 rounded-xl border border-[#30282e] bg-[#151317] p-5">
         <div>
           <h2 className="font-serif text-2xl text-[#f7f0ee]">Studio Audit Trail</h2>
@@ -34,20 +56,53 @@ export function AuditLogSection({ logs, loading = false, onRefresh }: AuditLogSe
             shoot modifications.
           </p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
+          {/* Clear All button */}
+          {logs.length > 0 && !confirmClear && (
+            <button
+              onClick={() => setConfirmClear(true)}
+              disabled={clearing}
+              className="flex items-center gap-1.5 rounded-lg border border-[#40232b] bg-[#1f1217] px-3 py-1.5 text-xs text-[#e7a0ad] transition-colors hover:bg-[#2c1620] hover:border-[#6b3040] disabled:opacity-50"
+            >
+              <Trash2 className="size-3.5" />
+              <span>Clear All Logs</span>
+            </button>
+          )}
+
+          {/* Confirm Clear dialog inline */}
+          {confirmClear && (
+            <div className="flex items-center gap-2 rounded-lg border border-[#6b3040] bg-[#1f1217] px-3 py-1.5 text-xs">
+              <AlertTriangle className="size-3.5 text-[#e7a0ad]" />
+              <span className="text-[#f7f0ee]">Delete all logs?</span>
+              <button
+                onClick={() => void handleClearAll()}
+                disabled={clearing}
+                className="rounded px-2 py-0.5 bg-[#6b3040] text-[#f7f0ee] hover:bg-[#8b3a50] disabled:opacity-50 transition-colors"
+              >
+                {clearing ? "Clearing…" : "Yes, clear"}
+              </button>
+              <button
+                onClick={() => setConfirmClear(false)}
+                className="rounded px-2 py-0.5 text-[#82767d] hover:text-[#f7f0ee] transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+          )}
+
+          {/* Refresh button */}
           {onRefresh && (
             <button
-              onClick={() => void handleRefresh()}
-              disabled={refreshing || loading}
+              onClick={() => onRefresh()}
+              disabled={loading}
               title="Refresh audit logs"
               className="flex items-center gap-1.5 rounded-lg border border-[#30282e] bg-[#1b181d] px-3 py-1.5 text-xs text-[#82767d] transition-colors hover:border-[#584e56] hover:text-[#f7f0ee] disabled:opacity-50"
             >
-              <RefreshCw
-                className={`size-3.5 ${refreshing || loading ? "animate-spin" : ""}`}
-              />
-              <span>{refreshing || loading ? "Refreshing…" : "Refresh"}</span>
+              <RefreshCw className={`size-3.5 ${loading ? "animate-spin" : ""}`} />
+              <span>{loading ? "Loading…" : "Refresh"}</span>
             </button>
           )}
+
           <div className="flex items-center gap-2 rounded-lg border border-[#30282e] bg-[#1b181d] px-3 py-1.5 text-xs text-[#d9b98c]">
             <Shield className="size-4" />
             <span>Admin Access Only</span>
@@ -55,6 +110,14 @@ export function AuditLogSection({ logs, loading = false, onRefresh }: AuditLogSe
         </div>
       </div>
 
+      {/* Error banner */}
+      {errorMsg && (
+        <div className="rounded-lg border border-[#6b3040] bg-[#1f1217] px-4 py-3 text-xs text-[#e7a0ad]">
+          {errorMsg}
+        </div>
+      )}
+
+      {/* Body */}
       {loading ? (
         <div className="rounded-2xl border border-[#30282e] bg-[#151317] p-12 text-center">
           <RefreshCw className="mx-auto mb-3 size-8 animate-spin text-[#584e56]" />
@@ -64,9 +127,7 @@ export function AuditLogSection({ logs, loading = false, onRefresh }: AuditLogSe
         <div className="rounded-2xl border border-[#30282e] bg-[#151317] p-12 text-center text-xs text-[#82767d]">
           <Activity className="mx-auto mb-3 size-8 text-[#584e56]" />
           <p className="text-sm font-medium text-[#f7f0ee]">No audit logs recorded yet</p>
-          <p className="mt-1">
-            Administrative actions will automatically generate audit logs here.
-          </p>
+          <p className="mt-1">Administrative actions will automatically generate audit logs here.</p>
         </div>
       ) : (
         <section className="overflow-hidden rounded-2xl border border-[#30282e] bg-[#151317]">
@@ -79,11 +140,12 @@ export function AuditLogSection({ logs, loading = false, onRefresh }: AuditLogSe
                   <th className="py-3 px-4 font-medium">Action</th>
                   <th className="py-3 px-4 font-medium">Record Type</th>
                   <th className="py-3 px-5 font-medium">Details</th>
+                  <th className="py-3 px-4 font-medium w-10"></th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#242026]">
                 {logs.map((log) => (
-                  <tr key={log.id} className="hover:bg-[#1b181d] transition-colors">
+                  <tr key={log.id} className="group hover:bg-[#1b181d] transition-colors">
                     <td className="py-3.5 px-5 text-[#b8adb2] whitespace-nowrap">
                       {format(parseISO(log.created_at), "MMM d, yyyy · h:mm a")}
                     </td>
@@ -110,6 +172,21 @@ export function AuditLogSection({ logs, loading = false, onRefresh }: AuditLogSe
                       {typeof log.details === "object"
                         ? JSON.stringify(log.details)
                         : String(log.details || "—")}
+                    </td>
+                    <td className="py-3.5 px-4">
+                      <button
+                        onClick={() => void handleDeleteRow(log.id)}
+                        disabled={deletingId === log.id}
+                        title="Delete this log entry"
+                        aria-label={`Delete audit log entry for ${log.action}`}
+                        className="rounded p-1 text-[#584e56] opacity-0 group-hover:opacity-100 transition-all hover:bg-[#2c1620] hover:text-[#e7a0ad] disabled:opacity-50"
+                      >
+                        {deletingId === log.id ? (
+                          <RefreshCw className="size-3.5 animate-spin" />
+                        ) : (
+                          <Trash2 className="size-3.5" />
+                        )}
+                      </button>
                     </td>
                   </tr>
                 ))}

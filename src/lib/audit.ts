@@ -44,6 +44,22 @@ export async function recordAuditLog(params: LogAuditParams): Promise<void> {
 }
 
 /**
+ * Deletes a single audit log entry by ID.
+ */
+export async function deleteAuditLog(id: string): Promise<void> {
+  const { error } = await supabase.from("audit_logs").delete().eq("id", id);
+  if (error) throw new Error(error.message);
+}
+
+/**
+ * Clears ALL audit log entries (admin only).
+ */
+export async function clearAllAuditLogs(): Promise<void> {
+  const { error } = await supabase.from("audit_logs").delete().neq("id", "00000000-0000-0000-0000-000000000000");
+  if (error) throw new Error(error.message);
+}
+
+/**
  * Creates an in-app notification for a user.
  */
 export async function sendNotification(
