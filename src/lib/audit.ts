@@ -6,6 +6,7 @@ export type NotificationInsert = TablesInsert<"notifications">;
 export type AvailabilityRequest = Tables<"availability_requests">;
 export type AvailabilityRequestInsert = TablesInsert<"availability_requests">;
 
+
 /**
  * Creates an in-app notification for a user.
  */
