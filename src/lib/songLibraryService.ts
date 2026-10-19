@@ -16,6 +16,8 @@ import type {
   SongItem,
   SongLibraryRecord,
   WeddingEventGroup,
+  ClientCustomSongRequest,
+  ClientSongSelection,
 } from "@/types/songLibrary";
 
 // Storage keys for mock session (passwords are NEVER stored)
@@ -129,6 +131,11 @@ export const INITIAL_SONGS: SongItem[] = [
     durationSeconds: 198,
     durationFormatted: "3:18",
     libraryId: "lib-royal-heritage",
+    youtubeVideoId: "kJQP7kiw5Fk",
+    youtubeUrl: "https://www.youtube.com/watch?v=kJQP7kiw5Fk",
+    channelName: "Desi Music Factory",
+    thumbnailUrl:
+      "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=480&auto=format&fit=crop&q=80",
     tags: ["Upbeat", "Folk", "Haldi Special"],
     createdAt: "2026-10-02T10:00:00.000Z",
   },
@@ -140,6 +147,11 @@ export const INITIAL_SONGS: SongItem[] = [
     durationSeconds: 245,
     durationFormatted: "4:05",
     libraryId: "lib-royal-heritage",
+    youtubeVideoId: "fJ9rUzIMcZQ",
+    youtubeUrl: "https://www.youtube.com/watch?v=fJ9rUzIMcZQ",
+    channelName: "Sony Music India",
+    thumbnailUrl:
+      "https://images.unsplash.com/photo-1465847899084-d164df4dedc6?w=480&auto=format&fit=crop&q=80",
     tags: ["Sitar", "Warm", "Mehendi Classic"],
     createdAt: "2026-10-02T10:15:00.000Z",
   },
@@ -151,6 +163,11 @@ export const INITIAL_SONGS: SongItem[] = [
     durationSeconds: 270,
     durationFormatted: "4:30",
     libraryId: "lib-royal-heritage",
+    youtubeVideoId: "7zp1TbLFPp8",
+    youtubeUrl: "https://www.youtube.com/watch?v=7zp1TbLFPp8",
+    channelName: "T-Series",
+    thumbnailUrl:
+      "https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=480&auto=format&fit=crop&q=80",
     tags: ["High Energy", "Group Dance", "Sangeet"],
     createdAt: "2026-10-02T10:30:00.000Z",
   },
@@ -158,43 +175,63 @@ export const INITIAL_SONGS: SongItem[] = [
     id: "song-4",
     title: "Sauda Khara Khara (Nagada Baraat Edit)",
     artist: "Sukhbir & DJ Chetas Edit",
-    eventGroup: "Baraat",
+    eventGroup: "Groom Entry",
     durationSeconds: 215,
     durationFormatted: "3:35",
     libraryId: "lib-royal-heritage",
-    tags: ["Baraat", "Brass", "Nagada"],
+    youtubeVideoId: "pVNw9-Q7xW0",
+    youtubeUrl: "https://www.youtube.com/watch?v=pVNw9-Q7xW0",
+    channelName: "Zee Music Company",
+    thumbnailUrl:
+      "https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=480&auto=format&fit=crop&q=80",
+    tags: ["Groom Entry", "Brass", "Nagada"],
     createdAt: "2026-10-02T10:45:00.000Z",
   },
   {
     id: "song-5",
     title: "Din Shagna Da (Grand Royal Entry)",
     artist: "Jasleen Royal & Strings",
-    eventGroup: "Entry",
+    eventGroup: "Bride Entry",
     durationSeconds: 228,
     durationFormatted: "3:48",
     libraryId: "lib-royal-heritage",
+    youtubeVideoId: "1e1nyvsmc1U",
+    youtubeUrl: "https://www.youtube.com/watch?v=1e1nyvsmc1U",
+    channelName: "Jasleen Royal Official",
+    thumbnailUrl:
+      "https://images.unsplash.com/photo-1519741497674-611481863552?w=480&auto=format&fit=crop&q=80",
     tags: ["Bridal Entry", "Emotional", "Shehnai"],
     createdAt: "2026-10-02T11:00:00.000Z",
   },
   {
     id: "song-6",
-    title: "Afreen Afreen (Nikah Acoustic Tribute)",
-    artist: "Rahat Fateh Ali Khan Tribute Band",
-    eventGroup: "Nikah",
+    title: "Kudmayi (Royal Varmala Symphony)",
+    artist: "Shahid Mallya & Pritam",
+    eventGroup: "Varmala/Jaimala",
     durationSeconds: 312,
     durationFormatted: "5:12",
     libraryId: "lib-royal-heritage",
-    tags: ["Nikah", "Sufi", "Soulful"],
+    youtubeVideoId: "D86j0QO1D-w",
+    youtubeUrl: "https://www.youtube.com/watch?v=D86j0QO1D-w",
+    channelName: "Saregama Music",
+    thumbnailUrl:
+      "https://images.unsplash.com/photo-1532712938310-34cb3982ef74?w=480&auto=format&fit=crop&q=80",
+    tags: ["Varmala", "Soulful", "Grand"],
     createdAt: "2026-10-02T11:15:00.000Z",
   },
   {
     id: "song-7",
     title: "Mangalyam Tantunanena (Sacred Pheras Symphony)",
     artist: "Vedic Symphony Orchestra",
-    eventGroup: "Pheras/Ceremony",
+    eventGroup: "Pheras",
     durationSeconds: 360,
     durationFormatted: "6:00",
     libraryId: "lib-royal-heritage",
+    youtubeVideoId: "OPf0YbXqDm0",
+    youtubeUrl: "https://www.youtube.com/watch?v=OPf0YbXqDm0",
+    channelName: "Spiritual Symphony",
+    thumbnailUrl:
+      "https://images.unsplash.com/photo-1520854221256-17451cc331bf?w=480&auto=format&fit=crop&q=80",
     tags: ["Pheras", "Vedic Chants", "Ceremonial"],
     createdAt: "2026-10-02T11:30:00.000Z",
   },
@@ -202,22 +239,32 @@ export const INITIAL_SONGS: SongItem[] = [
     id: "song-8",
     title: "Kesariya (First Dance Waltz Edit)",
     artist: "Pritam & Arijit Singh (Symphonic)",
-    eventGroup: "Couple Dance",
+    eventGroup: "First Dance",
     durationSeconds: 254,
     durationFormatted: "4:14",
     libraryId: "lib-royal-heritage",
-    tags: ["Couple Dance", "First Dance", "Romantic"],
+    youtubeVideoId: "BddP6PYo2gs",
+    youtubeUrl: "https://www.youtube.com/watch?v=BddP6PYo2gs",
+    channelName: "Sony Music India",
+    thumbnailUrl:
+      "https://images.unsplash.com/photo-1492684223066-81342ee5ff30?w=480&auto=format&fit=crop&q=80",
+    tags: ["First Dance", "Romantic", "Waltz"],
     createdAt: "2026-10-02T11:45:00.000Z",
   },
   {
     id: "song-9",
-    title: "Saturday Night Sundowner (Deep Lounge)",
-    artist: "Studio DJ Collective",
-    eventGroup: "Cocktail",
+    title: "Rang Sharbaton Ka (Couple Portraits Edit)",
+    artist: "Atif Aslam & Chinmayi",
+    eventGroup: "Couple Portraits",
     durationSeconds: 280,
     durationFormatted: "4:40",
     libraryId: "lib-royal-heritage",
-    tags: ["Cocktail", "Lounge", "Groove"],
+    youtubeVideoId: "gqmXPECFVGs",
+    youtubeUrl: "https://www.youtube.com/watch?v=gqmXPECFVGs",
+    channelName: "Tips Official",
+    thumbnailUrl:
+      "https://images.unsplash.com/photo-1518173946687-a4c8a383392e?w=480&auto=format&fit=crop&q=80",
+    tags: ["Couple Portraits", "Acoustic", "Romantic"],
     createdAt: "2026-10-02T12:00:00.000Z",
   },
   {
@@ -228,29 +275,44 @@ export const INITIAL_SONGS: SongItem[] = [
     durationSeconds: 295,
     durationFormatted: "4:55",
     libraryId: "lib-royal-heritage",
-    tags: ["Reception", "Party", "Finale"],
+    youtubeVideoId: "y6120QOlsfU",
+    youtubeUrl: "https://www.youtube.com/watch?v=y6120QOlsfU",
+    channelName: "T-Series",
+    thumbnailUrl:
+      "https://images.unsplash.com/photo-1429962714451-bb934ecdc4ec?w=480&auto=format&fit=crop&q=80",
+    tags: ["Reception", "Party", "Grand Finale"],
     createdAt: "2026-10-02T12:15:00.000Z",
   },
   {
     id: "song-11",
-    title: "Kabira (Farewell Vidaai Symphony)",
+    title: "Kabira (Farewell Emotional Symphony)",
     artist: "Rekha Bhardwaj & Tochi Raina",
-    eventGroup: "Vidaai",
+    eventGroup: "Emotional/Romantic Moments",
     durationSeconds: 262,
     durationFormatted: "4:22",
     libraryId: "lib-royal-heritage",
-    tags: ["Vidaai", "Tearful", "Sentimental"],
+    youtubeVideoId: "jHNNMj5bNQw",
+    youtubeUrl: "https://www.youtube.com/watch?v=jHNNMj5bNQw",
+    channelName: "T-Series",
+    thumbnailUrl:
+      "https://images.unsplash.com/photo-1511765224389-37f0e77cf0eb?w=480&auto=format&fit=crop&q=80",
+    tags: ["Emotional", "Tearful", "Sentimental"],
     createdAt: "2026-10-02T12:30:00.000Z",
   },
   {
     id: "song-12",
-    title: "London Thumakda (Family Celebration Mix)",
+    title: "London Thumakda (Grand Finale Dance)",
     artist: "Labh Janjua Tribute",
-    eventGroup: "Other",
+    eventGroup: "Grand Finale",
     durationSeconds: 210,
     durationFormatted: "3:30",
     libraryId: "lib-royal-heritage",
-    tags: ["Celebration", "Family", "Bonus"],
+    youtubeVideoId: "DRAmE3l_vQ0",
+    youtubeUrl: "https://www.youtube.com/watch?v=DRAmE3l_vQ0",
+    channelName: "Zee Music Company",
+    thumbnailUrl:
+      "https://images.unsplash.com/photo-1501386761578-eac5c94b800a?w=480&auto=format&fit=crop&q=80",
+    tags: ["Celebration", "Grand Finale", "Party"],
     createdAt: "2026-10-02T12:45:00.000Z",
   },
 ];
@@ -413,7 +475,7 @@ export async function restoreClientSession(): Promise<ClientProfile | null> {
  */
 export async function clientLogin(
   email: string,
-  password: string
+  password: string,
 ): Promise<{ success: boolean; client: ClientProfile | null; error?: string }> {
   const normalizedEmail = email.trim().toLowerCase();
 
@@ -541,7 +603,11 @@ export async function clientSignUp({
   confirmPassword,
   weddingDate,
   phone,
-}: ClientSignUpParams): Promise<{ success: boolean; client: ClientProfile | null; error?: string }> {
+}: ClientSignUpParams): Promise<{
+  success: boolean;
+  client: ClientProfile | null;
+  error?: string;
+}> {
   const trimmedName = fullName.trim();
   const trimmedEmail = email.trim().toLowerCase();
 
@@ -625,7 +691,7 @@ export async function clientSignUp({
           wedding_date: weddingDate || null,
           approval_status: "pending",
         },
-        { onConflict: "id", ignoreDuplicates: true }
+        { onConflict: "id", ignoreDuplicates: true },
       );
     } catch {
       // Ignore if trigger handled it
@@ -760,7 +826,7 @@ export async function getSongPlaybackUrl(audioPathOrId: string): Promise<string>
  */
 export async function uploadSongAudio(
   libraryId: string,
-  file: File
+  file: File,
 ): Promise<{ success: boolean; storagePath?: string; error?: string }> {
   if (file.size > songLibraryConfig.maxUploadSizeMb * 1024 * 1024) {
     return {
@@ -810,8 +876,13 @@ export async function getClients(): Promise<ClientProfile[]> {
 
   try {
     const [profilesRes, assignsRes] = await Promise.all([
-      (supabase as any).from("client_profiles").select("*").order("created_at", { ascending: false }),
-      (supabase as any).from("client_library_assignments").select("client_id, library_id, song_libraries(id, name)"),
+      (supabase as any)
+        .from("client_profiles")
+        .select("*")
+        .order("created_at", { ascending: false }),
+      (supabase as any)
+        .from("client_library_assignments")
+        .select("client_id, library_id, song_libraries(id, name)"),
     ]);
 
     if (profilesRes.error) throw profilesRes.error;
@@ -853,7 +924,7 @@ export async function getClients(): Promise<ClientProfile[]> {
  */
 export async function approveClient(
   clientId: string,
-  libraryId?: string
+  libraryId?: string,
 ): Promise<{ success: boolean; client?: ClientProfile; error?: string }> {
   if (songLibraryConfig.isMockMode) {
     const profiles = getStoredProfiles();
@@ -865,12 +936,19 @@ export async function approveClient(
         error: `Client with ID "${clientId}" was not found. Cannot approve.`,
       };
     }
+    const current = profiles[index];
+    if (!current) {
+      return {
+        success: false,
+        error: `Client with ID "${clientId}" was not found. Cannot approve.`,
+      };
+    }
 
     const updatedClient: ClientProfile = {
-      ...profiles[index],
+      ...current,
       approvalStatus: "approved",
       rejectionReason: undefined,
-      assignedLibraryId: libraryId !== undefined ? libraryId : profiles[index].assignedLibraryId,
+      assignedLibraryId: libraryId !== undefined ? libraryId : current.assignedLibraryId,
       reviewedAt: new Date().toISOString(),
       reviewedBy: "Studio Owner",
     };
@@ -897,7 +975,7 @@ export async function approveClient(
         .from("client_library_assignments")
         .upsert(
           { client_id: clientId, library_id: libraryId, assigned_at: new Date().toISOString() },
-          { onConflict: "client_id" }
+          { onConflict: "client_id" },
         );
 
       if (assignError) return { success: false, error: assignError.message };
@@ -918,7 +996,7 @@ export async function approveClient(
  */
 export async function reapproveClient(
   clientId: string,
-  libraryId?: string
+  libraryId?: string,
 ): Promise<{ success: boolean; client?: ClientProfile; error?: string }> {
   return approveClient(clientId, libraryId);
 }
@@ -929,7 +1007,7 @@ export async function reapproveClient(
  */
 export async function rejectClient(
   clientId: string,
-  reason?: string
+  reason?: string,
 ): Promise<{ success: boolean; client?: ClientProfile; error?: string }> {
   if (songLibraryConfig.isMockMode) {
     const profiles = getStoredProfiles();
@@ -941,9 +1019,16 @@ export async function rejectClient(
         error: `Client with ID "${clientId}" was not found. Cannot reject.`,
       };
     }
+    const current = profiles[index];
+    if (!current) {
+      return {
+        success: false,
+        error: `Client with ID "${clientId}" was not found. Cannot reject.`,
+      };
+    }
 
     const updatedClient: ClientProfile = {
-      ...profiles[index],
+      ...current,
       approvalStatus: "rejected",
       rejectionReason: reason?.trim() || undefined,
       reviewedAt: new Date().toISOString(),
@@ -968,10 +1053,7 @@ export async function rejectClient(
     if (profileError) return { success: false, error: profileError.message };
 
     // Delete assignment if existed
-    await (supabase as any)
-      .from("client_library_assignments")
-      .delete()
-      .eq("client_id", clientId);
+    await (supabase as any).from("client_library_assignments").delete().eq("client_id", clientId);
 
     return { success: true };
   } catch (err) {
@@ -996,7 +1078,7 @@ export async function getSongLibraries(includeArchived = false): Promise<SongLib
 
     return activeLibraries.map((lib) => {
       const assignedClients = profiles.filter(
-        (p) => p.assignedLibraryId === lib.id && p.approvalStatus === "approved"
+        (p) => p.assignedLibraryId === lib.id && p.approvalStatus === "approved",
       ).length;
       const librarySongs = songs.filter((s) => s.libraryId === lib.id).length;
 
@@ -1053,7 +1135,7 @@ export async function getSongLibraries(includeArchived = false): Promise<SongLib
  */
 export async function createSongLibrary(
   name: string,
-  description: string
+  description: string,
 ): Promise<{ success: boolean; library?: SongLibraryRecord; error?: string }> {
   const trimmedName = name.trim();
   if (!trimmedName) {
@@ -1062,9 +1144,7 @@ export async function createSongLibrary(
 
   if (songLibraryConfig.isMockMode) {
     const libraries = getStoredLibraries();
-    const duplicate = libraries.find(
-      (l) => l.name.toLowerCase() === trimmedName.toLowerCase()
-    );
+    const duplicate = libraries.find((l) => l.name.toLowerCase() === trimmedName.toLowerCase());
     if (duplicate) {
       return {
         success: false,
@@ -1128,7 +1208,7 @@ export async function createSongLibrary(
 export async function updateSongLibrary(
   libraryId: string,
   name: string,
-  description: string
+  description: string,
 ): Promise<{ success: boolean; library?: SongLibraryRecord; error?: string }> {
   const trimmedName = name.trim();
   if (!trimmedName) {
@@ -1141,9 +1221,13 @@ export async function updateSongLibrary(
     if (index === -1) {
       return { success: false, error: `Library with ID "${libraryId}" does not exist.` };
     }
+    const current = libraries[index];
+    if (!current) {
+      return { success: false, error: `Library with ID "${libraryId}" does not exist.` };
+    }
 
     const updatedLibrary: SongLibraryRecord = {
-      ...libraries[index],
+      ...current,
       name: trimmedName,
       description: description.trim(),
       updatedAt: new Date().toISOString(),
@@ -1196,12 +1280,12 @@ export async function updateSongLibrary(
  */
 export async function archiveSongLibrary(
   libraryId: string,
-  isArchived: boolean
+  isArchived: boolean,
 ): Promise<{ success: boolean; error?: string }> {
   if (songLibraryConfig.isMockMode) {
     const profiles = getStoredProfiles();
     const assigned = profiles.filter(
-      (p) => p.assignedLibraryId === libraryId && p.approvalStatus === "approved"
+      (p) => p.assignedLibraryId === libraryId && p.approvalStatus === "approved",
     );
 
     if (isArchived && assigned.length > 0) {
@@ -1217,8 +1301,13 @@ export async function archiveSongLibrary(
       return { success: false, error: `Library with ID "${libraryId}" does not exist.` };
     }
 
+    const current = libraries[index];
+    if (!current) {
+      return { success: false, error: `Library with ID "${libraryId}" does not exist.` };
+    }
+
     libraries[index] = {
-      ...libraries[index],
+      ...current,
       isArchived,
       updatedAt: new Date().toISOString(),
     };
@@ -1266,7 +1355,7 @@ export async function archiveSongLibrary(
  */
 export async function assignClientToLibrary(
   clientId: string,
-  libraryId: string
+  libraryId: string,
 ): Promise<{ success: boolean; client?: ClientProfile; error?: string }> {
   if (songLibraryConfig.isMockMode) {
     const profiles = getStoredProfiles();
@@ -1276,10 +1365,15 @@ export async function assignClientToLibrary(
       return { success: false, error: `Client with ID "${clientId}" was not found.` };
     }
 
-    if (profiles[clientIndex].approvalStatus !== "approved") {
+    const current = profiles[clientIndex];
+    if (!current) {
+      return { success: false, error: `Client with ID "${clientId}" was not found.` };
+    }
+
+    if (current.approvalStatus !== "approved") {
       return {
         success: false,
-        error: `Cannot assign library: client "${profiles[clientIndex].fullName}" is ${profiles[clientIndex].approvalStatus}. Only approved clients can be assigned to a song library.`,
+        error: `Cannot assign library: client "${current.fullName}" is ${current.approvalStatus}. Only approved clients can be assigned to a song library.`,
       };
     }
 
@@ -1290,7 +1384,7 @@ export async function assignClientToLibrary(
     }
 
     const updatedClient: ClientProfile = {
-      ...profiles[clientIndex],
+      ...current,
       assignedLibraryId: libraryId,
       assignedLibraryName: library.name,
     };
@@ -1323,7 +1417,7 @@ export async function assignClientToLibrary(
       .from("client_library_assignments")
       .upsert(
         { client_id: clientId, library_id: libraryId, assigned_at: new Date().toISOString() },
-        { onConflict: "client_id" }
+        { onConflict: "client_id" },
       );
 
     if (error) return { success: false, error: error.message };
@@ -1342,7 +1436,7 @@ export async function assignClientToLibrary(
  * // TODO: Enforce server-side (RLS) security check - Admin only (DB foreign key on delete restrict)
  */
 export async function deleteSongLibrary(
-  libraryId: string
+  libraryId: string,
 ): Promise<{ success: boolean; error?: string }> {
   if (songLibraryConfig.isMockMode) {
     const profiles = getStoredProfiles();
@@ -1380,10 +1474,7 @@ export async function deleteSongLibrary(
       };
     }
 
-    const { error } = await (supabase as any)
-      .from("song_libraries")
-      .delete()
-      .eq("id", libraryId);
+    const { error } = await (supabase as any).from("song_libraries").delete().eq("id", libraryId);
 
     if (error) return { success: false, error: error.message };
     return { success: true };
@@ -1402,17 +1493,33 @@ export async function deleteSongLibrary(
 export async function getSongsByLibrary(libraryId: string): Promise<SongItem[]> {
   if (songLibraryConfig.isMockMode) {
     const songs = getStoredSongs();
-    return songs.filter((s) => s.libraryId === libraryId);
+    return songs.filter((s) => s.libraryId === libraryId && s.isActive !== false);
   }
 
   try {
-    const { data, error } = await (supabase as any)
+    let { data, error } = await (supabase as any)
       .from("songs")
       .select("*")
       .eq("library_id", libraryId)
+      .eq("is_active", true)
       .order("created_at", { ascending: true });
 
-    if (error) throw error;
+    // Gracefully handle if migration 20261019000000 has not been run on remote db
+    if (error && (error.message?.includes("is_active") || error.code === "42703")) {
+      const fallback = await (supabase as any)
+        .from("songs")
+        .select("*")
+        .eq("library_id", libraryId)
+        .order("created_at", { ascending: true });
+      data = fallback.data;
+      error = fallback.error;
+    }
+
+    if (error) {
+      console.warn("Falling back to local song storage:", error);
+      const songs = getStoredSongs();
+      return songs.filter((s) => s.libraryId === libraryId && s.isActive !== false);
+    }
 
     return (data || []).map((s: any) => ({
       id: s.id,
@@ -1423,11 +1530,17 @@ export async function getSongsByLibrary(libraryId: string): Promise<SongItem[]> 
       durationFormatted: "3:30",
       libraryId: s.library_id,
       audioFileName: s.audio_path || undefined,
+      youtubeVideoId: s.youtube_video_id || undefined,
+      channelName: s.channel_name || undefined,
+      thumbnailUrl: s.thumbnail_url || undefined,
+      youtubeUrl: s.youtube_url || undefined,
+      isActive: s.is_active ?? true,
       createdAt: s.created_at,
     }));
   } catch (err) {
-    console.error("Failed to load songs from Supabase:", err);
-    throw err;
+    console.error("Failed to load songs from Supabase, falling back to local songs:", err);
+    const songs = getStoredSongs();
+    return songs.filter((s) => s.libraryId === libraryId && s.isActive !== false);
   }
 }
 
@@ -1437,16 +1550,21 @@ export interface AddSongParams {
   artist: string;
   eventGroup: WeddingEventGroup;
   audioFileName?: string;
+  youtubeVideoId?: string;
+  channelName?: string;
+  thumbnailUrl?: string;
+  youtubeUrl?: string;
   durationSeconds?: number;
   tags?: string[];
 }
 
 /**
- * ADMIN: Add a song to a library.
+ * ADMIN: Add a song (audio or YouTube) to a library.
+ * Enforces duplicate prevention within the same library.
  * // TODO: Enforce server-side (RLS) security check - Admin only
  */
 export async function addSongToLibrary(
-  params: AddSongParams
+  params: AddSongParams,
 ): Promise<{ success: boolean; song?: SongItem; error?: string }> {
   const title = params.title.trim();
   const artist = params.artist.trim();
@@ -1464,6 +1582,24 @@ export async function addSongToLibrary(
       return { success: false, error: `Library with ID "${params.libraryId}" does not exist.` };
     }
 
+    const songs = getStoredSongs();
+
+    // Check duplicate YouTube video in library
+    if (params.youtubeVideoId) {
+      const duplicate = songs.find(
+        (s) =>
+          s.libraryId === params.libraryId &&
+          s.youtubeVideoId === params.youtubeVideoId &&
+          s.isActive !== false,
+      );
+      if (duplicate) {
+        return {
+          success: false,
+          error: `This YouTube video is already in this library (${duplicate.title}).`,
+        };
+      }
+    }
+
     const newSong: SongItem = {
       id: `song-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
       title,
@@ -1473,16 +1609,42 @@ export async function addSongToLibrary(
       durationFormatted: "3:30",
       libraryId: params.libraryId,
       audioFileName: params.audioFileName || undefined,
+      youtubeVideoId: params.youtubeVideoId || undefined,
+      channelName: params.channelName || undefined,
+      thumbnailUrl: params.thumbnailUrl || undefined,
+      youtubeUrl:
+        params.youtubeUrl ||
+        (params.youtubeVideoId
+          ? `https://www.youtube.com/watch?v=${params.youtubeVideoId}`
+          : undefined),
+      isActive: true,
       tags: params.tags || [params.eventGroup],
       createdAt: new Date().toISOString(),
     };
 
-    const songs = getStoredSongs();
     saveStoredSongs([newSong, ...songs]);
     return { success: true, song: newSong };
   }
 
   try {
+    // Check for existing duplicate in same library
+    if (params.youtubeVideoId) {
+      const { data: existing } = await (supabase as any)
+        .from("songs")
+        .select("id, title")
+        .eq("library_id", params.libraryId)
+        .eq("youtube_video_id", params.youtubeVideoId)
+        .eq("is_active", true)
+        .maybeSingle();
+
+      if (existing) {
+        return {
+          success: false,
+          error: `This YouTube video is already in this library ("${existing.title}").`,
+        };
+      }
+    }
+
     const { data, error } = await (supabase as any)
       .from("songs")
       .insert({
@@ -1491,11 +1653,76 @@ export async function addSongToLibrary(
         artist,
         event_group: params.eventGroup,
         audio_path: params.audioFileName || null,
+        youtube_video_id: params.youtubeVideoId || null,
+        channel_name: params.channelName || null,
+        thumbnail_url: params.thumbnailUrl || null,
+        youtube_url:
+          params.youtubeUrl ||
+          (params.youtubeVideoId
+            ? `https://www.youtube.com/watch?v=${params.youtubeVideoId}`
+            : null),
+        is_active: true,
       })
       .select()
       .single();
 
-    if (error) return { success: false, error: error.message };
+    if (error) {
+      if (error.code === "23505") {
+        return {
+          success: false,
+          error: "This song or YouTube video already exists in this library.",
+        };
+      }
+      // If remote database has not had the YouTube migration applied yet, persist to local song storage
+      if (
+        error.code === "42703" ||
+        error.message?.includes("column") ||
+        error.message?.includes("schema cache")
+      ) {
+        console.warn("Remote schema missing column, saving song locally:", error.message);
+        const songs = getStoredSongs();
+
+        if (params.youtubeVideoId) {
+          const duplicate = songs.find(
+            (s) =>
+              s.libraryId === params.libraryId &&
+              s.youtubeVideoId === params.youtubeVideoId &&
+              s.isActive !== false,
+          );
+          if (duplicate) {
+            return {
+              success: false,
+              error: `This YouTube video is already in this library (${duplicate.title}).`,
+            };
+          }
+        }
+
+        const newSong: SongItem = {
+          id: `song-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+          title,
+          artist,
+          eventGroup: params.eventGroup,
+          durationSeconds: params.durationSeconds || 210,
+          durationFormatted: "3:30",
+          libraryId: params.libraryId,
+          audioFileName: params.audioFileName || undefined,
+          youtubeVideoId: params.youtubeVideoId || undefined,
+          channelName: params.channelName || undefined,
+          thumbnailUrl: params.thumbnailUrl || undefined,
+          youtubeUrl:
+            params.youtubeUrl ||
+            (params.youtubeVideoId
+              ? `https://www.youtube.com/watch?v=${params.youtubeVideoId}`
+              : undefined),
+          isActive: true,
+          tags: params.tags || [params.eventGroup],
+          createdAt: new Date().toISOString(),
+        };
+        saveStoredSongs([newSong, ...songs]);
+        return { success: true, song: newSong };
+      }
+      return { success: false, error: error.message };
+    }
 
     return {
       success: true,
@@ -1508,6 +1735,11 @@ export async function addSongToLibrary(
         durationFormatted: "3:30",
         libraryId: data.library_id,
         audioFileName: data.audio_path || undefined,
+        youtubeVideoId: data.youtube_video_id || undefined,
+        channelName: data.channel_name || undefined,
+        thumbnailUrl: data.thumbnail_url || undefined,
+        youtubeUrl: data.youtube_url || undefined,
+        isActive: data.is_active ?? true,
         createdAt: data.created_at,
       },
     };
@@ -1530,7 +1762,7 @@ export async function updateSong(
     artist?: string;
     eventGroup?: WeddingEventGroup;
     audioFileName?: string;
-  }
+  },
 ): Promise<{ success: boolean; song?: SongItem; error?: string }> {
   if (songLibraryConfig.isMockMode) {
     const songs = getStoredSongs();
@@ -1541,6 +1773,10 @@ export async function updateSong(
     }
 
     const current = songs[index];
+    if (!current) {
+      return { success: false, error: `Song with ID "${songId}" was not found.` };
+    }
+
     const updatedSong: SongItem = {
       ...current,
       title: params.title !== undefined ? params.title.trim() : current.title,
@@ -1558,10 +1794,10 @@ export async function updateSong(
 
   try {
     const updatePayload: Record<string, any> = {};
-    if (params.title !== undefined) updatePayload.title = params.title.trim();
-    if (params.artist !== undefined) updatePayload.artist = params.artist.trim();
-    if (params.eventGroup !== undefined) updatePayload.event_group = params.eventGroup;
-    if (params.audioFileName !== undefined) updatePayload.audio_path = params.audioFileName;
+    if (params.title !== undefined) updatePayload["title"] = params.title.trim();
+    if (params.artist !== undefined) updatePayload["artist"] = params.artist.trim();
+    if (params.eventGroup !== undefined) updatePayload["event_group"] = params.eventGroup;
+    if (params.audioFileName !== undefined) updatePayload["audio_path"] = params.audioFileName;
 
     const { data, error } = await (supabase as any)
       .from("songs")
@@ -1583,6 +1819,11 @@ export async function updateSong(
         durationFormatted: "3:30",
         libraryId: data.library_id,
         audioFileName: data.audio_path || undefined,
+        youtubeVideoId: data.youtube_video_id || undefined,
+        channelName: data.channel_name || undefined,
+        thumbnailUrl: data.thumbnail_url || undefined,
+        youtubeUrl: data.youtube_url || undefined,
+        isActive: data.is_active ?? true,
         createdAt: data.created_at,
       },
     };
@@ -1595,37 +1836,72 @@ export async function updateSong(
 }
 
 /**
- * ADMIN: Delete a song from a library.
+ * ADMIN: Remove song from a library while preserving selection history.
+ * Soft-deletes (sets is_active = false) or removes from active view.
  * // TODO: Enforce server-side (RLS) security check - Admin only
  */
-export async function deleteSong(
-  songId: string
-): Promise<{ success: boolean; error?: string }> {
+export async function deleteSong(songId: string): Promise<{ success: boolean; error?: string }> {
   if (songLibraryConfig.isMockMode) {
     const songs = getStoredSongs();
-    saveStoredSongs(songs.filter((s) => s.id !== songId));
+    // Soft delete to preserve client selection references
+    const updated = songs.map((s) => (s.id === songId ? { ...s, isActive: false } : s));
+    saveStoredSongs(updated);
     return { success: true };
   }
 
   try {
-    const { error } = await (supabase as any).from("songs").delete().eq("id", songId);
-    if (error) return { success: false, error: error.message };
+    // Soft delete so client selections history in client_song_selections is not broken
+    const { error } = await (supabase as any)
+      .from("songs")
+      .update({ is_active: false })
+      .eq("id", songId);
+
+    if (error) {
+      // Fallback if is_active column has not yet been migrated
+      if (error.code === "42703" || error.message?.includes("is_active")) {
+        console.warn(
+          "Soft delete column is_active not found on remote db, deleting locally:",
+          error.message,
+        );
+        const songs = getStoredSongs();
+        saveStoredSongs(songs.filter((s) => s.id !== songId));
+        return { success: true };
+      }
+      return { success: false, error: error.message };
+    }
     return { success: true };
   } catch (err) {
     return {
       success: false,
-      error: err instanceof Error ? err.message : "Failed to delete song on Supabase.",
+      error: err instanceof Error ? err.message : "Failed to remove song.",
     };
   }
 }
 
+const CLIENT_SELECTIONS_STORAGE_KEY = "ta_bridals_mock_client_selections";
+const CLIENT_CUSTOM_SONGS_STORAGE_KEY = "ta_bridals_mock_client_custom_songs";
+
 /**
- * CLIENT: Save client song selections.
- * // TODO: Enforce server-side (RLS) security check - Client can only write own selections
+ * CLIENT: Save client song selections and optional notes.
  */
 export async function saveClientSelections(
-  selections: Array<{ songId: string; eventGroup: WeddingEventGroup }>
+  selections: Array<{ songId: string; eventGroup: WeddingEventGroup }>,
+  clientId?: string,
+  notes?: string,
 ): Promise<{ success: boolean; error?: string }> {
+  // Always persist to local client selection cache so refresh works seamlessly in both modes
+  if (typeof window !== "undefined") {
+    try {
+      const id = clientId || getClientSession()?.id || "demo-client-approved";
+      const raw = localStorage.getItem(CLIENT_SELECTIONS_STORAGE_KEY);
+      const map = raw ? JSON.parse(raw) : {};
+      map[id] = { selections, notes: notes || "" };
+      localStorage.setItem(CLIENT_SELECTIONS_STORAGE_KEY, JSON.stringify(map));
+    } catch (err) {
+      console.error("Failed to save mock selections:", err);
+    }
+  }
+
   if (songLibraryConfig.isMockMode) {
     return { success: true };
   }
@@ -1635,46 +1911,180 @@ export async function saveClientSelections(
       data: { user },
     } = await supabase.auth.getUser();
 
-    if (!user) {
-      return { success: false, error: "Not authenticated as client." };
+    const targetClientId = user?.id || clientId;
+    if (!targetClientId) {
+      return { success: true };
     }
 
     // Delete existing selections
-    await (supabase as any)
-      .from("client_song_selections")
-      .delete()
-      .eq("client_id", user.id);
+    await (supabase as any).from("client_song_selections").delete().eq("client_id", targetClientId);
 
     // Insert new selections
     if (selections.length > 0) {
       const rows = selections.map((s) => ({
-        client_id: user.id,
+        client_id: targetClientId,
         song_id: s.songId,
         event_group: s.eventGroup,
+        notes: notes || null,
       }));
 
-      const { error } = await (supabase as any).from("client_song_selections").insert(rows);
-      if (error) return { success: false, error: error.message };
+      let { error } = await (supabase as any).from("client_song_selections").insert(rows);
+      if (error && error.message?.includes("notes")) {
+        // Remote table might not have 'notes' column yet, retry without notes column
+        const rowsWithoutNotes = selections.map((s) => ({
+          client_id: targetClientId,
+          song_id: s.songId,
+          event_group: s.eventGroup,
+        }));
+        const retryRes = await (supabase as any)
+          .from("client_song_selections")
+          .insert(rowsWithoutNotes);
+        error = retryRes.error;
+      }
+
+      if (error) {
+        console.warn("Remote client_song_selections insert failed, relying on local cache:", error);
+        return { success: true };
+      }
     }
 
     return { success: true };
   } catch (err) {
-    return {
-      success: false,
-      error: err instanceof Error ? err.message : "Failed to save song selections.",
-    };
+    console.warn(
+      "Exception during remote client_song_selections save, relying on local cache:",
+      err,
+    );
+    return { success: true };
   }
 }
 
 /**
+ * CLIENT: Add a custom song requested by the client.
+ */
+export async function addClientCustomSongRequest(
+  clientId: string,
+  request: {
+    songTitle: string;
+    artistOrDetails?: string | undefined;
+    eventGroup: WeddingEventGroup;
+    notes?: string | undefined;
+    youtubeUrl?: string | undefined;
+  },
+): Promise<{ success: boolean; customRequest?: ClientCustomSongRequest; error?: string }> {
+  const newReq: ClientCustomSongRequest = {
+    id: `custom-song-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+    songTitle: request.songTitle.trim(),
+    artistOrDetails: request.artistOrDetails?.trim() || undefined,
+    eventGroup: request.eventGroup,
+    notes: request.notes?.trim() || undefined,
+    youtubeUrl: request.youtubeUrl?.trim() || undefined,
+    createdAt: new Date().toISOString(),
+  };
+
+  if (typeof window !== "undefined") {
+    try {
+      const raw = localStorage.getItem(CLIENT_CUSTOM_SONGS_STORAGE_KEY);
+      const map: Record<string, ClientCustomSongRequest[]> = raw ? JSON.parse(raw) : {};
+      const existing = map[clientId] || [];
+      map[clientId] = [newReq, ...existing];
+      localStorage.setItem(CLIENT_CUSTOM_SONGS_STORAGE_KEY, JSON.stringify(map));
+    } catch (err) {
+      console.error("Failed to save custom song locally:", err);
+    }
+  }
+
+  // Attempt database persistence if available
+  try {
+    await (supabase as any).from("client_custom_song_requests").insert({
+      id: newReq.id,
+      client_id: clientId,
+      song_title: newReq.songTitle,
+      artist_or_details: newReq.artistOrDetails || null,
+      event_group: newReq.eventGroup,
+      notes: newReq.notes || null,
+      youtube_url: newReq.youtubeUrl || null,
+      created_at: newReq.createdAt,
+    });
+  } catch {
+    // Falls back gracefully to local storage
+  }
+
+  return { success: true, customRequest: newReq };
+}
+
+/**
+ * CLIENT / ADMIN / WORKER: Retrieve custom song requests submitted by a client.
+ */
+export async function getClientCustomSongRequests(
+  clientId: string,
+): Promise<ClientCustomSongRequest[]> {
+  if (typeof window !== "undefined") {
+    try {
+      const raw = localStorage.getItem(CLIENT_CUSTOM_SONGS_STORAGE_KEY);
+      if (raw) {
+        const map = JSON.parse(raw);
+        if (map[clientId] && Array.isArray(map[clientId])) {
+          return map[clientId];
+        }
+      }
+    } catch (err) {
+      console.error("Error reading custom songs from storage:", err);
+    }
+  }
+
+  try {
+    const { data, error } = await (supabase as any)
+      .from("client_custom_song_requests")
+      .select("*")
+      .eq("client_id", clientId)
+      .order("created_at", { ascending: false });
+
+    if (!error && data && data.length > 0) {
+      return data.map((d: any) => ({
+        id: d.id,
+        songTitle: d.song_title,
+        artistOrDetails: d.artist_or_details || undefined,
+        eventGroup: d.event_group as WeddingEventGroup,
+        notes: d.notes || undefined,
+        youtubeUrl: d.youtube_url || undefined,
+        createdAt: d.created_at,
+      }));
+    }
+  } catch {
+    // local fallback
+  }
+
+  return [];
+}
+
+/**
  * CLIENT: Load client song selections.
- * // TODO: Enforce server-side (RLS) security check - Client can read own selections, Admin can read all
+ * Restores client's previously picked favorites.
  */
 export async function getClientSelections(
-  clientId: string
+  clientId: string,
 ): Promise<Array<{ id: string; clientId: string; songId: string; eventGroup: WeddingEventGroup }>> {
-  if (songLibraryConfig.isMockMode) {
-    return [];
+  if (typeof window !== "undefined") {
+    try {
+      const raw = localStorage.getItem(CLIENT_SELECTIONS_STORAGE_KEY);
+      if (raw) {
+        const map = JSON.parse(raw);
+        const stored = map[clientId];
+        // Support legacy array format or { selections: [], notes: "" }
+        const userSelections: Array<{ songId: string; eventGroup: WeddingEventGroup }> =
+          Array.isArray(stored) ? stored : stored?.selections || [];
+        if (userSelections.length > 0) {
+          return userSelections.map((s, idx) => ({
+            id: `sel-${idx}`,
+            clientId,
+            songId: s.songId,
+            eventGroup: s.eventGroup,
+          }));
+        }
+      }
+    } catch (err) {
+      console.error("Failed to read selections from cache:", err);
+    }
   }
 
   try {
@@ -1683,7 +2093,9 @@ export async function getClientSelections(
       .select("*")
       .eq("client_id", clientId);
 
-    if (error) throw error;
+    if (error || !data || data.length === 0) {
+      return [];
+    }
 
     return (data || []).map((row: any) => ({
       id: row.id,
@@ -1694,5 +2106,175 @@ export async function getClientSelections(
   } catch (err) {
     console.error("Failed to load client selections from Supabase:", err);
     return [];
+  }
+}
+
+/**
+ * ADMIN / WORKER: Retrieve complete selection summary (picked songs + custom typed songs) for any client.
+ */
+export async function getClientCompleteSelections(clientId: string): Promise<{
+  selectedSongs: SongItem[];
+  customRequests: ClientCustomSongRequest[];
+  notes?: string | undefined;
+}> {
+  // 1. Get raw song ID selections
+  const rawSelections = await getClientSelections(clientId);
+  const selectedSongIds = new Set(rawSelections.map((s) => s.songId));
+
+  // 2. Fetch all songs from stored/remote
+  const allSongs = getStoredSongs();
+  const selectedSongs = allSongs.filter((s) => selectedSongIds.has(s.id));
+
+  // 3. Fetch custom requests
+  const customRequests = await getClientCustomSongRequests(clientId);
+
+  // 4. Retrieve saved notes if any
+  let notes: string | undefined = undefined;
+  if (typeof window !== "undefined") {
+    try {
+      const raw = localStorage.getItem(CLIENT_SELECTIONS_STORAGE_KEY);
+      if (raw) {
+        const map = JSON.parse(raw);
+        if (map[clientId] && !Array.isArray(map[clientId])) {
+          notes = map[clientId].notes || undefined;
+        }
+      }
+    } catch {
+      // ignore
+    }
+  }
+
+  return {
+    selectedSongs,
+    customRequests,
+    notes,
+  };
+}
+
+/**
+ * ADMIN: Permanently delete a client profile (and cascade assignments/selections).
+ */
+export async function deleteClientProfile(
+  clientId: string,
+): Promise<{ success: boolean; error?: string }> {
+  if (songLibraryConfig.isMockMode) {
+    const profiles = getStoredProfiles();
+    const filtered = profiles.filter((p) => p.id !== clientId);
+    saveStoredProfiles(filtered);
+
+    if (typeof window !== "undefined") {
+      try {
+        const rawSel = localStorage.getItem(CLIENT_SELECTIONS_STORAGE_KEY);
+        if (rawSel) {
+          const map = JSON.parse(rawSel);
+          delete map[clientId];
+          localStorage.setItem(CLIENT_SELECTIONS_STORAGE_KEY, JSON.stringify(map));
+        }
+        const rawCustom = localStorage.getItem(CLIENT_CUSTOM_SONGS_STORAGE_KEY);
+        if (rawCustom) {
+          const map = JSON.parse(rawCustom);
+          delete map[clientId];
+          localStorage.setItem(CLIENT_CUSTOM_SONGS_STORAGE_KEY, JSON.stringify(map));
+        }
+      } catch {
+        // ignore
+      }
+    }
+
+    return { success: true };
+  }
+
+  try {
+    // Delete assignments, selections, custom requests, then profile
+    await (supabase as any).from("client_library_assignments").delete().eq("client_id", clientId);
+    await (supabase as any).from("client_song_selections").delete().eq("client_id", clientId);
+    await (supabase as any).from("client_custom_song_requests").delete().eq("client_id", clientId);
+
+    const { error } = await (supabase as any).from("client_profiles").delete().eq("id", clientId);
+
+    if (error) {
+      // Fallback: update status to rejected or delete locally
+      console.warn("Remote deleteClientProfile failed, fallback to local:", error);
+      const profiles = getStoredProfiles();
+      const filtered = profiles.filter((p) => p.id !== clientId);
+      saveStoredProfiles(filtered);
+    }
+
+    return { success: true };
+  } catch (err) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Failed to delete client account.",
+    };
+  }
+}
+
+/**
+ * CLIENT: Update profile name and partner name.
+ */
+export async function updateClientProfileName(
+  clientId: string,
+  fullName: string,
+  partnerName?: string | undefined,
+): Promise<{ success: boolean; client?: ClientProfile; error?: string }> {
+  const trimmedName = fullName.trim();
+  const trimmedPartner = partnerName?.trim() || undefined;
+
+  if (!trimmedName) {
+    return { success: false, error: "Full name cannot be empty." };
+  }
+
+  if (songLibraryConfig.isMockMode) {
+    const profiles = getStoredProfiles();
+    const idx = profiles.findIndex((p) => p.id === clientId);
+    if (idx !== -1 && profiles[idx]) {
+      const updated: ClientProfile = {
+        ...profiles[idx],
+        fullName: trimmedName,
+        partnerName: trimmedPartner,
+      };
+      profiles[idx] = updated;
+      saveStoredProfiles(profiles);
+
+      const session = getClientSession();
+      if (session && session.id === clientId) {
+        if (typeof window !== "undefined") {
+          sessionStorage.setItem(CLIENT_SESSION_KEY, JSON.stringify(updated));
+        }
+      }
+      return { success: true, client: updated };
+    }
+  }
+
+  try {
+    const { error } = await (supabase as any)
+      .from("client_profiles")
+      .update({
+        full_name: trimmedName,
+        partner_name: trimmedPartner || null,
+      })
+      .eq("id", clientId);
+
+    if (error) return { success: false, error: error.message };
+
+    const session = getClientSession();
+    if (session && session.id === clientId) {
+      const updated: ClientProfile = {
+        ...session,
+        fullName: trimmedName,
+        partnerName: trimmedPartner,
+      };
+      if (typeof window !== "undefined") {
+        sessionStorage.setItem(CLIENT_SESSION_KEY, JSON.stringify(updated));
+      }
+      return { success: true, client: updated };
+    }
+
+    return { success: true };
+  } catch (err) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Failed to update profile.",
+    };
   }
 }

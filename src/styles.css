@@ -288,6 +288,7 @@
 .studio-app [class*="bg-[#f7f6f2]"],
 .studio-app [class*="bg-[#f5f4f0]"],
 .studio-app [class*="bg-[#fbfaf8]"],
+.studio-app [class*="bg-[#f0efe9]"],
 .studio-app [class*="bg-[#f1f2ed]"],
 .studio-app [class*="bg-[#e9ece5]"] {
   background-color: var(--studio-raised);
@@ -582,4 +583,3 @@
   --chat--color-dark: #30382f;
   --chat--border-radius: 14px;
 }
-

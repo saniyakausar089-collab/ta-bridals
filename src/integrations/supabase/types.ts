@@ -493,14 +493,22 @@ export type Database = {
           worker_id: string;
           shoot_id: string | null;
           period_label: string;
-          compensation_type: "monthly_salary" | "per_shoot" | "per_day" | "per_assignment" | "bonus" | "adjustment";
+          compensation_type:
+            "monthly_salary" | "per_shoot" | "per_day" | "per_assignment" | "bonus" | "adjustment";
           base_amount: number;
           allowance_amount: number;
           deduction_amount: number;
           net_payable: number;
           amount_paid: number;
           balance_due: number;
-          status: "draft" | "submitted" | "approved" | "partially_paid" | "paid" | "disputed" | "cancelled";
+          status:
+            | "draft"
+            | "submitted"
+            | "approved"
+            | "partially_paid"
+            | "paid"
+            | "disputed"
+            | "cancelled";
           approved_by: string | null;
           approved_at: string | null;
           notes: string | null;
@@ -512,12 +520,20 @@ export type Database = {
           worker_id: string;
           shoot_id?: string | null;
           period_label: string;
-          compensation_type: "monthly_salary" | "per_shoot" | "per_day" | "per_assignment" | "bonus" | "adjustment";
+          compensation_type:
+            "monthly_salary" | "per_shoot" | "per_day" | "per_assignment" | "bonus" | "adjustment";
           base_amount?: number;
           allowance_amount?: number;
           deduction_amount?: number;
           amount_paid?: number;
-          status?: "draft" | "submitted" | "approved" | "partially_paid" | "paid" | "disputed" | "cancelled";
+          status?:
+            | "draft"
+            | "submitted"
+            | "approved"
+            | "partially_paid"
+            | "paid"
+            | "disputed"
+            | "cancelled";
           approved_by?: string | null;
           approved_at?: string | null;
           notes?: string | null;
@@ -529,12 +545,20 @@ export type Database = {
           worker_id?: string;
           shoot_id?: string | null;
           period_label?: string;
-          compensation_type?: "monthly_salary" | "per_shoot" | "per_day" | "per_assignment" | "bonus" | "adjustment";
+          compensation_type?:
+            "monthly_salary" | "per_shoot" | "per_day" | "per_assignment" | "bonus" | "adjustment";
           base_amount?: number;
           allowance_amount?: number;
           deduction_amount?: number;
           amount_paid?: number;
-          status?: "draft" | "submitted" | "approved" | "partially_paid" | "paid" | "disputed" | "cancelled";
+          status?:
+            | "draft"
+            | "submitted"
+            | "approved"
+            | "partially_paid"
+            | "paid"
+            | "disputed"
+            | "cancelled";
           approved_by?: string | null;
           approved_at?: string | null;
           notes?: string | null;

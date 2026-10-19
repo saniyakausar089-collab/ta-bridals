@@ -1,5 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
-import type { Tables, TablesInsert } from "@/integrations/supabase/types";
+import type { Tables, TablesInsert, Json } from "@/integrations/supabase/types";
 
 export type AuditLog = Tables<"audit_logs">;
 export type AuditLogInsert = TablesInsert<"audit_logs">;
@@ -9,13 +9,13 @@ export type AvailabilityRequest = Tables<"availability_requests">;
 export type AvailabilityRequestInsert = TablesInsert<"availability_requests">;
 
 export interface LogAuditParams {
-  actorId?: string | null;
+  actorId?: string | null | undefined;
   actorName: string;
-  actorEmail?: string | null;
+  actorEmail?: string | null | undefined;
   action: string;
   recordType: string;
-  recordId?: string | null;
-  details?: Record<string, unknown>;
+  recordId?: string | null | undefined;
+  details?: Record<string, unknown> | null | undefined;
 }
 
 /**
@@ -30,10 +30,13 @@ export async function recordAuditLog(params: LogAuditParams): Promise<void> {
       action: params.action,
       record_type: params.recordType,
       record_id: params.recordId ?? null,
-      details: params.details ?? {},
+      details: (params.details ?? {}) as Json,
     });
     if (error) {
-      console.warn("[Audit] Remote audit log not recorded (table may need migration):", error.message);
+      console.warn(
+        "[Audit] Remote audit log not recorded (table may need migration):",
+        error.message,
+      );
     }
   } catch (err) {
     console.warn("[Audit] Failed to log action:", err);
@@ -48,7 +51,7 @@ export async function sendNotification(
   title: string,
   message: string,
   type: "info" | "assignment" | "approval" | "system" = "info",
-  metadata: Record<string, unknown> = {}
+  metadata: Record<string, unknown> = {},
 ): Promise<void> {
   try {
     const { error } = await supabase.from("notifications").insert({
@@ -56,7 +59,7 @@ export async function sendNotification(
       title,
       message,
       type,
-      metadata,
+      metadata: metadata as Json,
     });
     if (error) {
       console.warn("[Notification] Could not insert notification:", error.message);

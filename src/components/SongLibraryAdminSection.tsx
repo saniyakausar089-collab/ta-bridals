@@ -24,6 +24,10 @@ import {
   FileAudio,
   Tag,
   Check,
+  Youtube,
+  Video,
+  X,
+  ListMusic,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -45,6 +49,8 @@ import {
   deleteSong,
   getSongPlaybackUrl,
   uploadSongAudio,
+  getClientCompleteSelections,
+  deleteClientProfile,
 } from "@/lib/songLibraryService";
 import {
   WEDDING_EVENT_GROUPS,
@@ -53,6 +59,7 @@ import {
   type ClientApprovalStatus,
   type SongItem,
   type WeddingEventGroup,
+  type ClientCustomSongRequest,
 } from "@/types/songLibrary";
 
 export function SongLibraryAdminSection() {
@@ -80,7 +87,9 @@ export function SongLibraryAdminSection() {
   const [submittingLibrary, setSubmittingLibrary] = useState<boolean>(false);
 
   // Selected library for browsing & managing songs
-  const [selectedLibraryForSongs, setSelectedLibraryForSongs] = useState<SongLibraryRecord | null>(null);
+  const [selectedLibraryForSongs, setSelectedLibraryForSongs] = useState<SongLibraryRecord | null>(
+    null,
+  );
   const [librarySongs, setLibrarySongs] = useState<SongItem[]>([]);
   const [loadingSongs, setLoadingSongs] = useState<boolean>(false);
 
@@ -95,12 +104,39 @@ export function SongLibraryAdminSection() {
   const [uploadingAudio, setUploadingAudio] = useState<boolean>(false);
   const [submittingSong, setSubmittingSong] = useState<boolean>(false);
 
+  // YouTube Music Search State
+  const [isSearchingYouTube, setIsSearchingYouTube] = useState<boolean>(false);
+  const [ytSearchQuery, setYtSearchQuery] = useState<string>("");
+  const [ytSearching, setYtSearching] = useState<boolean>(false);
+  const [ytSearchResults, setYtSearchResults] = useState<
+    Array<{
+      videoId: string;
+      title: string;
+      channelName: string;
+      thumbnailUrl: string;
+      youtubeUrl: string;
+      description?: string;
+    }>
+  >([]);
+  const [ytSelectedCategory, setYtSelectedCategory] = useState<WeddingEventGroup>("Bride Entry");
+  const [ytPreviewVideoId, setYtPreviewVideoId] = useState<string | null>(null);
+  const [ytAddingVideoId, setYtAddingVideoId] = useState<string | null>(null);
+
   // Audio preview player state
   const [playingSongId, setPlayingSongId] = useState<string | null>(null);
   const [audioElement, setAudioElement] = useState<HTMLAudioElement | null>(null);
 
   // Map for pending client library selection dropdown
   const [selectedLibraryMap, setSelectedLibraryMap] = useState<Record<string, string>>({});
+
+  // View Client Selections Modal State
+  const [inspectingClient, setInspectingClient] = useState<ClientProfile | null>(null);
+  const [inspectingSelections, setInspectingSelections] = useState<{
+    selectedSongs: SongItem[];
+    customRequests: ClientCustomSongRequest[];
+    notes?: string | undefined;
+  } | null>(null);
+  const [loadingInspectingSelections, setLoadingInspectingSelections] = useState<boolean>(false);
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -116,11 +152,12 @@ export function SongLibraryAdminSection() {
       // Initialize default library mapping for pending clients
       const initialMap: Record<string, string> = {};
       const activeLibs = fetchedLibraries.filter((l) => !l.isArchived);
+      const firstActive = activeLibs[0];
       fetchedClients.forEach((c) => {
         if (c.assignedLibraryId) {
           initialMap[c.id] = c.assignedLibraryId;
-        } else if (activeLibs.length > 0) {
-          initialMap[c.id] = activeLibs[0].id;
+        } else if (firstActive) {
+          initialMap[c.id] = firstActive.id;
         }
       });
       setSelectedLibraryMap(initialMap);
@@ -201,9 +238,7 @@ export function SongLibraryAdminSection() {
         return;
       }
       setSuccessMessage(
-        `Client successfully approved${
-          libraryId ? " and assigned to library." : "."
-        }`
+        `Client successfully approved${libraryId ? " and assigned to library." : "."}`,
       );
       await loadData();
     } catch (err) {
@@ -233,6 +268,47 @@ export function SongLibraryAdminSection() {
       await loadData();
     } catch (err) {
       setErrorMessage(err instanceof Error ? err.message : "Error executing rejection.");
+    }
+  };
+
+  const [deletingClientId, setDeletingClientId] = useState<string | null>(null);
+
+  const handleDeleteClient = async (clientId: string, clientName: string) => {
+    if (
+      !window.confirm(
+        `Are you sure you want to permanently delete client "${clientName}"? This action cannot be undone.`,
+      )
+    ) {
+      return;
+    }
+    setDeletingClientId(clientId);
+    setErrorMessage("");
+    setSuccessMessage("");
+    try {
+      const res = await deleteClientProfile(clientId);
+      if (!res.success) {
+        setErrorMessage(res.error || "Failed to delete client account.");
+        return;
+      }
+      setSuccessMessage(`Client "${clientName}" has been permanently deleted.`);
+      await loadData();
+    } catch (err) {
+      setErrorMessage(err instanceof Error ? err.message : "Error deleting client account.");
+    } finally {
+      setDeletingClientId(null);
+    }
+  };
+
+  const handleInspectClientSelections = async (client: ClientProfile) => {
+    setInspectingClient(client);
+    setLoadingInspectingSelections(true);
+    try {
+      const details = await getClientCompleteSelections(client.id);
+      setInspectingSelections(details);
+    } catch {
+      setInspectingSelections({ selectedSongs: [], customRequests: [] });
+    } finally {
+      setLoadingInspectingSelections(false);
     }
   };
 
@@ -299,7 +375,7 @@ export function SongLibraryAdminSection() {
   const handleArchiveLibrary = async (lib: SongLibraryRecord) => {
     if (!lib.isArchived && lib.clientCount > 0) {
       setErrorMessage(
-        `Cannot archive library "${lib.name}": There are ${lib.clientCount} clients currently assigned to this library. Please reassign or unassign clients before archiving.`
+        `Cannot archive library "${lib.name}": There are ${lib.clientCount} clients currently assigned to this library. Please reassign or unassign clients before archiving.`,
       );
       return;
     }
@@ -326,11 +402,15 @@ export function SongLibraryAdminSection() {
   const handleDeleteLibrary = async (lib: SongLibraryRecord) => {
     if (lib.clientCount > 0) {
       setErrorMessage(
-        `Cannot delete library "${lib.name}": There are ${lib.clientCount} clients currently assigned to this library. Please reassign clients before deleting.`
+        `Cannot delete library "${lib.name}": There are ${lib.clientCount} clients currently assigned to this library. Please reassign clients before deleting.`,
       );
       return;
     }
-    if (!confirm(`Are you sure you want to delete the library "${lib.name}"? This action cannot be undone.`)) {
+    if (
+      !confirm(
+        `Are you sure you want to delete the library "${lib.name}"? This action cannot be undone.`,
+      )
+    ) {
       return;
     }
     setErrorMessage("");
@@ -382,7 +462,7 @@ export function SongLibraryAdminSection() {
           title: songTitle,
           artist: songArtist,
           eventGroup: songEventGroup,
-          audioFileName: finalAudioPath,
+          ...(finalAudioPath ? { audioFileName: finalAudioPath } : {}),
         });
         if (!res.success || !res.song) {
           setErrorMessage(res.error || "Failed to update song.");
@@ -396,7 +476,7 @@ export function SongLibraryAdminSection() {
           title: songTitle,
           artist: songArtist,
           eventGroup: songEventGroup,
-          audioFileName: finalAudioPath,
+          ...(finalAudioPath ? { audioFileName: finalAudioPath } : {}),
         });
         if (!res.success || !res.song) {
           setErrorMessage(res.error || "Failed to add song.");
@@ -451,10 +531,82 @@ export function SongLibraryAdminSection() {
     }
   };
 
+  // Search YouTube Handler via secure server endpoint
+  const handleSearchYouTube = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    const query = ytSearchQuery.trim();
+    if (!query) return;
+
+    setYtSearching(true);
+    setErrorMessage("");
+    try {
+      const res = await fetch(`/api/youtube/search?q=${encodeURIComponent(query)}&limit=12`);
+      if (!res.ok) {
+        const errJson = await res.json().catch(() => ({}));
+        throw new Error(errJson.error || `Server responded with ${res.status}`);
+      }
+      const data = await res.json();
+      if (!data.success) {
+        throw new Error(data.error || "YouTube search failed.");
+      }
+      setYtSearchResults(data.results || []);
+      if ((data.results || []).length === 0) {
+        setErrorMessage("No YouTube results found for your search query.");
+      }
+    } catch (err) {
+      setErrorMessage(err instanceof Error ? err.message : "Failed to search YouTube.");
+    } finally {
+      setYtSearching(false);
+    }
+  };
+
+  // Add YouTube Video to Library
+  const handleAddYouTubeSongToLibrary = async (video: {
+    videoId: string;
+    title: string;
+    channelName: string;
+    thumbnailUrl: string;
+    youtubeUrl: string;
+  }) => {
+    if (!selectedLibraryForSongs) {
+      setErrorMessage("Please select a library first.");
+      return;
+    }
+
+    setYtAddingVideoId(video.videoId);
+    setErrorMessage("");
+    setSuccessMessage("");
+
+    try {
+      const res = await addSongToLibrary({
+        libraryId: selectedLibraryForSongs.id,
+        title: video.title,
+        artist: video.channelName,
+        eventGroup: ytSelectedCategory,
+        youtubeVideoId: video.videoId,
+        channelName: video.channelName,
+        thumbnailUrl: video.thumbnailUrl,
+        youtubeUrl: video.youtubeUrl,
+      });
+
+      if (!res.success || !res.song) {
+        setErrorMessage(res.error || "Failed to add YouTube video to library.");
+        return;
+      }
+
+      setSuccessMessage(`"${video.title}" added to ${ytSelectedCategory} in this library.`);
+      await loadSongs(selectedLibraryForSongs.id);
+      await loadData();
+    } catch (err) {
+      setErrorMessage(err instanceof Error ? err.message : "Error adding YouTube track.");
+    } finally {
+      setYtAddingVideoId(null);
+    }
+  };
+
   // Filtered clients list
   const filteredClients = clients.filter((c) => {
-    const matchesStatus =
-      clientStatusFilter === "all" || c.approvalStatus === clientStatusFilter;
+    const matchesStatus = clientStatusFilter === "all" || c.approvalStatus === clientStatusFilter;
     const query = clientSearchQuery.trim().toLowerCase();
     const matchesQuery =
       !query ||
@@ -479,7 +631,8 @@ export function SongLibraryAdminSection() {
             <span className="flex size-2 rounded-full bg-amber-600 animate-pulse" />
             <span className="font-semibold">Demo Data Mode Active:</span>
             <span>
-              All client approvals, libraries, and assignments are running on the isolated mock service layer.
+              All client approvals, libraries, and assignments are running on the isolated mock
+              service layer.
             </span>
           </div>
           <a
@@ -623,7 +776,8 @@ export function SongLibraryAdminSection() {
               <div className="flex items-center gap-2 text-rose-900 font-medium text-xs">
                 <AlertCircle className="size-4 text-rose-700" />
                 <span>
-                  Provide an optional reason for declining client registration (shown to the client on their rejected screen):
+                  Provide an optional reason for declining client registration (shown to the client
+                  on their rejected screen):
                 </span>
               </div>
               <Input
@@ -670,7 +824,9 @@ export function SongLibraryAdminSection() {
                   {filteredClients.length === 0 ? (
                     <tr>
                       <td colSpan={6} className="px-4 py-8 text-center text-[#89887e]">
-                        {loading ? "Loading clients..." : "No client registrations match the filter."}
+                        {loading
+                          ? "Loading clients..."
+                          : "No client registrations match the filter."}
                       </td>
                     </tr>
                   ) : (
@@ -725,7 +881,10 @@ export function SongLibraryAdminSection() {
                                   <XCircle className="size-3" /> Rejected
                                 </span>
                                 {client.rejectionReason && (
-                                  <div className="text-[10px] text-rose-700 italic mt-0.5 max-w-[180px] truncate" title={client.rejectionReason}>
+                                  <div
+                                    className="text-[10px] text-rose-700 italic mt-0.5 max-w-[180px] truncate"
+                                    title={client.rejectionReason}
+                                  >
                                     Reason: {client.rejectionReason}
                                   </div>
                                 )}
@@ -740,7 +899,9 @@ export function SongLibraryAdminSection() {
                                 onChange={(e) => handleAssignLibrary(client.id, e.target.value)}
                                 className="h-8 rounded-lg border border-[#dedbd2] bg-white px-2 py-1 text-xs text-[#343a33] focus:border-[#344234] focus:outline-hidden"
                               >
-                                <option value="" disabled>Select Library</option>
+                                <option value="" disabled>
+                                  Select Library
+                                </option>
                                 {libraries
                                   .filter((l) => !l.isArchived)
                                   .map((lib) => (
@@ -751,7 +912,7 @@ export function SongLibraryAdminSection() {
                               </select>
                             ) : isPending ? (
                               <select
-                                value={selectedLibraryMap[client.id] || (libraries[0]?.id || "")}
+                                value={selectedLibraryMap[client.id] || libraries[0]?.id || ""}
                                 onChange={(e) =>
                                   setSelectedLibraryMap((prev) => ({
                                     ...prev,
@@ -809,10 +970,33 @@ export function SongLibraryAdminSection() {
                             )}
 
                             {isApproved && (
-                              <span className="text-[11px] text-[#89887e]">
-                                Reviewed by {client.reviewedBy || "Studio"}
-                              </span>
+                              <div className="inline-flex items-center gap-2">
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => void handleInspectClientSelections(client)}
+                                  className="h-7 border-[#dedbd2] bg-[#f8f7f4] text-[#344234] hover:bg-[#edeae2] text-xs px-2.5 rounded-lg shadow-2xs"
+                                >
+                                  <ListMusic className="size-3 mr-1 text-[#526052]" />
+                                  View Songs
+                                </Button>
+                                <span className="text-[11px] text-[#89887e]">
+                                  Reviewed by {client.reviewedBy || "Studio"}
+                                </span>
+                              </div>
                             )}
+
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => void handleDeleteClient(client.id, client.fullName)}
+                              disabled={deletingClientId === client.id}
+                              title="Delete Client Account"
+                              className="h-7 px-2 text-rose-500 hover:text-rose-400 hover:bg-rose-500/10 rounded-lg ml-1"
+                            >
+                              <Trash2 className="size-3.5 text-rose-400" />
+                              <span className="sr-only">Delete</span>
+                            </Button>
                           </td>
                         </tr>
                       );
@@ -859,21 +1043,219 @@ export function SongLibraryAdminSection() {
                   </div>
                 </div>
 
-                <Button
-                  size="sm"
-                  onClick={() => {
-                    setIsAddingSong(!isAddingSong);
-                    setEditingSongId(null);
-                    setSongTitle("");
-                    setSongArtist("");
-                    setSongAudioRef("");
-                  }}
-                  className="h-8 bg-[#344234] hover:bg-[#283528] text-white text-xs px-3 rounded-lg"
-                >
-                  <Plus className="size-3.5 mr-1" />
-                  {isAddingSong ? "Cancel" : "Add Song to Library"}
-                </Button>
+                <div className="flex items-center gap-2">
+                  <Button
+                    size="sm"
+                    onClick={() => {
+                      setIsSearchingYouTube(!isSearchingYouTube);
+                      setIsAddingSong(false);
+                      setEditingSongId(null);
+                    }}
+                    className="h-8 bg-red-700 hover:bg-red-800 text-white text-xs px-3 rounded-lg flex items-center gap-1.5 shadow-2xs"
+                  >
+                    <Youtube className="size-3.5" />
+                    <span>{isSearchingYouTube ? "Close Search" : "Search YouTube"}</span>
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      setIsAddingSong(!isAddingSong);
+                      setIsSearchingYouTube(false);
+                      setEditingSongId(null);
+                      setSongTitle("");
+                      setSongArtist("");
+                      setSongAudioRef("");
+                    }}
+                    className="h-8 border-[#dedbd2] text-xs px-3 rounded-lg"
+                  >
+                    <Plus className="size-3.5 mr-1" />
+                    {isAddingSong ? "Cancel" : "Manual / File Upload"}
+                  </Button>
+                </div>
               </div>
+
+              {/* YouTube Music Search Interface */}
+              {isSearchingYouTube && (
+                <div className="rounded-2xl border border-red-200/80 bg-linear-to-b from-red-50/40 to-white p-5 shadow-xs space-y-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-red-100 pb-3">
+                    <div>
+                      <h4 className="text-xs font-semibold uppercase tracking-wider text-red-900 flex items-center gap-1.5">
+                        <Youtube className="size-4 text-red-600" />
+                        Search YouTube Music Catalog
+                      </h4>
+                      <p className="text-[11px] text-stone-500">
+                        Search official music videos, preview playback, pick wedding category, and
+                        add directly to{" "}
+                        <strong className="text-stone-700">{selectedLibraryForSongs.name}</strong>.
+                      </p>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-stone-600 font-medium whitespace-nowrap">
+                        Assign Category:
+                      </span>
+                      <select
+                        value={ytSelectedCategory}
+                        onChange={(e) => setYtSelectedCategory(e.target.value as WeddingEventGroup)}
+                        className="h-8 rounded-lg border border-stone-200 bg-white px-2 py-1 text-xs text-stone-800 font-medium focus:border-red-600 focus:outline-hidden"
+                      >
+                        {WEDDING_EVENT_GROUPS.map((event) => (
+                          <option key={event} value={event}>
+                            {event}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+
+                  {/* Search Input Bar */}
+                  <form onSubmit={handleSearchYouTube} className="flex gap-2">
+                    <div className="relative flex-1">
+                      <Search className="absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-stone-400" />
+                      <Input
+                        type="search"
+                        placeholder="Search song title, artist, or wedding soundtrack (e.g. Din Shagna Da, Kesariya, Kudmayi)..."
+                        value={ytSearchQuery}
+                        onChange={(e) => setYtSearchQuery(e.target.value)}
+                        className="h-9 pl-9 text-xs border-stone-200 bg-white"
+                      />
+                    </div>
+                    <Button
+                      type="submit"
+                      disabled={ytSearching || !ytSearchQuery.trim()}
+                      className="h-9 bg-red-700 hover:bg-red-800 text-white text-xs px-4"
+                    >
+                      {ytSearching ? (
+                        <>
+                          <RefreshCw className="size-3.5 mr-1.5 animate-spin" />
+                          Searching...
+                        </>
+                      ) : (
+                        "Search"
+                      )}
+                    </Button>
+                  </form>
+
+                  {/* YouTube Video Player Modal / Preview Banner */}
+                  {ytPreviewVideoId && (
+                    <div className="rounded-xl border border-stone-200 bg-black/95 p-3 text-white">
+                      <div className="flex items-center justify-between mb-2 px-1">
+                        <span className="text-xs font-medium text-stone-300 flex items-center gap-1.5">
+                          <Video className="size-3.5 text-red-500" />
+                          Video Preview Player
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setYtPreviewVideoId(null)}
+                          className="rounded p-1 text-stone-400 hover:bg-stone-800 hover:text-white transition-colors"
+                        >
+                          <X className="size-4" />
+                        </button>
+                      </div>
+                      <div className="relative aspect-video w-full max-w-xl mx-auto overflow-hidden rounded-lg shadow-lg">
+                        <iframe
+                          src={`https://www.youtube-nocookie.com/embed/${ytPreviewVideoId}?autoplay=1&enablejsapi=1`}
+                          title="YouTube Video Preview"
+                          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                          allowFullScreen
+                          className="h-full w-full border-0"
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Search Results Grid */}
+                  {ytSearchResults.length > 0 && (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 pt-2">
+                      {ytSearchResults.map((video) => {
+                        const isAlreadyInLibrary = librarySongs.some(
+                          (s) => s.youtubeVideoId === video.videoId,
+                        );
+
+                        return (
+                          <div
+                            key={video.videoId}
+                            className={`rounded-xl border overflow-hidden bg-white shadow-2xs flex flex-col justify-between transition-all ${
+                              isAlreadyInLibrary
+                                ? "border-emerald-200 bg-emerald-50/20"
+                                : "border-stone-200 hover:border-red-200"
+                            }`}
+                          >
+                            <div className="relative aspect-video bg-stone-900 group">
+                              <img
+                                src={video.thumbnailUrl}
+                                alt={video.title}
+                                className="h-full w-full object-cover"
+                                loading="lazy"
+                              />
+                              <button
+                                type="button"
+                                onClick={() => setYtPreviewVideoId(video.videoId)}
+                                className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-90 group-hover:opacity-100 transition-opacity"
+                                title="Play preview"
+                              >
+                                <div className="flex size-10 items-center justify-center rounded-full bg-red-600 text-white shadow-md hover:scale-105 transition-transform">
+                                  <Play className="size-4 ml-0.5" />
+                                </div>
+                              </button>
+                            </div>
+
+                            <div className="p-3 flex-1 flex flex-col justify-between">
+                              <div>
+                                <h5 className="font-semibold text-xs text-stone-900 line-clamp-2 leading-tight">
+                                  {video.title}
+                                </h5>
+                                <p className="text-[11px] text-stone-500 mt-1 flex items-center gap-1">
+                                  <span>{video.channelName}</span>
+                                </p>
+                              </div>
+
+                              <div className="mt-3 pt-2.5 border-t border-stone-100 flex items-center justify-between gap-2">
+                                <a
+                                  href={video.youtubeUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-[11px] text-stone-500 hover:text-red-700 flex items-center gap-1"
+                                >
+                                  <span>YouTube</span>
+                                  <ExternalLink className="size-3" />
+                                </a>
+
+                                {isAlreadyInLibrary ? (
+                                  <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-md">
+                                    <Check className="size-3" />
+                                    In Library
+                                  </span>
+                                ) : (
+                                  <Button
+                                    size="sm"
+                                    disabled={ytAddingVideoId === video.videoId}
+                                    onClick={() => handleAddYouTubeSongToLibrary(video)}
+                                    className="h-7 text-xs bg-[#2d3a2e] hover:bg-[#1f2820] text-white px-2.5"
+                                  >
+                                    {ytAddingVideoId === video.videoId ? (
+                                      <>
+                                        <RefreshCw className="size-3 mr-1 animate-spin" />
+                                        Adding...
+                                      </>
+                                    ) : (
+                                      <>
+                                        <Plus className="size-3 mr-1" />
+                                        Add to Library
+                                      </>
+                                    )}
+                                  </Button>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* Add / Edit Song Form */}
               {(isAddingSong || editingSongId) && (
@@ -973,7 +1355,7 @@ export function SongLibraryAdminSection() {
                 </form>
               )}
 
-              {/* Grouped Songs by 12 Wedding Event Groups */}
+              {/* Grouped Songs by 16 Wedding Event Groups */}
               <div className="space-y-6">
                 {loadingSongs ? (
                   <div className="py-12 text-center text-xs text-[#89887e]">
@@ -981,7 +1363,8 @@ export function SongLibraryAdminSection() {
                   </div>
                 ) : librarySongs.length === 0 ? (
                   <div className="rounded-2xl border border-dashed border-[#dedbd2] p-8 text-center text-xs text-[#89887e]">
-                    No songs in this library yet. Click &quot;Add Song to Library&quot; above to add your first track.
+                    No songs in this library yet. Click &quot;Search YouTube&quot; or &quot;Manual /
+                    File Upload&quot; above to add your first track.
                   </div>
                 ) : (
                   WEDDING_EVENT_GROUPS.map((eventGroup) => {
@@ -989,10 +1372,15 @@ export function SongLibraryAdminSection() {
                     if (eventSongs.length === 0) return null;
 
                     return (
-                      <div key={eventGroup} className="rounded-2xl border border-[#e9e7df] bg-white overflow-hidden shadow-2xs">
+                      <div
+                        key={eventGroup}
+                        className="rounded-2xl border border-[#e9e7df] bg-white overflow-hidden shadow-2xs"
+                      >
                         <div className="border-b border-[#e9e7df] bg-[#f8f7f4] px-4 py-2.5 flex items-center justify-between">
                           <div className="flex items-center gap-2">
-                            <span className="font-semibold text-xs text-[#343a33]">{eventGroup}</span>
+                            <span className="font-semibold text-xs text-[#343a33]">
+                              {eventGroup}
+                            </span>
                             <span className="rounded-full bg-[#e8e6dc] px-2 py-0.5 text-[10px] font-medium text-[#52574e]">
                               {eventSongs.length} {eventSongs.length === 1 ? "song" : "songs"}
                             </span>
@@ -1006,28 +1394,62 @@ export function SongLibraryAdminSection() {
                               className="px-4 py-3 flex items-center justify-between hover:bg-[#faf9f6] transition-colors gap-3"
                             >
                               <div className="flex items-center gap-3 min-w-0">
-                                <button
-                                  type="button"
-                                  onClick={() => handleTogglePlay(song.id, song.audioFileName)}
-                                  className={`flex size-8 shrink-0 items-center justify-center rounded-full transition-colors ${
-                                    playingSongId === song.id
-                                      ? "bg-[#344234] text-white"
-                                      : "bg-[#f1eee6] text-[#444941] hover:bg-[#e4e1d7]"
-                                  }`}
-                                  title="Play audio preview"
-                                >
-                                  {playingSongId === song.id ? (
-                                    <Pause className="size-3.5" />
-                                  ) : (
-                                    <Play className="size-3.5 ml-0.5" />
-                                  )}
-                                </button>
+                                {song.youtubeVideoId ? (
+                                  <button
+                                    type="button"
+                                    onClick={() => setYtPreviewVideoId(song.youtubeVideoId!)}
+                                    className="relative flex size-10 shrink-0 overflow-hidden rounded-lg border border-stone-200 group"
+                                    title="Play YouTube video"
+                                  >
+                                    {song.thumbnailUrl ? (
+                                      <img
+                                        src={song.thumbnailUrl}
+                                        alt={song.title}
+                                        className="h-full w-full object-cover"
+                                      />
+                                    ) : (
+                                      <div className="h-full w-full bg-red-600 flex items-center justify-center text-white">
+                                        <Youtube className="size-4" />
+                                      </div>
+                                    )}
+                                    <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-80 group-hover:opacity-100 transition-opacity">
+                                      <Play className="size-3.5 text-white ml-0.5" />
+                                    </div>
+                                  </button>
+                                ) : (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleTogglePlay(song.id, song.audioFileName)}
+                                    className={`flex size-8 shrink-0 items-center justify-center rounded-full transition-colors ${
+                                      playingSongId === song.id
+                                        ? "bg-[#344234] text-white"
+                                        : "bg-[#f1eee6] text-[#444941] hover:bg-[#e4e1d7]"
+                                    }`}
+                                    title="Play audio preview"
+                                  >
+                                    {playingSongId === song.id ? (
+                                      <Pause className="size-3.5" />
+                                    ) : (
+                                      <Play className="size-3.5 ml-0.5" />
+                                    )}
+                                  </button>
+                                )}
+
                                 <div className="min-w-0">
-                                  <p className="text-xs font-semibold text-[#343a33] truncate">
-                                    {song.title}
-                                  </p>
+                                  <div className="flex items-center gap-1.5 flex-wrap">
+                                    <p className="text-xs font-semibold text-[#343a33] truncate">
+                                      {song.title}
+                                    </p>
+                                    {song.youtubeVideoId && (
+                                      <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold text-red-700 bg-red-50 border border-red-200 px-1.5 py-0.2 rounded">
+                                        <Youtube className="size-2.5" />
+                                        YouTube
+                                      </span>
+                                    )}
+                                  </div>
                                   <p className="text-[11px] text-[#76776f] truncate">
-                                    {song.artist} · <span className="text-[#a09d93]">{song.durationFormatted}</span>
+                                    {song.artist || song.channelName} ·{" "}
+                                    <span className="text-[#a09d93]">{song.durationFormatted}</span>
                                     {song.audioFileName && (
                                       <span className="ml-2 font-mono text-[10px] text-stone-400">
                                         ({song.audioFileName})
@@ -1038,6 +1460,17 @@ export function SongLibraryAdminSection() {
                               </div>
 
                               <div className="flex items-center gap-1 shrink-0">
+                                {song.youtubeUrl && (
+                                  <a
+                                    href={song.youtubeUrl}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="h-7 w-7 flex items-center justify-center text-stone-400 hover:text-red-600 transition-colors"
+                                    title="Open on YouTube"
+                                  >
+                                    <ExternalLink className="size-3.5" />
+                                  </a>
+                                )}
                                 <Button
                                   variant="ghost"
                                   size="sm"
@@ -1072,7 +1505,8 @@ export function SongLibraryAdminSection() {
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div className="flex items-center gap-2">
                   <p className="text-xs text-[#76776f]">
-                    Libraries group wedding soundtracks for clients. Create custom collections for different wedding styles.
+                    Libraries group wedding soundtracks for clients. Create custom collections for
+                    different wedding styles.
                   </p>
                   <label className="flex items-center gap-1.5 text-xs text-[#76776f] cursor-pointer ml-3">
                     <input
@@ -1157,8 +1591,8 @@ export function SongLibraryAdminSection() {
                       {submittingLibrary
                         ? "Saving..."
                         : editingLibraryId
-                        ? "Update Library"
-                        : "Save Library"}
+                          ? "Update Library"
+                          : "Save Library"}
                     </Button>
                   </div>
                 </form>
@@ -1252,6 +1686,202 @@ export function SongLibraryAdminSection() {
               </div>
             </div>
           )}
+        </div>
+      )}
+      {/* Client Song Selections Details Modal */}
+      {inspectingClient && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-xs">
+          <div className="w-full max-w-2xl max-h-[85vh] flex flex-col rounded-2xl bg-white shadow-xl overflow-hidden border border-stone-200">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between border-b border-stone-200 px-6 py-4 bg-[#fbfaf7]">
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="flex size-2 rounded-full bg-emerald-600" />
+                  <h3 className="font-serif text-lg font-normal text-stone-900">
+                    Client Song Selections
+                  </h3>
+                </div>
+                <p className="mt-0.5 text-xs text-stone-500">
+                  {inspectingClient.fullName}
+                  {inspectingClient.partnerName ? ` & ${inspectingClient.partnerName}` : ""}
+                  {" · "}
+                  <span className="font-medium text-stone-700">
+                    {inspectingClient.assignedLibraryName || "Assigned Library"}
+                  </span>
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setInspectingClient(null);
+                  setInspectingSelections(null);
+                }}
+                className="rounded-lg p-1.5 text-stone-400 hover:bg-stone-100 hover:text-stone-700 transition-colors"
+                title="Close"
+              >
+                <X className="size-5" />
+              </button>
+            </div>
+
+            {/* Modal Content */}
+            <div className="flex-1 overflow-y-auto p-6 space-y-6">
+              {loadingInspectingSelections ? (
+                <div className="py-12 text-center text-xs text-stone-500">
+                  <RefreshCw className="size-5 animate-spin mx-auto mb-2 text-stone-400" />
+                  Loading client selections...
+                </div>
+              ) : (
+                <>
+                  {/* Notes from Client */}
+                  {inspectingSelections?.notes && (
+                    <div className="rounded-xl border border-amber-200 bg-amber-50/70 p-4 text-xs text-amber-950">
+                      <p className="font-semibold uppercase tracking-wider text-[10px] text-amber-800 mb-1">
+                        Client Note / Special Requests:
+                      </p>
+                      <p className="italic leading-relaxed">{inspectingSelections.notes}</p>
+                    </div>
+                  )}
+
+                  {/* Custom Requested Songs by Client */}
+                  {inspectingSelections?.customRequests &&
+                    inspectingSelections.customRequests.length > 0 && (
+                      <div>
+                        <div className="flex items-center justify-between mb-2">
+                          <h4 className="text-xs font-semibold uppercase tracking-wider text-purple-900 flex items-center gap-1.5">
+                            <Plus className="size-3.5 text-purple-600" />
+                            <span>
+                              Custom Song Requests Typed by Client (
+                              {inspectingSelections.customRequests.length})
+                            </span>
+                          </h4>
+                        </div>
+                        <div className="rounded-xl border border-purple-200 bg-purple-50/40 divide-y divide-purple-100 overflow-hidden">
+                          {inspectingSelections.customRequests.map((req) => (
+                            <div
+                              key={req.id}
+                              className="p-3.5 flex flex-wrap items-center justify-between gap-2"
+                            >
+                              <div>
+                                <div className="flex items-center gap-2">
+                                  <span className="font-semibold text-xs text-purple-950">
+                                    {req.songTitle}
+                                  </span>
+                                  <span className="rounded-full bg-purple-100 px-2 py-0.5 text-[10px] font-semibold text-purple-800 border border-purple-200">
+                                    {req.eventGroup}
+                                  </span>
+                                </div>
+                                {req.artistOrDetails && (
+                                  <p className="text-[11px] text-purple-800 mt-0.5">
+                                    Artist / Version: {req.artistOrDetails}
+                                  </p>
+                                )}
+                                {req.notes && (
+                                  <p className="text-[11px] italic text-stone-600 mt-0.5">
+                                    Note: &quot;{req.notes}&quot;
+                                  </p>
+                                )}
+                              </div>
+                              {req.youtubeUrl && (
+                                <a
+                                  href={req.youtubeUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="inline-flex items-center gap-1 text-[11px] font-medium text-red-600 bg-red-50 border border-red-200 rounded-lg px-2.5 py-1 hover:bg-red-100 transition-colors"
+                                >
+                                  <Youtube className="size-3" />
+                                  <span>Reference Link</span>
+                                  <ExternalLink className="size-2.5" />
+                                </a>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                  {/* Selected Songs from Library */}
+                  <div>
+                    <h4 className="text-xs font-semibold uppercase tracking-wider text-stone-700 mb-2 flex items-center gap-1.5">
+                      <Music2 className="size-3.5 text-emerald-700" />
+                      <span>
+                        Catalog Songs Picked ({inspectingSelections?.selectedSongs.length || 0})
+                      </span>
+                    </h4>
+
+                    {!inspectingSelections?.selectedSongs ||
+                    inspectingSelections.selectedSongs.length === 0 ? (
+                      <div className="rounded-xl border border-dashed border-stone-200 p-6 text-center text-xs text-stone-500">
+                        The client has not picked any catalog tracks yet.
+                      </div>
+                    ) : (
+                      <div className="rounded-xl border border-stone-200 overflow-hidden divide-y divide-stone-100 bg-white">
+                        {inspectingSelections.selectedSongs.map((song) => (
+                          <div
+                            key={song.id}
+                            className="p-3 flex items-center justify-between gap-3 hover:bg-stone-50/60 transition-colors"
+                          >
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-2">
+                                <span className="font-semibold text-xs text-stone-900 truncate">
+                                  {song.title}
+                                </span>
+                                <span className="rounded-full bg-stone-100 px-2 py-0.5 text-[10px] text-stone-700">
+                                  {song.eventGroup}
+                                </span>
+                              </div>
+                              <p className="text-[11px] text-stone-500 mt-0.5">
+                                {song.artist || song.channelName} · {song.durationFormatted}
+                              </p>
+                            </div>
+
+                            <div className="flex items-center gap-2 shrink-0">
+                              {song.youtubeUrl && (
+                                <a
+                                  href={song.youtubeUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="inline-flex items-center gap-1 text-[11px] text-stone-500 hover:text-red-600 px-2 py-1 rounded"
+                                >
+                                  <Youtube className="size-3 text-red-600" />
+                                  <span>Watch</span>
+                                </a>
+                              )}
+                              <span className="inline-flex items-center gap-1 text-[11px] text-emerald-800 font-medium bg-emerald-50 border border-emerald-200 rounded-full px-2 py-0.5">
+                                <CheckCircle2 className="size-3 text-emerald-600" />
+                                Selected
+                              </span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="border-t border-stone-200 px-6 py-3 bg-[#fbfaf7] flex items-center justify-between">
+              <span className="text-[11px] text-stone-500">
+                Total Selections:{" "}
+                <strong>
+                  {(inspectingSelections?.selectedSongs.length || 0) +
+                    (inspectingSelections?.customRequests.length || 0)}
+                </strong>
+              </span>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setInspectingClient(null);
+                  setInspectingSelections(null);
+                }}
+                className="text-xs border-stone-300"
+              >
+                Close
+              </Button>
+            </div>
+          </div>
         </div>
       )}
     </div>

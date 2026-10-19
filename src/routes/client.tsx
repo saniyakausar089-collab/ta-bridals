@@ -18,10 +18,18 @@ import {
   Lock,
   Phone,
   Layers,
+  Youtube,
+  Play,
+  X,
+  ExternalLink,
+  Plus,
+  FileText,
+  Settings,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { AccountSettingsModal } from "@/components/AccountSettingsModal";
 import { songLibraryConfig } from "@/config/songLibraryConfig";
 import {
   clientLogin,
@@ -34,6 +42,8 @@ import {
   getSongPlaybackUrl,
   saveClientSelections,
   getClientSelections,
+  addClientCustomSongRequest,
+  getClientCustomSongRequests,
   DEMO_CLIENT_ACCOUNTS,
 } from "@/lib/songLibraryService";
 import {
@@ -41,6 +51,8 @@ import {
   type ClientProfile,
   type ClientApprovalStatus,
   type SongItem,
+  type WeddingEventGroup,
+  type ClientCustomSongRequest,
 } from "@/types/songLibrary";
 
 export const Route = createFileRoute("/client")({
@@ -63,6 +75,19 @@ function ClientRouteComponent() {
   const [selectionNotice, setSelectionNotice] = useState<string>("");
   const [playingSongId, setPlayingSongId] = useState<string | null>(null);
   const [audioElement, setAudioElement] = useState<HTMLAudioElement | null>(null);
+
+  // Custom client song requests & notes
+  const [customSongRequests, setCustomSongRequests] = useState<ClientCustomSongRequest[]>([]);
+  const [clientSelectionNotes, setClientSelectionNotes] = useState<string>("");
+  const [isAddingCustomSong, setIsAddingCustomSong] = useState<boolean>(false);
+  const [customSongTitle, setCustomSongTitle] = useState<string>("");
+  const [customSongArtist, setCustomSongArtist] = useState<string>("");
+  const [customSongEventGroup, setCustomSongEventGroup] =
+    useState<WeddingEventGroup>("Bride Entry");
+  const [customSongYoutubeUrl, setCustomSongYoutubeUrl] = useState<string>("");
+  const [customSongNotes, setCustomSongNotes] = useState<string>("");
+  const [savingCustomSong, setSavingCustomSong] = useState<boolean>(false);
+  const [customSongNotice, setCustomSongNotice] = useState<string>("");
 
   // Login form state
   const [loginEmail, setLoginEmail] = useState<string>("");
@@ -156,6 +181,8 @@ function ClientRouteComponent() {
     setSelectedSongIds(new Set());
   };
 
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+
   const handleRefreshStatus = async () => {
     if (!session) return;
     setCheckingStatus(true);
@@ -176,18 +203,35 @@ function ClientRouteComponent() {
     };
   }, [audioElement]);
 
-  // Load songs & existing selections when client is approved & assigned
+  // Load songs, custom song requests & existing selections when client is approved & assigned
   useEffect(() => {
     if (session?.approvalStatus === "approved" && session.assignedLibraryId) {
       void (async () => {
         setLoadingSongs(true);
         try {
-          const [loadedSongs, savedSelections] = await Promise.all([
+          const [loadedSongs, savedSelections, customSongs] = await Promise.all([
             getSongsByLibrary(session.assignedLibraryId!),
             getClientSelections(session.id),
+            getClientCustomSongRequests(session.id),
           ]);
           setSongs(loadedSongs);
           setSelectedSongIds(new Set(savedSelections.map((s) => s.songId)));
+          setCustomSongRequests(customSongs);
+
+          // Restore saved notes if cached
+          if (typeof window !== "undefined") {
+            try {
+              const raw = localStorage.getItem("ta_bridals_mock_client_selections");
+              if (raw) {
+                const map = JSON.parse(raw);
+                if (map[session.id] && map[session.id].notes) {
+                  setClientSelectionNotes(map[session.id].notes);
+                }
+              }
+            } catch {
+              // ignore
+            }
+          }
         } catch (err) {
           console.error("Failed to load client library songs:", err);
         } finally {
@@ -196,6 +240,9 @@ function ClientRouteComponent() {
       })();
     }
   }, [session?.approvalStatus, session?.assignedLibraryId, session?.id]);
+
+  // YouTube preview player state
+  const [activeYouTubeVideoId, setActiveYouTubeVideoId] = useState<string | null>(null);
 
   const handleToggleSongSelect = (songId: string) => {
     const next = new Set(selectedSongIds);
@@ -207,7 +254,55 @@ function ClientRouteComponent() {
     setSelectedSongIds(next);
   };
 
+  const handleAddCustomSongRequest = async () => {
+    if (!customSongTitle.trim()) {
+      setCustomSongNotice("Please enter a song name or title.");
+      return;
+    }
+
+    if (!session?.id) return;
+
+    setSavingCustomSong(true);
+    setCustomSongNotice("");
+    try {
+      const res = await addClientCustomSongRequest(session.id, {
+        songTitle: customSongTitle.trim(),
+        artistOrDetails: customSongArtist.trim() || undefined,
+        eventGroup: customSongEventGroup,
+        youtubeUrl: customSongYoutubeUrl.trim() || undefined,
+        notes: customSongNotes.trim() || undefined,
+      });
+
+      if (!res.success || !res.customRequest) {
+        setCustomSongNotice(res.error || "Failed to add custom song request.");
+      } else {
+        setCustomSongRequests((prev) => [res.customRequest!, ...prev]);
+        setCustomSongNotice(`Added "${customSongTitle}" to your wedding requests!`);
+        setCustomSongTitle("");
+        setCustomSongArtist("");
+        setCustomSongYoutubeUrl("");
+        setCustomSongNotes("");
+        setIsAddingCustomSong(false);
+      }
+    } catch (err) {
+      setCustomSongNotice(err instanceof Error ? err.message : "Error saving request.");
+    } finally {
+      setSavingCustomSong(false);
+    }
+  };
+
   const handleSaveAllSelections = async () => {
+    if (
+      selectedSongIds.size === 0 &&
+      customSongRequests.length === 0 &&
+      !clientSelectionNotes.trim()
+    ) {
+      setSelectionNotice(
+        "Please select at least one song or add a custom song request before saving.",
+      );
+      return;
+    }
+
     setSavingSelections(true);
     setSelectionNotice("");
     try {
@@ -215,11 +310,18 @@ function ClientRouteComponent() {
         .filter((s) => selectedSongIds.has(s.id))
         .map((s) => ({ songId: s.id, eventGroup: s.eventGroup }));
 
-      const res = await saveClientSelections(selectionsPayload);
+      const res = await saveClientSelections(
+        selectionsPayload,
+        session?.id,
+        clientSelectionNotes.trim() || undefined,
+      );
       if (!res.success) {
         setSelectionNotice(res.error || "Failed to save selections.");
       } else {
-        setSelectionNotice("Your song selections have been successfully saved!");
+        const total = selectedSongIds.size + customSongRequests.length;
+        setSelectionNotice(
+          `Successfully saved your wedding music choices (${total} total song${total === 1 ? "" : "s"} selected & requested)!`,
+        );
       }
     } catch (err) {
       setSelectionNotice(err instanceof Error ? err.message : "Error saving selections.");
@@ -327,8 +429,8 @@ function ClientRouteComponent() {
                 Welcome, {session.fullName}
               </h1>
               <p className="mt-2 text-sm text-stone-600 leading-relaxed">
-                Your wedding music registration has been submitted. The studio owner reviews all client
-                accounts before granting access to your assigned wedding song library.
+                Your wedding music registration has been submitted. The studio owner reviews all
+                client accounts before granting access to your assigned wedding song library.
               </p>
             </div>
 
@@ -414,9 +516,9 @@ function ClientRouteComponent() {
                 Access Not Available
               </h1>
               <p className="mt-2 text-sm text-stone-600 leading-relaxed">
-                Your client registration could not be approved at this time. If you believe this is an
-                error or if you have booked a shoot with TA Bridals under a different email, please contact
-                your studio manager directly.
+                Your client registration could not be approved at this time. If you believe this is
+                an error or if you have booked a shoot with TA Bridals under a different email,
+                please contact your studio manager directly.
               </p>
 
               {session.rejectionReason && (
@@ -425,7 +527,9 @@ function ClientRouteComponent() {
                     <AlertCircle className="size-3.5 text-rose-700" />
                     Reason provided by studio:
                   </div>
-                  <p className="text-rose-800 leading-relaxed italic">&ldquo;{session.rejectionReason}&rdquo;</p>
+                  <p className="text-rose-800 leading-relaxed italic">
+                    &ldquo;{session.rejectionReason}&rdquo;
+                  </p>
                 </div>
               )}
             </div>
@@ -476,6 +580,15 @@ function ClientRouteComponent() {
               <Button
                 variant="outline"
                 size="sm"
+                onClick={() => setIsSettingsOpen(true)}
+                className="border-stone-200 text-xs text-stone-700 hover:bg-stone-100"
+              >
+                <Settings className="size-3.5 mr-1 text-stone-600" />
+                Settings
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
                 onClick={handleSignOut}
                 className="border-stone-200 text-xs text-stone-700"
               >
@@ -485,6 +598,18 @@ function ClientRouteComponent() {
             </div>
           </div>
         </header>
+
+        <AccountSettingsModal
+          isOpen={isSettingsOpen}
+          onClose={() => setIsSettingsOpen(false)}
+          currentName={session.fullName}
+          userEmail={session.email}
+          role="client"
+          clientId={session.id}
+          onNameUpdated={(newName) => {
+            setSession((prev) => (prev ? { ...prev, fullName: newName } : null));
+          }}
+        />
 
         <main className="flex-1 mx-auto w-full max-w-6xl px-4 py-8">
           <div className="rounded-2xl border border-stone-200 bg-white p-8 text-center shadow-xs">
@@ -498,8 +623,8 @@ function ClientRouteComponent() {
               Your client profile is active!
               {session.assignedLibraryName ? (
                 <span>
-                  {" "}You have been assigned to the{" "}
-                  <strong>{session.assignedLibraryName}</strong>.
+                  {" "}
+                  You have been assigned to the <strong>{session.assignedLibraryName}</strong>.
                 </span>
               ) : (
                 <span> Your library assignment will appear shortly once selected by admin.</span>
@@ -533,16 +658,212 @@ function ClientRouteComponent() {
                       Curated Wedding Soundtrack
                     </h3>
                     <p className="text-xs text-stone-500">
-                      Listen to previews, pick your favorite songs for each event, and save your selections.
+                      Listen to previews, pick your favorite songs for each event, and save your
+                      selections.
                     </p>
                   </div>
-                  <Button
-                    onClick={handleSaveAllSelections}
-                    disabled={savingSelections}
-                    className="bg-[#2d3a2e] hover:bg-[#1f2820] text-white text-xs px-4"
-                  >
-                    {savingSelections ? "Saving..." : `Save Selections (${selectedSongIds.size})`}
-                  </Button>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setIsAddingCustomSong((v) => !v)}
+                      className="border-purple-300 text-purple-900 bg-purple-50 hover:bg-purple-100 text-xs px-3"
+                    >
+                      <Plus className="size-3.5 mr-1 text-purple-700" />
+                      Add Custom Song
+                    </Button>
+                    <Button
+                      onClick={handleSaveAllSelections}
+                      disabled={savingSelections}
+                      className="bg-[#2d3a2e] hover:bg-[#1f2820] text-white text-xs px-4"
+                    >
+                      {savingSelections
+                        ? "Saving..."
+                        : `Save Selections (${selectedSongIds.size + customSongRequests.length})`}
+                    </Button>
+                  </div>
+                </div>
+
+                {/* Custom Song Request Form Modal / Accordion */}
+                {isAddingCustomSong && (
+                  <div className="mb-6 rounded-2xl border border-purple-200 bg-gradient-to-br from-purple-50/70 to-white p-5 shadow-xs">
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="flex items-center gap-2">
+                        <span className="flex size-2 rounded-full bg-purple-600" />
+                        <h4 className="font-semibold text-xs uppercase tracking-wider text-purple-950">
+                          Request a Song Not in the Library
+                        </h4>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setIsAddingCustomSong(false)}
+                        className="text-stone-400 hover:text-stone-700 text-xs p-1"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                    <p className="text-xs text-stone-600 mb-4">
+                      Type the song title, artist/movie, and which event you want it played for. Our
+                      editing and audio team will review and include it in your wedding edit!
+                    </p>
+
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <div>
+                        <label className="block text-[11px] font-semibold text-stone-700 mb-1">
+                          Song Title / Name *
+                        </label>
+                        <Input
+                          value={customSongTitle}
+                          onChange={(e) => setCustomSongTitle(e.target.value)}
+                          placeholder="e.g. Afreen Afreen, Tum Hi Ho..."
+                          className="h-8.5 text-xs bg-white border-stone-300"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-semibold text-stone-700 mb-1">
+                          Artist / Film / Version (Optional)
+                        </label>
+                        <Input
+                          value={customSongArtist}
+                          onChange={(e) => setCustomSongArtist(e.target.value)}
+                          placeholder="e.g. Rahat Fateh Ali Khan / Coke Studio"
+                          className="h-8.5 text-xs bg-white border-stone-300"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-semibold text-stone-700 mb-1">
+                          Wedding Event Group *
+                        </label>
+                        <select
+                          value={customSongEventGroup}
+                          onChange={(e) =>
+                            setCustomSongEventGroup(e.target.value as WeddingEventGroup)
+                          }
+                          className="w-full h-8.5 rounded-md border border-stone-300 bg-white px-2.5 text-xs text-stone-900 focus:outline-hidden"
+                        >
+                          {WEDDING_EVENT_GROUPS.map((grp) => (
+                            <option key={grp} value={grp}>
+                              {grp}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-semibold text-stone-700 mb-1">
+                          YouTube Link or Audio URL (Optional)
+                        </label>
+                        <Input
+                          value={customSongYoutubeUrl}
+                          onChange={(e) => setCustomSongYoutubeUrl(e.target.value)}
+                          placeholder="https://www.youtube.com/watch?v=..."
+                          className="h-8.5 text-xs bg-white border-stone-300"
+                        />
+                      </div>
+                      <div className="sm:col-span-2">
+                        <label className="block text-[11px] font-semibold text-stone-700 mb-1">
+                          Special Timing or Note (Optional)
+                        </label>
+                        <Input
+                          value={customSongNotes}
+                          onChange={(e) => setCustomSongNotes(e.target.value)}
+                          placeholder="e.g. Please play starting from 01:20 when bride walks in"
+                          className="h-8.5 text-xs bg-white border-stone-300"
+                        />
+                      </div>
+                    </div>
+
+                    {customSongNotice && (
+                      <p className="mt-3 text-xs text-purple-900 font-medium">{customSongNotice}</p>
+                    )}
+
+                    <div className="mt-4 flex justify-end gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setIsAddingCustomSong(false)}
+                        className="text-xs h-8 border-stone-300"
+                      >
+                        Cancel
+                      </Button>
+                      <Button
+                        size="sm"
+                        onClick={handleAddCustomSongRequest}
+                        disabled={savingCustomSong || !customSongTitle.trim()}
+                        className="bg-purple-900 hover:bg-purple-950 text-white text-xs h-8 px-4"
+                      >
+                        {savingCustomSong ? "Adding..." : "Add to My Song Requests"}
+                      </Button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Custom Songs Already Requested by Client */}
+                {customSongRequests.length > 0 && (
+                  <div className="mb-6 rounded-2xl border border-purple-200 bg-purple-50/30 p-4">
+                    <h4 className="text-xs font-semibold uppercase tracking-wider text-purple-950 mb-3 flex items-center gap-1.5">
+                      <Plus className="size-3.5 text-purple-700" />
+                      <span>Your Custom Song Requests ({customSongRequests.length})</span>
+                    </h4>
+                    <div className="divide-y divide-purple-100 rounded-xl border border-purple-200 bg-white overflow-hidden">
+                      {customSongRequests.map((req) => (
+                        <div
+                          key={req.id}
+                          className="p-3.5 flex flex-wrap items-center justify-between gap-2"
+                        >
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <span className="font-semibold text-xs text-purple-950">
+                                {req.songTitle}
+                              </span>
+                              <span className="rounded-full bg-purple-100 px-2 py-0.5 text-[10px] font-semibold text-purple-800 border border-purple-200">
+                                {req.eventGroup}
+                              </span>
+                            </div>
+                            {req.artistOrDetails && (
+                              <p className="text-[11px] text-stone-600 mt-0.5">
+                                Artist / Version: {req.artistOrDetails}
+                              </p>
+                            )}
+                            {req.notes && (
+                              <p className="text-[11px] italic text-stone-500 mt-0.5">
+                                Note: &quot;{req.notes}&quot;
+                              </p>
+                            )}
+                          </div>
+                          {req.youtubeUrl && (
+                            <a
+                              href={req.youtubeUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-1 text-[11px] text-red-600 bg-red-50 hover:bg-red-100 border border-red-200 px-2.5 py-1 rounded-lg transition-colors"
+                            >
+                              <Youtube className="size-3" />
+                              <span>Reference</span>
+                              <ExternalLink className="size-2.5" />
+                            </a>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Client Overall Notes Input */}
+                <div className="mb-6 rounded-2xl border border-stone-200 bg-[#fbfaf7] p-4">
+                  <label className="block text-xs font-semibold text-stone-800 mb-1 flex items-center gap-1.5">
+                    <FileText className="size-3.5 text-stone-600" />
+                    <span>Special Instructions / Music Notes for the Studio (Optional)</span>
+                  </label>
+                  <Input
+                    value={clientSelectionNotes}
+                    onChange={(e) => setClientSelectionNotes(e.target.value)}
+                    placeholder="e.g. We prefer acoustic and soft instruments for dinner, high energy for Sangeet!"
+                    className="h-9 text-xs bg-white border-stone-300"
+                  />
+                  <p className="text-[10px] text-stone-500 mt-1">
+                    These notes and your selected tracks are automatically shared with your assigned
+                    video editors and lead photographers.
+                  </p>
                 </div>
 
                 {selectionNotice && (
@@ -552,13 +873,58 @@ function ClientRouteComponent() {
                   </div>
                 )}
 
+                {/* YouTube Video Player Modal for Client */}
+                {activeYouTubeVideoId && (
+                  <div className="mb-6 rounded-2xl border border-stone-200 bg-black/95 p-4 text-white shadow-lg">
+                    <div className="flex items-center justify-between mb-3 px-1">
+                      <div className="flex items-center gap-2">
+                        <Youtube className="size-4 text-red-500" />
+                        <span className="text-xs font-semibold tracking-wide uppercase text-stone-300">
+                          YouTube Video Player
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setActiveYouTubeVideoId(null)}
+                        className="rounded-lg p-1 text-stone-400 hover:bg-stone-800 hover:text-white transition-colors"
+                        title="Close player"
+                      >
+                        <X className="size-4" />
+                      </button>
+                    </div>
+
+                    <div className="relative aspect-video w-full max-w-2xl mx-auto overflow-hidden rounded-xl shadow-md">
+                      <iframe
+                        src={`https://www.youtube-nocookie.com/embed/${activeYouTubeVideoId}?autoplay=1&enablejsapi=1`}
+                        title="Wedding Song Video"
+                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                        allowFullScreen
+                        className="h-full w-full border-0"
+                      />
+                    </div>
+
+                    <div className="mt-3 text-center">
+                      <a
+                        href={`https://www.youtube.com/watch?v=${activeYouTubeVideoId}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1.5 text-xs text-stone-400 hover:text-red-400 transition-colors"
+                      >
+                        <span>If video doesn't play, watch on YouTube</span>
+                        <ExternalLink className="size-3" />
+                      </a>
+                    </div>
+                  </div>
+                )}
+
                 {loadingSongs ? (
                   <div className="py-12 text-center text-xs text-stone-500">
                     Loading your assigned soundtrack library...
                   </div>
                 ) : songs.length === 0 ? (
                   <div className="rounded-xl border border-dashed border-stone-200 p-8 text-center text-xs text-stone-500">
-                    No songs have been added to your library yet. Your studio manager will curate songs for you shortly!
+                    No songs have been added to your library yet. Your studio manager will curate
+                    songs for you shortly!
                   </div>
                 ) : (
                   <div className="space-y-6">
@@ -572,8 +938,12 @@ function ClientRouteComponent() {
                           className="rounded-xl border border-stone-200 overflow-hidden bg-white shadow-2xs"
                         >
                           <div className="border-b border-stone-100 bg-[#fbfaf7] px-4 py-2.5 flex items-center justify-between">
-                            <span className="font-semibold text-xs text-stone-900">{eventGroup}</span>
-                            <span className="text-[11px] text-stone-500">{groupSongs.length} tracks</span>
+                            <span className="font-semibold text-xs text-stone-900">
+                              {eventGroup}
+                            </span>
+                            <span className="text-[11px] text-stone-500">
+                              {groupSongs.length} tracks
+                            </span>
                           </div>
                           <div className="divide-y divide-stone-100">
                             {groupSongs.map((song) => {
@@ -586,29 +956,82 @@ function ClientRouteComponent() {
                                   }`}
                                 >
                                   <div className="flex items-center gap-3 min-w-0">
-                                    <button
-                                      type="button"
-                                      onClick={() => handleTogglePlay(song)}
-                                      className={`flex size-8 shrink-0 items-center justify-center rounded-full transition-colors ${
-                                        playingSongId === song.id
-                                          ? "bg-[#2d3a2e] text-white"
-                                          : "bg-stone-100 text-stone-700 hover:bg-stone-200"
-                                      }`}
-                                      title="Play audio preview"
-                                    >
-                                      <Music2 className="size-3.5" />
-                                    </button>
+                                    {song.youtubeVideoId ? (
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          if (audioElement) audioElement.pause();
+                                          setPlayingSongId(null);
+                                          setActiveYouTubeVideoId(song.youtubeVideoId!);
+                                        }}
+                                        className="relative flex size-10 shrink-0 overflow-hidden rounded-lg border border-stone-200 group"
+                                        title="Play YouTube video"
+                                      >
+                                        {song.thumbnailUrl ? (
+                                          <img
+                                            src={song.thumbnailUrl}
+                                            alt={song.title}
+                                            className="h-full w-full object-cover"
+                                          />
+                                        ) : (
+                                          <div className="h-full w-full bg-red-600 flex items-center justify-center text-white">
+                                            <Youtube className="size-4" />
+                                          </div>
+                                        )}
+                                        <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-85 group-hover:opacity-100 transition-opacity">
+                                          <Play className="size-3.5 text-white ml-0.5" />
+                                        </div>
+                                      </button>
+                                    ) : (
+                                      <button
+                                        type="button"
+                                        onClick={() => handleTogglePlay(song)}
+                                        className={`flex size-8 shrink-0 items-center justify-center rounded-full transition-colors ${
+                                          playingSongId === song.id
+                                            ? "bg-[#2d3a2e] text-white"
+                                            : "bg-stone-100 text-stone-700 hover:bg-stone-200"
+                                        }`}
+                                        title="Play audio preview"
+                                      >
+                                        <Music2 className="size-3.5" />
+                                      </button>
+                                    )}
+
                                     <div className="min-w-0">
-                                      <p className="text-xs font-semibold text-stone-900 truncate">
-                                        {song.title}
-                                      </p>
+                                      <div className="flex items-center gap-1.5 flex-wrap">
+                                        <p className="text-xs font-semibold text-stone-900 truncate">
+                                          {song.title}
+                                        </p>
+                                        {song.youtubeVideoId && (
+                                          <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold text-red-700 bg-red-50 border border-red-200 px-1.5 py-0.2 rounded">
+                                            <Youtube className="size-2.5" />
+                                            YouTube
+                                          </span>
+                                        )}
+                                      </div>
                                       <p className="text-[11px] text-stone-500 truncate">
-                                        {song.artist}
+                                        {song.artist || song.channelName} ·{" "}
+                                        <span className="text-stone-400">
+                                          {song.durationFormatted}
+                                        </span>
                                       </p>
                                     </div>
                                   </div>
 
                                   <div className="flex items-center gap-2 shrink-0">
+                                    {song.youtubeUrl && (
+                                      <a
+                                        href={song.youtubeUrl}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="hidden sm:inline-flex items-center gap-1 text-[11px] text-stone-400 hover:text-red-600 px-2 py-1 rounded transition-colors"
+                                        title="Watch on YouTube"
+                                      >
+                                        <span>Watch</span>
+                                        <ExternalLink className="size-3" />
+                                      </a>
+                                    )}
+
                                     <button
                                       type="button"
                                       onClick={() => handleToggleSongSelect(song.id)}
@@ -641,7 +1064,8 @@ function ClientRouteComponent() {
             ) : (
               <div className="mt-8 border-t border-stone-100 pt-6">
                 <p className="text-xs text-stone-400">
-                  Your registration is verified. Your assigned song library will appear here once linked by studio admin.
+                  Your registration is verified. Your assigned song library will appear here once
+                  linked by studio admin.
                 </p>
               </div>
             )}

@@ -1,5 +1,6 @@
 import { format, parseISO } from "date-fns";
-import { Activity, Shield, User, Clock, FileText } from "lucide-react";
+import { Activity, Shield, RefreshCw } from "lucide-react";
+import { useState } from "react";
 import type { Tables } from "@/integrations/supabase/types";
 
 type AuditLog = Tables<"audit_logs">;
@@ -7,25 +8,59 @@ type AuditLog = Tables<"audit_logs">;
 interface AuditLogSectionProps {
   logs: AuditLog[];
   loading?: boolean;
+  onRefresh?: () => void;
 }
 
-export function AuditLogSection({ logs, loading = false }: AuditLogSectionProps) {
+export function AuditLogSection({ logs, loading = false, onRefresh }: AuditLogSectionProps) {
+  const [refreshing, setRefreshing] = useState(false);
+
+  async function handleRefresh() {
+    if (!onRefresh || refreshing) return;
+    setRefreshing(true);
+    try {
+      await Promise.resolve(onRefresh());
+    } finally {
+      setTimeout(() => setRefreshing(false), 600);
+    }
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-4 rounded-xl border border-[#30282e] bg-[#151317] p-5">
         <div>
           <h2 className="font-serif text-2xl text-[#f7f0ee]">Studio Audit Trail</h2>
           <p className="mt-1 text-xs text-[#82767d]">
-            Immutable record of administrative actions, role adjustments, worker approvals, and shoot modifications.
+            Immutable record of administrative actions, role adjustments, worker approvals, and
+            shoot modifications.
           </p>
         </div>
-        <div className="flex items-center gap-2 rounded-lg border border-[#30282e] bg-[#1b181d] px-3 py-1.5 text-xs text-[#d9b98c]">
-          <Shield className="size-4" />
-          <span>Admin Access Only</span>
+        <div className="flex items-center gap-3">
+          {onRefresh && (
+            <button
+              onClick={() => void handleRefresh()}
+              disabled={refreshing || loading}
+              title="Refresh audit logs"
+              className="flex items-center gap-1.5 rounded-lg border border-[#30282e] bg-[#1b181d] px-3 py-1.5 text-xs text-[#82767d] transition-colors hover:border-[#584e56] hover:text-[#f7f0ee] disabled:opacity-50"
+            >
+              <RefreshCw
+                className={`size-3.5 ${refreshing || loading ? "animate-spin" : ""}`}
+              />
+              <span>{refreshing || loading ? "Refreshing…" : "Refresh"}</span>
+            </button>
+          )}
+          <div className="flex items-center gap-2 rounded-lg border border-[#30282e] bg-[#1b181d] px-3 py-1.5 text-xs text-[#d9b98c]">
+            <Shield className="size-4" />
+            <span>Admin Access Only</span>
+          </div>
         </div>
       </div>
 
-      {logs.length === 0 ? (
+      {loading ? (
+        <div className="rounded-2xl border border-[#30282e] bg-[#151317] p-12 text-center">
+          <RefreshCw className="mx-auto mb-3 size-8 animate-spin text-[#584e56]" />
+          <p className="text-sm text-[#82767d]">Loading audit logs…</p>
+        </div>
+      ) : logs.length === 0 ? (
         <div className="rounded-2xl border border-[#30282e] bg-[#151317] p-12 text-center text-xs text-[#82767d]">
           <Activity className="mx-auto mb-3 size-8 text-[#584e56]" />
           <p className="text-sm font-medium text-[#f7f0ee]">No audit logs recorded yet</p>
@@ -70,9 +105,7 @@ export function AuditLogSection({ logs, loading = false }: AuditLogSectionProps)
                         {log.action}
                       </span>
                     </td>
-                    <td className="py-3.5 px-4 text-[#d9b98c] capitalize">
-                      {log.record_type}
-                    </td>
+                    <td className="py-3.5 px-4 text-[#d9b98c] capitalize">{log.record_type}</td>
                     <td className="py-3.5 px-5 text-[#b8adb2] max-w-xs truncate">
                       {typeof log.details === "object"
                         ? JSON.stringify(log.details)

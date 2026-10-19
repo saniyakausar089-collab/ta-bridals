@@ -55,12 +55,19 @@ function createSupabaseFetch(supabaseUrl: string, supabaseKey: string): typeof f
 }
 
 function getEnvVar(name: string): string | undefined {
-  const viteVal = typeof import.meta !== "undefined" && import.meta.env ? import.meta.env[name] : undefined;
-  if (viteVal) return String(viteVal).replace(/^["']|["']$/g, "").trim();
+  const viteVal =
+    typeof import.meta !== "undefined" && import.meta.env ? import.meta.env[name] : undefined;
+  if (viteVal)
+    return String(viteVal)
+      .replace(/^["']|["']$/g, "")
+      .trim();
 
   if (typeof process !== "undefined" && process.env) {
     const procVal = process.env[name];
-    if (procVal) return String(procVal).replace(/^["']|["']$/g, "").trim();
+    if (procVal)
+      return String(procVal)
+        .replace(/^["']|["']$/g, "")
+        .trim();
   }
   return undefined;
 }
@@ -74,7 +81,7 @@ export function getSupabaseConfig(): { isConfigured: boolean; missing: string[];
   return {
     isConfigured: missing.length === 0,
     missing,
-    url,
+    ...(url ? { url } : {}),
   };
 }
 

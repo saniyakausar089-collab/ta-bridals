@@ -52,6 +52,7 @@ import {
   Wallet,
   AlertTriangle,
   Bell,
+  Settings,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -64,6 +65,7 @@ import { AuditLogSection } from "@/components/AuditLogSection";
 import { FinanceSection } from "@/components/FinanceSection";
 import { SongLibraryAdminSection } from "@/components/SongLibraryAdminSection";
 import { NotificationBadge, AdminNotificationCenter } from "@/components/AdminNotificationCenter";
+import { AccountSettingsModal } from "@/components/AccountSettingsModal";
 import {
   formatCurrency,
   calculateStudioTotals,
@@ -124,6 +126,7 @@ const baseNavigation: {
   { id: "calendar", label: "Calendar", mobileLabel: "Calendar", icon: CalendarDays },
   { id: "team", label: "Team Overview", mobileLabel: "Team", icon: Users },
   { id: "availability", label: "Availability", mobileLabel: "Availability", icon: CalendarClock },
+  { id: "songs", label: "Song Libraries", mobileLabel: "Songs", icon: Music2 },
 ];
 
 const sectionCopy: Record<Section, { title: string; description: string }> = {
@@ -343,10 +346,16 @@ function Index() {
       if (teamResult.error) throw teamResult.error;
       if (assignmentResult.error) throw assignmentResult.error;
 
-      const normalizedShoots = (shootResult.data ?? []).map((shoot) => {
-        const title = shoot.couple_name || (shoot as any)["shoot name"] || "Untitled Shoot";
+      // Normalize shoots so both couple_name and "shoot name" are populated
+      const normalizedShoots = (shootResult.data ?? []).map((s: any) => {
+        let coupleName = s.couple_name || s["shoot name"];
+        if (!coupleName && s.notes) {
+          const match = s.notes.match(/^\[Couple:\s*([^\]]+)\]/);
+          if (match) coupleName = match[1];
+        }
+        const title = coupleName || "Untitled Shoot";
         return {
-          ...shoot,
+          ...s,
           couple_name: title,
           "shoot name": title,
         };
@@ -388,22 +397,24 @@ function Index() {
     if (!session) throw new Error("Sign in as the studio owner to save shoots.");
 
     const shootTitle = values.couple_name || (values as any)["shoot name"] || "Untitled Shoot";
-    const sanitizedValues: ShootInput = {
+    const payload = {
       ...values,
       couple_name: shootTitle,
       "shoot name": shootTitle,
+      ...(shootId ? {} : { created_by: session.user.id }),
     };
 
-    const result = shootId
-      ? await supabase.from("shoots").update(sanitizedValues).eq("id", shootId).select().single()
-      : await supabase
-          .from("shoots")
-          .insert({ ...sanitizedValues, created_by: session.user.id })
-          .select()
-          .single();
-    if (result.error) throw result.error;
+    let result = shootId
+      ? await supabase.from("shoots").update(payload).eq("id", shootId).select().single()
+      : await supabase.from("shoots").insert(payload).select().single();
 
-    const savedTitle = result.data.couple_name || (result.data as any)["shoot name"] || shootTitle;
+    if (result.error) {
+      throw new Error(
+        `Failed to save shoot: ${result.error.message || result.error.details || "Database error"}`,
+      );
+    }
+
+    const savedTitle = (result.data as any).couple_name || (result.data as any)["shoot name"] || shootTitle;
     const normalizedSavedShoot = {
       ...result.data,
       couple_name: savedTitle,
@@ -416,16 +427,45 @@ function Index() {
       actorEmail: session.user.email,
       action: shootId ? "SHOOT_UPDATED" : "SHOOT_CREATED",
       recordType: "shoot",
-      recordId: result.data.id,
-      details: { couple: savedTitle, event_type: result.data.event_type },
+      recordId: (result.data as any).id,
+      details: { couple: savedTitle, event_type: (result.data as any)?.event_type },
     });
 
     if (crewAssignments !== undefined) {
-      const { error: assignError } = await supabase.rpc("replace_shoot_assignments", {
-        p_shoot_id: result.data.id,
-        p_assignments: crewAssignments,
-      });
-      if (assignError) throw assignError;
+      try {
+        const { error: assignError } = await supabase.rpc("replace_shoot_assignments", {
+          p_shoot_id: result.data.id,
+          p_assignments: crewAssignments,
+        });
+
+        if (assignError) {
+          console.warn(
+            "replace_shoot_assignments RPC error, applying direct table fallback:",
+            assignError,
+          );
+          // Direct fallback if RPC is missing in remote database
+          await supabase.from("shoot_assignments").delete().eq("shoot_id", result.data.id);
+          if (crewAssignments.length > 0) {
+            const rows = crewAssignments.map((c) => ({
+              shoot_id: result.data.id,
+              team_member_id: c.team_member_id,
+              assignment_type: c.assignment_type || "on_site",
+            }));
+            await supabase.from("shoot_assignments").insert(rows);
+          }
+        }
+      } catch (rpcErr) {
+        console.warn("RPC invocation exception, fallback directly to table:", rpcErr);
+        await supabase.from("shoot_assignments").delete().eq("shoot_id", result.data.id);
+        if (crewAssignments.length > 0) {
+          const rows = crewAssignments.map((c) => ({
+            shoot_id: result.data.id,
+            team_member_id: c.team_member_id,
+            assignment_type: c.assignment_type || "on_site",
+          }));
+          await supabase.from("shoot_assignments").insert(rows);
+        }
+      }
 
       const { data: updatedAssignments, error: loadError } = await supabase
         .from("shoot_assignments")
@@ -468,11 +508,34 @@ function Index() {
     if (!isAdmin) throw new Error("Only the studio owner can manage shoot assignments.");
     if (!session) throw new Error("Sign in as the studio owner to manage shoot assignments.");
 
-    const { error } = await supabase.rpc("replace_shoot_assignments", {
-      p_shoot_id: shootId,
-      p_assignments: values,
-    });
-    if (error) throw error;
+    try {
+      const { error } = await supabase.rpc("replace_shoot_assignments", {
+        p_shoot_id: shootId,
+        p_assignments: values,
+      });
+      if (error) {
+        console.warn("replace_shoot_assignments RPC error, applying direct table fallback:", error);
+        await supabase.from("shoot_assignments").delete().eq("shoot_id", shootId);
+        if (values.length > 0) {
+          const rows = values.map((c) => ({
+            shoot_id: shootId,
+            team_member_id: c.team_member_id,
+            assignment_type: c.assignment_type || "on_site",
+          }));
+          await supabase.from("shoot_assignments").insert(rows);
+        }
+      }
+    } catch {
+      await supabase.from("shoot_assignments").delete().eq("shoot_id", shootId);
+      if (values.length > 0) {
+        const rows = values.map((c) => ({
+          shoot_id: shootId,
+          team_member_id: c.team_member_id,
+          assignment_type: c.assignment_type || "on_site",
+        }));
+        await supabase.from("shoot_assignments").insert(rows);
+      }
+    }
 
     void recordAuditLog({
       actorId: session.user.id,
@@ -1488,9 +1551,9 @@ function Workspace({
   onDeleteTeamMember: (memberId: string) => Promise<void>;
   availabilityRequests: AvailabilityRequest[];
   auditLogs: AuditLog[];
-  currentUserId?: string;
-  currentUserEmail?: string;
-  pendingSongClientsCount?: number;
+  currentUserId?: string | undefined;
+  currentUserEmail?: string | undefined;
+  pendingSongClientsCount?: number | undefined;
   onSubmitAvailabilityRequest: (input: any) => Promise<void>;
   onReviewAvailabilityRequest: (
     requestId: string,
@@ -1528,6 +1591,9 @@ function Workspace({
     );
     return shoots.filter((s) => workerShootIds.has(s.id));
   }, [isAdmin, currentWorker, shoots, assignments]);
+
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [displayedName, setDisplayedName] = useState(profileName);
 
   const pendingRegistrationsCount = useMemo(
     () => registrations.filter((r) => r.approval_status === "pending").length,
@@ -1584,12 +1650,6 @@ function Workspace({
         icon: BarChart3,
       },
       {
-        id: "songs" as Section,
-        label: "Song Libraries",
-        mobileLabel: "Songs",
-        icon: Music2,
-      },
-      {
         id: "approvals" as Section,
         label: "Registrations",
         mobileLabel: "Registrations",
@@ -1610,8 +1670,7 @@ function Workspace({
       (section === "approvals" ||
         section === "audit" ||
         section === "analytics" ||
-        section === "finance" ||
-        section === "songs")
+        section === "finance")
     ) {
       onSectionChange("overview");
     }
@@ -1782,18 +1841,29 @@ function Workspace({
                 <Music2 className="size-3.5 text-[#526052]" />
                 Client Song Portal &rarr;
               </Link>
-              <div className="hidden text-right sm:block">
-                <p className="text-xs font-medium text-[#42483f]">{profileName}</p>
-                <p className="mt-0.5 text-[10px] text-[#99968c]">
-                  {isAdmin ? "Studio owner" : "Team member"}
-                </p>
-              </div>
-              <div
-                className="grid size-9 place-items-center rounded-full bg-[#e9ece5] text-xs font-semibold text-[#435040]"
-                aria-hidden="true"
+              <button
+                type="button"
+                onClick={() => setIsSettingsOpen(true)}
+                title="Account Settings (Change Name / Password)"
+                className="flex items-center gap-2 rounded-xl p-1.5 hover:bg-white/10 text-left transition-colors cursor-pointer group"
               >
-                {firstName.slice(0, 1).toUpperCase()}
-              </div>
+                <div className="hidden text-right sm:block">
+                  <p className="text-xs font-medium text-[#42483f] group-hover:text-[#e7a0ad] transition-colors">
+                    {displayedName}
+                  </p>
+                  <p className="mt-0.5 text-[10px] text-[#99968c]">
+                    {isAdmin ? "Studio owner" : "Team member"}
+                  </p>
+                </div>
+                <div
+                  className="grid size-9 place-items-center rounded-full bg-[#e9ece5] text-xs font-semibold text-[#435040] border border-transparent group-hover:border-[#c56c7d] transition-all"
+                  aria-hidden="true"
+                >
+                  {displayedName.slice(0, 1).toUpperCase() || firstName.slice(0, 1).toUpperCase()}
+                </div>
+                <Settings className="size-3.5 text-[#82767d] group-hover:text-[#e7a0ad] transition-colors" />
+              </button>
+
               <button
                 type="button"
                 onClick={onSignOut}
@@ -1805,6 +1875,15 @@ function Workspace({
             </div>
           </div>
         </header>
+
+        <AccountSettingsModal
+          isOpen={isSettingsOpen}
+          onClose={() => setIsSettingsOpen(false)}
+          currentName={displayedName}
+          userEmail={currentUserEmail || ""}
+          role={isAdmin ? "admin" : "worker"}
+          onNameUpdated={(newName) => setDisplayedName(newName)}
+        />
 
         <main className="studio-main mx-auto max-w-[1440px] px-5 py-6 sm:px-7">
           <div className="mb-8 flex flex-wrap items-end justify-between gap-4">
@@ -1920,13 +1999,13 @@ function Workspace({
           ) : section === "analytics" && isAdmin ? (
             <AnalyticsSection shoots={shoots} team={team} assignments={assignments} />
           ) : section === "audit" && isAdmin ? (
-            <AuditLogSection logs={auditLogs} loading={loading} />
+            <AuditLogSection logs={auditLogs} loading={loading} onRefresh={onRefresh} />
           ) : section === "approvals" && isAdmin ? (
             <RegistrationsView
               registrations={registrations}
               onRegistrationsChange={onRegistrationsChange}
             />
-          ) : section === "songs" && isAdmin ? (
+          ) : section === "songs" ? (
             <SongLibraryAdminSection />
           ) : (
             <Overview
@@ -1936,7 +2015,7 @@ function Workspace({
               loading={loading}
               onNavigate={onSectionChange}
               isAdmin={isAdmin}
-              pendingRegistrationsCount={pendingCount}
+              pendingRegistrationsCount={pendingRegistrationsCount}
               invoices={invoices}
               clientPayments={clientPayments}
               payroll={payroll}
@@ -3019,7 +3098,7 @@ function ShootEditor({
   const [conflictReviewed, setConflictReviewed] = useState(false);
 
   // Form field state for live calculations & conflict checks
-  const [plannedTeamSize, setPlannedTeamSize] = useState<number>(shoot?.planned_team_size ?? 7);
+  const [plannedTeamSize, setPlannedTeamSize] = useState<number>(shoot?.planned_team_size ?? 2);
   const [eventDate, setEventDate] = useState<string>(
     shoot?.event_date ?? format(new Date(), "yyyy-MM-dd"),
   );
@@ -3250,11 +3329,11 @@ function ShootEditor({
               <Input
                 name="planned_team_size"
                 type="number"
-                min={7}
+                min={1}
                 max={20}
                 value={plannedTeamSize}
                 onChange={(e) =>
-                  setPlannedTeamSize(Math.max(7, Math.min(20, Number(e.target.value) || 7)))
+                  setPlannedTeamSize(Math.max(1, Math.min(20, Number(e.target.value) || 1)))
                 }
                 required
               />
@@ -3438,7 +3517,7 @@ function ShootEditor({
                           </p>
                           {workerConflicts.length > 0 && (
                             <p className="text-[10px] text-amber-300 font-medium">
-                              ⚠️ {workerConflicts[0].message}
+                              ⚠️ {workerConflicts[0]?.message}
                             </p>
                           )}
                         </div>
@@ -4128,8 +4207,8 @@ function TeamView({
 
   return (
     <>
-      <section className="overflow-hidden rounded-2xl border border-[#e9e7df] bg-white">
-        <div className="flex flex-wrap items-center justify-between gap-4 border-b border-[#efeee9] px-5 py-5 sm:px-6">
+      <section className="overflow-hidden rounded-2xl border border-[#30282e] bg-[#151317]">
+        <div className="flex flex-wrap items-center justify-between gap-4 border-b border-[#30282e] px-5 py-5 sm:px-6">
           <div>
             <h2 className="font-serif text-xl text-[#3e453d]">Meet your team</h2>
             <p className="mt-1 text-xs text-[#929086]">
@@ -4206,9 +4285,9 @@ function TeamView({
             }
           />
         ) : (
-          <div className="grid gap-px bg-[#f0efe9] sm:grid-cols-2 xl:grid-cols-3">
+          <div className="grid gap-px bg-[#30282e] sm:grid-cols-2 xl:grid-cols-3">
             {filteredTeam.map((member) => (
-              <article key={member.id} className="flex min-w-0 items-start gap-3 bg-white p-5">
+              <article key={member.id} className="flex min-w-0 items-start gap-3 bg-[#151317] p-5">
                 <Avatar name={member.full_name} />
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center justify-between gap-2">
@@ -4479,12 +4558,12 @@ function ShootRow({
   onAssign,
 }: {
   shoot: Shoot;
-  assignedCount?: number;
-  assignedMembers?: Array<{ id: string; name: string; role: string; type: string }>;
-  staffingMetrics?: ReturnType<typeof calculateStaffingMetrics>;
-  onEdit?: () => void;
-  onDelete?: () => void;
-  onAssign?: () => void;
+  assignedCount?: number | undefined;
+  assignedMembers?: Array<{ id: string; name: string; role: string; type: string }> | undefined;
+  staffingMetrics?: ReturnType<typeof calculateStaffingMetrics> | undefined;
+  onEdit?: (() => void) | undefined;
+  onDelete?: (() => void) | undefined;
+  onAssign?: (() => void) | undefined;
 }) {
   return (
     <article className="flex flex-wrap items-center gap-4 px-5 py-4 sm:px-6">

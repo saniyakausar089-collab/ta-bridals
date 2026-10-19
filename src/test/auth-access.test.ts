@@ -101,6 +101,7 @@ describe("TA Bridals Auth & Access Control", () => {
           identities: [
             {
               id: "identity-1",
+              identity_id: "identity-1",
               user_id: "new-user-id",
               identity_data: {},
               provider: "email",

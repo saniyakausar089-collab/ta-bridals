@@ -4,7 +4,7 @@
 export interface TimeInterval {
   date: string; // YYYY-MM-DD
   startTime: string; // HH:mm or HH:mm:ss
-  endTime?: string | null; // HH:mm or HH:mm:ss (or null)
+  endTime?: string | null | undefined; // HH:mm or HH:mm:ss (or null)
 }
 
 export interface ShootConflictCheck {
@@ -13,7 +13,7 @@ export interface ShootConflictCheck {
   eventType: string;
   date: string;
   startTime: string;
-  endTime?: string | null;
+  endTime?: string | null | undefined;
   status: string;
 }
 
@@ -30,21 +30,25 @@ export interface WorkerCrewConflict {
   type: "shoot_overlap" | "approved_leave" | "status_inactive" | "status_on_leave";
   severity: "warning" | "error";
   message: string;
-  conflictingShoot?: {
-    id: string;
-    coupleName: string;
-    eventType: string;
-    date: string;
-    startTime: string;
-    endTime?: string | null;
-  };
-  leaveRequest?: {
-    id: string;
-    requestType: string;
-    startDate: string;
-    endDate: string;
-    reason?: string | null;
-  };
+  conflictingShoot?:
+    | {
+        id: string;
+        coupleName: string;
+        eventType: string;
+        date: string;
+        startTime: string;
+        endTime?: string | null | undefined;
+      }
+    | undefined;
+  leaveRequest?:
+    | {
+        id: string;
+        requestType: string;
+        startDate: string;
+        endDate: string;
+        reason?: string | null | undefined;
+      }
+    | undefined;
 }
 
 /**
@@ -78,10 +82,7 @@ export function doesCrossMidnight(startTime: string, endTime?: string | null): b
  * Handles missing end times (defaults to 3 hours or end of day)
  * and events crossing midnight (where endTime < startTime).
  */
-export function doEventsOverlap(
-  eventA: TimeInterval,
-  eventB: TimeInterval
-): boolean {
+export function doEventsOverlap(eventA: TimeInterval, eventB: TimeInterval): boolean {
   const startA = parseTimeToMinutes(eventA.startTime);
   let endA = parseTimeToMinutes(eventA.endTime);
   if (endA === -1) {
@@ -148,10 +149,10 @@ export function findWorkerConflicts({
   availabilityRequests = [],
 }: {
   shoot: {
-    id?: string;
+    id?: string | undefined;
     event_date: string;
     start_time: string;
-    end_time?: string | null;
+    end_time?: string | null | undefined;
   };
   workerId: string;
   team: {
@@ -218,7 +219,7 @@ export function findWorkerConflicts({
 
   // 2. Overlapping assignments with other active shoots
   const otherAssignments = assignments.filter(
-    (a) => a.team_member_id === workerId && (!shoot?.id || a.shoot_id !== shoot.id)
+    (a) => a.team_member_id === workerId && (!shoot?.id || a.shoot_id !== shoot.id),
   );
 
   for (const assign of otherAssignments) {
@@ -237,7 +238,7 @@ export function findWorkerConflicts({
         date: otherShoot.event_date,
         startTime: otherShoot.start_time,
         endTime: otherShoot.end_time,
-      }
+      },
     );
 
     if (overlap) {
@@ -267,7 +268,7 @@ export function findWorkerConflicts({
     (req) =>
       req.status === "approved" &&
       (req.request_type === "leave" || req.request_type === "unavailable") &&
-      (req.worker_id === workerId || (member.user_id && req.user_id === member.user_id))
+      (req.worker_id === workerId || (member.user_id && req.user_id === member.user_id)),
   );
 
   for (const req of relevantLeaveRequests) {
@@ -285,7 +286,7 @@ export function findWorkerConflicts({
             date: shoot.event_date,
             startTime: req.start_time,
             endTime: req.end_time,
-          }
+          },
         );
         if (!overlap) continue;
       }
@@ -323,10 +324,10 @@ export function findAllShootConflicts({
   availabilityRequests = [],
 }: {
   shoot: {
-    id?: string;
+    id?: string | undefined;
     event_date: string;
     start_time: string;
-    end_time?: string | null;
+    end_time?: string | null | undefined;
   };
   selectedWorkerIds: string[];
   team: {
@@ -372,7 +373,7 @@ export function findAllShootConflicts({
       shoots,
       assignments,
       availabilityRequests,
-    })
+    }),
   );
 }
 
@@ -383,7 +384,7 @@ export function findAllShootConflicts({
  */
 export function calculateStaffingMetrics(
   plannedTeamSize: number,
-  assignments: { team_member_id: string; assignment_type: string }[]
+  assignments: { team_member_id: string; assignment_type: string }[],
 ) {
   // Count unique on-site workers and post-production workers
   const onSiteAssignments = assignments.filter((a) => a.assignment_type === "on_site");
