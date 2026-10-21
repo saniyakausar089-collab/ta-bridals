@@ -452,6 +452,83 @@ export async function updateUserDisplayName(
 }
 
 /**
+ * Update user email address with mandatory current password verification.
+ */
+export async function updateUserEmail({
+  newEmail,
+  currentPassword,
+}: {
+  newEmail: string;
+  currentPassword: string;
+}): Promise<{ success: boolean; error?: string; message?: string }> {
+  const trimmedEmail = newEmail.trim().toLowerCase();
+  if (!trimmedEmail || !trimmedEmail.includes("@")) {
+    return { success: false, error: "Please enter a valid email address." };
+  }
+  if (!currentPassword) {
+    return { success: false, error: "Please enter your current password to change your email." };
+  }
+
+  try {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user || !user.email) {
+      return { success: false, error: "Not authenticated." };
+    }
+
+    if (user.email.toLowerCase() === trimmedEmail) {
+      return { success: false, error: "New email must be different from current email." };
+    }
+
+    // Step 1: Verify current password
+    const { error: verifyError } = await supabase.auth.signInWithPassword({
+      email: user.email,
+      password: currentPassword,
+    });
+
+    if (verifyError) {
+      return {
+        success: false,
+        error: "Incorrect current password. Please re-enter your password to confirm.",
+      };
+    }
+
+    // Step 2: Update email in Supabase Auth
+    const { error: updateError } = await supabase.auth.updateUser({
+      email: trimmedEmail,
+    });
+
+    if (updateError) {
+      return { success: false, error: updateError.message };
+    }
+
+    // Step 3: Update email in public.profiles table
+    await supabase
+      .from("profiles")
+      .update({ email: trimmedEmail })
+      .eq("user_id", user.id);
+
+    // Also update team_members table if existing
+    await supabase
+      .from("team_members")
+      .update({ email: trimmedEmail })
+      .eq("user_id", user.id);
+
+    return {
+      success: true,
+      message:
+        "Email update initiated! A confirmation link has been sent to your new email. Once confirmed, you can log in with your new email.",
+    };
+  } catch (err) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Failed to update email address.",
+    };
+  }
+}
+
+/**
  * Update password with mandatory current password verification.
  */
 export async function updateUserPassword({

@@ -1,8 +1,8 @@
 import React, { useState } from "react";
-import { X, User, Lock, CheckCircle2, AlertCircle, KeyRound, Shield, Loader2 } from "lucide-react";
+import { X, User, Lock, CheckCircle2, AlertCircle, KeyRound, Shield, Loader2, Mail } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { updateUserDisplayName, updateUserPassword } from "@/lib/auth";
+import { updateUserDisplayName, updateUserPassword, updateUserEmail } from "@/lib/auth";
 import { updateClientProfileName } from "@/lib/songLibraryService";
 
 interface AccountSettingsModalProps {
@@ -13,6 +13,7 @@ interface AccountSettingsModalProps {
   role: "admin" | "worker" | "client";
   clientId?: string;
   onNameUpdated?: (newName: string) => void;
+  onEmailUpdated?: (newEmail: string) => void;
 }
 
 export function AccountSettingsModal({
@@ -23,14 +24,24 @@ export function AccountSettingsModal({
   role,
   clientId,
   onNameUpdated,
+  onEmailUpdated,
 }: AccountSettingsModalProps) {
-  const [activeTab, setActiveTab] = useState<"profile" | "password">("profile");
+  const [activeTab, setActiveTab] = useState<"profile" | "email" | "password">("profile");
 
   // Name state
   const [name, setName] = useState(currentName);
   const [partnerName, setPartnerName] = useState("");
   const [nameSaving, setNameSaving] = useState(false);
   const [nameMessage, setNameMessage] = useState<{
+    type: "success" | "error";
+    text: string;
+  } | null>(null);
+
+  // Email update state
+  const [newEmail, setNewEmail] = useState(userEmail);
+  const [emailPassword, setEmailPassword] = useState("");
+  const [emailSaving, setEmailSaving] = useState(false);
+  const [emailMessage, setEmailMessage] = useState<{
     type: "success" | "error";
     text: string;
   } | null>(null);
@@ -84,6 +95,60 @@ export function AccountSettingsModal({
       });
     } finally {
       setNameSaving(false);
+    }
+  };
+
+  const handleUpdateEmail = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setEmailMessage(null);
+
+    const trimmed = newEmail.trim().toLowerCase();
+    if (!trimmed || !trimmed.includes("@")) {
+      setEmailMessage({ type: "error", text: "Please enter a valid email address." });
+      return;
+    }
+    if (trimmed === userEmail.toLowerCase()) {
+      setEmailMessage({ type: "error", text: "New email must be different from current email." });
+      return;
+    }
+    if (!emailPassword) {
+      setEmailMessage({
+        type: "error",
+        text: "Please enter your current account password to confirm changing your email.",
+      });
+      return;
+    }
+
+    setEmailSaving(true);
+    try {
+      const res = await updateUserEmail({
+        newEmail: trimmed,
+        currentPassword: emailPassword,
+      });
+
+      if (!res.success) {
+        setEmailMessage({
+          type: "error",
+          text: res.error || "Failed to update email. Please verify your password.",
+        });
+        return;
+      }
+
+      setEmailMessage({
+        type: "success",
+        text:
+          res.message ||
+          "Email update requested! A confirmation link has been sent to your new email.",
+      });
+      setEmailPassword("");
+      onEmailUpdated?.(trimmed);
+    } catch (err) {
+      setEmailMessage({
+        type: "error",
+        text: err instanceof Error ? err.message : "Failed to update email.",
+      });
+    } finally {
+      setEmailSaving(false);
     }
   };
 
@@ -203,6 +268,18 @@ export function AccountSettingsModal({
           </button>
           <button
             type="button"
+            onClick={() => setActiveTab("email")}
+            className={`flex-1 py-3 text-xs font-medium text-center transition-colors border-b-2 flex items-center justify-center gap-2 ${
+              activeTab === "email"
+                ? "border-[#c56c7d] text-[#e7a0ad] bg-[#19151c]"
+                : "border-transparent text-[#b8adb2] hover:text-[#f7f0ee]"
+            }`}
+          >
+            <Mail className="size-3.5" />
+            Change Email
+          </button>
+          <button
+            type="button"
             onClick={() => setActiveTab("password")}
             className={`flex-1 py-3 text-xs font-medium text-center transition-colors border-b-2 flex items-center justify-center gap-2 ${
               activeTab === "password"
@@ -251,9 +328,19 @@ export function AccountSettingsModal({
               )}
 
               <div>
-                <label className="block text-xs font-medium text-[#b8adb2] mb-1.5">
-                  Email Address
-                </label>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="block text-xs font-medium text-[#b8adb2]">
+                    Email Address
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab("email")}
+                    className="text-[11px] text-[#e7a0ad] hover:underline flex items-center gap-1"
+                  >
+                    <span>Change Email</span>
+                    <Mail className="size-3" />
+                  </button>
+                </div>
                 <Input
                   type="text"
                   value={userEmail}
@@ -261,7 +348,7 @@ export function AccountSettingsModal({
                   className="bg-[#100d10] border-[#30282e]/60 text-[#82767d] h-10 text-sm cursor-not-allowed"
                 />
                 <span className="text-[10px] text-[#82767d] mt-1 block">
-                  Email is linked to your studio credentials and cannot be changed here.
+                  To change your login email address, use the &quot;Change Email&quot; tab with password verification.
                 </span>
               </div>
 
@@ -302,6 +389,108 @@ export function AccountSettingsModal({
                     </span>
                   ) : (
                     "Save Changes"
+                  )}
+                </Button>
+              </div>
+            </form>
+          )}
+
+          {activeTab === "email" && (
+            <form onSubmit={handleUpdateEmail} className="space-y-4">
+              <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-3 text-xs text-amber-200/90 leading-relaxed">
+                <p className="font-medium text-amber-200 flex items-center gap-1.5">
+                  <Shield className="size-3.5 text-amber-300" />
+                  Password Verification Required
+                </p>
+                <p className="text-[11px] text-amber-300/80 mt-1">
+                  For security, you must enter your current password before updating your studio admin email address.
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-[#b8adb2] mb-1.5">
+                  Current Email
+                </label>
+                <Input
+                  type="text"
+                  value={userEmail}
+                  disabled
+                  className="bg-[#100d10] border-[#30282e]/60 text-[#82767d] h-10 text-sm cursor-not-allowed"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-[#b8adb2] mb-1.5">
+                  New Gmail / Email Address <span className="text-rose-400">*</span>
+                </label>
+                <div className="relative">
+                  <Input
+                    type="email"
+                    value={newEmail}
+                    onChange={(e) => setNewEmail(e.target.value)}
+                    placeholder="newadmin@gmail.com"
+                    required
+                    className="bg-[#1b181d] border-[#30282e] text-[#f7f0ee] placeholder:text-[#82767d] h-10 text-sm focus:border-[#c56c7d]"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-[#b8adb2] mb-1.5">
+                  Confirm Current Password <span className="text-rose-400">*</span>
+                </label>
+                <div className="relative">
+                  <Input
+                    type="password"
+                    value={emailPassword}
+                    onChange={(e) => setEmailPassword(e.target.value)}
+                    placeholder="Enter your current password"
+                    required
+                    className="bg-[#1b181d] border-[#30282e] text-[#f7f0ee] placeholder:text-[#82767d] h-10 text-sm focus:border-[#c56c7d]"
+                  />
+                </div>
+                <span className="text-[10px] text-[#82767d] mt-1 block">
+                  Enter your current account password to authorize changing your email.
+                </span>
+              </div>
+
+              {emailMessage && (
+                <div
+                  className={`flex items-start gap-2 rounded-xl p-3 text-xs ${
+                    emailMessage.type === "success"
+                      ? "border border-emerald-500/30 bg-emerald-500/10 text-emerald-300"
+                      : "border border-rose-500/30 bg-rose-500/10 text-rose-300"
+                  }`}
+                >
+                  {emailMessage.type === "success" ? (
+                    <CheckCircle2 className="size-4 shrink-0 mt-0.5" />
+                  ) : (
+                    <AlertCircle className="size-4 shrink-0 mt-0.5" />
+                  )}
+                  <span>{emailMessage.text}</span>
+                </div>
+              )}
+
+              <div className="pt-2 flex justify-end gap-2.5">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={onClose}
+                  className="border-[#30282e] bg-transparent text-[#b8adb2] hover:bg-white/5 text-xs h-9 px-4 rounded-lg"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="submit"
+                  disabled={emailSaving}
+                  className="bg-[#c56c7d] hover:bg-[#b05869] text-white text-xs h-9 px-5 rounded-lg font-medium"
+                >
+                  {emailSaving ? (
+                    <span className="flex items-center gap-1.5">
+                      <Loader2 className="size-3.5 animate-spin" /> Verifying & Updating...
+                    </span>
+                  ) : (
+                    "Update Email"
                   )}
                 </Button>
               </div>
