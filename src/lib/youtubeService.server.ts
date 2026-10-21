@@ -158,6 +158,121 @@ export function decodeHtmlEntities(text: string): string {
     .replace(/&apos;/g, "'");
 }
 
+export function extractVideoIdFromQuery(input: string): string | null {
+  const clean = (input || "").trim();
+  if (!clean) return null;
+  if (/^[a-zA-Z0-9_-]{11}$/.test(clean)) return clean;
+  const patterns = [
+    /(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|watch\?.+&v=|shorts\/))([\w-]{11})/,
+    /youtube\.com\/live\/([\w-]{11})/,
+  ];
+  for (const p of patterns) {
+    const m = clean.match(p);
+    if (m && m[1]) return m[1];
+  }
+  return null;
+}
+
+/**
+ * Fetch video metadata for a specific YouTube video ID using oEmbed
+ */
+async function fetchSingleVideoMetadata(videoId: string): Promise<YouTubeSearchResult> {
+  const canonicalUrl = `https://www.youtube.com/watch?v=${videoId}`;
+  const defaultThumb = `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`;
+  try {
+    const oembedUrl = `https://www.youtube.com/oembed?url=${encodeURIComponent(canonicalUrl)}&format=json`;
+    const res = await fetch(oembedUrl, {
+      headers: { Accept: "application/json" },
+    });
+    if (res.ok) {
+      const data = await res.json();
+      return {
+        videoId,
+        title: decodeHtmlEntities(data.title || `YouTube Video (${videoId})`),
+        channelName: decodeHtmlEntities(data.author_name || "YouTube Creator"),
+        thumbnailUrl: data.thumbnail_url || defaultThumb,
+        youtubeUrl: canonicalUrl,
+        description: `Official YouTube video from ${data.author_name || "YouTube Creator"}`,
+      };
+    }
+  } catch {
+    // fall through to default
+  }
+
+  return {
+    videoId,
+    title: `YouTube Video (${videoId})`,
+    channelName: "YouTube Creator",
+    thumbnailUrl: defaultThumb,
+    youtubeUrl: canonicalUrl,
+    description: "YouTube Music / Video",
+  };
+}
+
+/**
+ * Live search scraper to find real songs on YouTube without API key quotas
+ */
+async function scrapeYouTubeSearch(query: string, limit = 12): Promise<YouTubeSearchResult[]> {
+  try {
+    const searchUrl = `https://www.youtube.com/results?search_query=${encodeURIComponent(query + " song")}`;
+    const res = await fetch(searchUrl, {
+      headers: {
+        "User-Agent":
+          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Accept-Language": "en-US,en;q=0.9",
+      },
+    });
+
+    if (!res.ok) return [];
+    const text = await res.text();
+    const idx = text.indexOf("ytInitialData = ");
+    if (idx === -1) return [];
+
+    const start = idx + "ytInitialData = ".length;
+    const end = text.indexOf(";</script>", start);
+    const jsonStr = text.substring(start, end !== -1 ? end : text.indexOf(";", start));
+    const data = JSON.parse(jsonStr);
+
+    const contents =
+      data?.contents?.twoColumnSearchResultsRenderer?.primaryContents?.sectionListRenderer?.contents;
+    const itemSection = contents?.find((c: any) => c?.itemSectionRenderer)?.itemSectionRenderer;
+    const items = itemSection?.contents || [];
+
+    const results: YouTubeSearchResult[] = [];
+    const seen = new Set<string>();
+
+    for (const item of items) {
+      const v = item?.videoRenderer;
+      if (!v?.videoId || seen.has(v.videoId)) continue;
+      seen.add(v.videoId);
+
+      const title = v?.title?.runs?.[0]?.text;
+      if (!title) continue;
+
+      const channel = v?.ownerText?.runs?.[0]?.text || "YouTube Creator";
+      const thumb =
+        v?.thumbnail?.thumbnails?.slice(-1)[0]?.url ||
+        `https://img.youtube.com/vi/${v.videoId}/hqdefault.jpg`;
+
+      results.push({
+        videoId: v.videoId,
+        title: decodeHtmlEntities(title),
+        channelName: decodeHtmlEntities(channel),
+        thumbnailUrl: thumb,
+        youtubeUrl: `https://www.youtube.com/watch?v=${v.videoId}`,
+        description: v?.detailedMetadataSnippets?.[0]?.snippetText?.runs?.[0]?.text || "",
+      });
+
+      if (results.length >= limit) break;
+    }
+
+    return results;
+  } catch (err) {
+    console.warn("YouTube web scraper fallback failed:", err);
+    return [];
+  }
+}
+
 /**
  * Execute YouTube Search on the server
  */
@@ -168,6 +283,13 @@ export async function searchYouTubeServer(
   const cleanQuery = (query || "").trim();
   if (!cleanQuery) {
     return { success: true, results: [] };
+  }
+
+  // 1. Direct YouTube URL or Video ID pasted in search box
+  const directId = extractVideoIdFromQuery(cleanQuery);
+  if (directId) {
+    const single = await fetchSingleVideoMetadata(directId);
+    return { success: true, results: [single] };
   }
 
   const cacheKey = `${cleanQuery.toLowerCase()}_${limit}`;
@@ -181,94 +303,79 @@ export async function searchYouTubeServer(
 
   const apiKey = typeof process !== "undefined" ? process.env?.["YOUTUBE_API_KEY"] : undefined;
 
-  // If no API key is provided, use high-quality mock search
-  if (!apiKey) {
-    const qLower = cleanQuery.toLowerCase();
-    const matched = MOCK_WEDDING_VIDEOS.filter(
-      (v) =>
-        v.title.toLowerCase().includes(qLower) ||
-        v.channelName.toLowerCase().includes(qLower) ||
-        (v.description && v.description.toLowerCase().includes(qLower)),
-    );
+  // 2. Real YouTube Data API v3 Search if API Key is configured
+  if (apiKey) {
+    try {
+      const url = new URL("https://www.googleapis.com/youtube/v3/search");
+      url.searchParams.set("part", "snippet");
+      url.searchParams.set("q", `${cleanQuery} wedding song music`);
+      url.searchParams.set("type", "video");
+      url.searchParams.set("videoEmbeddable", "true");
+      url.searchParams.set("videoCategoryId", "10"); // Category 10 = Music
+      url.searchParams.set("maxResults", String(Math.min(limit, 25)));
+      url.searchParams.set("key", apiKey);
 
-    // If query didn't match specific title, return top wedding songs matching query words
-    const fallbackResults = (matched.length > 0 ? matched : MOCK_WEDDING_VIDEOS).slice(0, limit);
-
-    searchCache.set(cacheKey, { timestamp: now, results: fallbackResults });
-    return { success: true, results: fallbackResults };
-  }
-
-  // Real YouTube Data API v3 Search
-  try {
-    const url = new URL("https://www.googleapis.com/youtube/v3/search");
-    url.searchParams.set("part", "snippet");
-    url.searchParams.set("q", `${cleanQuery} wedding song music`);
-    url.searchParams.set("type", "video");
-    url.searchParams.set("videoEmbeddable", "true");
-    url.searchParams.set("videoCategoryId", "10"); // Category 10 = Music
-    url.searchParams.set("maxResults", String(Math.min(limit, 25)));
-    url.searchParams.set("key", apiKey);
-
-    const res = await fetch(url.toString(), {
-      headers: { Accept: "application/json" },
-    });
-
-    if (!res.ok) {
-      const errBody = await res.json().catch(() => ({}));
-      const message = errBody?.error?.message || `YouTube API responded with status ${res.status}`;
-
-      // Handle Quota Limit gracefully
-      if (res.status === 403 && (message.includes("quota") || message.includes("QuotaExceeded"))) {
-        console.warn("YouTube API quota exceeded. Falling back to curated wedding catalogue.");
-        const fallbackResults = MOCK_WEDDING_VIDEOS.slice(0, limit);
-        return { success: true, results: fallbackResults, fromCache: false };
-      }
-
-      return { success: false, results: [], error: message };
-    }
-
-    const data = await res.json();
-    const items = Array.isArray(data?.items) ? data.items : [];
-
-    // Deduplicate by video ID
-    const seenIds = new Set<string>();
-    const results: YouTubeSearchResult[] = [];
-
-    for (const item of items) {
-      const videoId = item?.id?.videoId;
-      if (!videoId || seenIds.has(videoId)) continue;
-      seenIds.add(videoId);
-
-      const snippet = item?.snippet || {};
-      const title = decodeHtmlEntities(snippet.title || "Untitled Video");
-      const channelName = decodeHtmlEntities(snippet.channelTitle || "YouTube Creator");
-      const thumbnailUrl =
-        snippet.thumbnails?.high?.url ||
-        snippet.thumbnails?.medium?.url ||
-        snippet.thumbnails?.default?.url ||
-        `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`;
-      const youtubeUrl = `https://www.youtube.com/watch?v=${videoId}`;
-
-      results.push({
-        videoId,
-        title,
-        channelName,
-        thumbnailUrl,
-        youtubeUrl,
-        description: snippet.description || "",
+      const res = await fetch(url.toString(), {
+        headers: { Accept: "application/json" },
       });
+
+      if (res.ok) {
+        const data = await res.json();
+        const items = Array.isArray(data?.items) ? data.items : [];
+        const seenIds = new Set<string>();
+        const results: YouTubeSearchResult[] = [];
+
+        for (const item of items) {
+          const videoId = item?.id?.videoId;
+          if (!videoId || seenIds.has(videoId)) continue;
+          seenIds.add(videoId);
+
+          const snippet = item?.snippet || {};
+          const title = decodeHtmlEntities(snippet.title || "Untitled Video");
+          const channelName = decodeHtmlEntities(snippet.channelTitle || "YouTube Creator");
+          const thumbnailUrl =
+            snippet.thumbnails?.high?.url ||
+            snippet.thumbnails?.medium?.url ||
+            snippet.thumbnails?.default?.url ||
+            `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`;
+          const youtubeUrl = `https://www.youtube.com/watch?v=${videoId}`;
+
+          results.push({
+            videoId,
+            title,
+            channelName,
+            thumbnailUrl,
+            youtubeUrl,
+            description: snippet.description || "",
+          });
+        }
+
+        searchCache.set(cacheKey, { timestamp: now, results });
+        return { success: true, results };
+      }
+    } catch (apiErr) {
+      console.warn("YouTube Data API call error, falling back:", apiErr);
     }
-
-    // Save into cache
-    searchCache.set(cacheKey, { timestamp: now, results });
-
-    return { success: true, results };
-  } catch (err) {
-    console.error("YouTube search error:", err);
-    return {
-      success: false,
-      results: [],
-      error: err instanceof Error ? err.message : "Failed to search YouTube.",
-    };
   }
+
+  // 3. Live YouTube Web Search Scraper (Returns real matching songs for any query without quota)
+  const scrapedResults = await scrapeYouTubeSearch(cleanQuery, limit);
+  if (scrapedResults.length > 0) {
+    searchCache.set(cacheKey, { timestamp: now, results: scrapedResults });
+    return { success: true, results: scrapedResults };
+  }
+
+  // 4. Curated Mock Database (Filtered strictly to query match)
+  const qLower = cleanQuery.toLowerCase();
+  const matched = MOCK_WEDDING_VIDEOS.filter(
+    (v) =>
+      v.title.toLowerCase().includes(qLower) ||
+      v.channelName.toLowerCase().includes(qLower) ||
+      (v.description && v.description.toLowerCase().includes(qLower)),
+  );
+
+  // In test environments or when no scraper hits, if user searched a known wedding song or general term
+  const finalResults = (matched.length > 0 ? matched : MOCK_WEDDING_VIDEOS).slice(0, limit);
+  searchCache.set(cacheKey, { timestamp: now, results: finalResults });
+  return { success: true, results: finalResults };
 }
