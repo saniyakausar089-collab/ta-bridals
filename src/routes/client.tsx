@@ -1223,6 +1223,9 @@ function ClientRouteComponent() {
                     autoComplete="tel"
                   />
                 </div>
+                <p className="mt-1 text-[11px] text-stone-400">
+                  Enter your registered mobile number (or email)
+                </p>
               </div>
 
               <div>
