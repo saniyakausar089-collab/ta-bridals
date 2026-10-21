@@ -239,7 +239,8 @@ export function SongLibraryAdminSection() {
   const handleApprove = async (clientId: string) => {
     setErrorMessage("");
     setSuccessMessage("");
-    const libraryId = selectedLibraryMap[clientId];
+    const activeLibs = libraries.filter((l) => !l.isArchived);
+    const libraryId = selectedLibraryMap[clientId] || activeLibs[0]?.id;
 
     try {
       const res = await approveClient(clientId, libraryId);
@@ -249,6 +250,23 @@ export function SongLibraryAdminSection() {
       }
       setSuccessMessage(
         `Client successfully approved${libraryId ? " and assigned to library." : "."}`,
+      );
+      // Optimistic state update
+      const libObj = libraries.find((l) => l.id === libraryId);
+      setClients((prev) =>
+        prev.map((c) => {
+          if (c.id !== clientId) return c;
+          const assignedIds = libraryId ? [libraryId] : [];
+          const assignedNames = libObj?.name ? [libObj.name] : [];
+          return {
+            ...c,
+            approvalStatus: "approved",
+            assignedLibraryId: libraryId || null,
+            assignedLibraryName: libObj?.name,
+            assignedLibraryIds: assignedIds,
+            assignedLibraryNames: assignedNames,
+          };
+        }),
       );
       await loadData();
     } catch (err) {
@@ -327,12 +345,33 @@ export function SongLibraryAdminSection() {
     setErrorMessage("");
     setSuccessMessage("");
     try {
+      const libObj = libraries.find((l) => l.id === libraryId);
       const res = await addLibraryToClient(clientId, libraryId);
       if (!res.success) {
         setErrorMessage(res.error || "Failed to add library assignment.");
         return;
       }
       setSuccessMessage("Library successfully added to client.");
+      // Optimistic state update
+      setClients((prev) =>
+        prev.map((c) => {
+          if (c.id !== clientId) return c;
+          const currentIds = c.assignedLibraryIds || (c.assignedLibraryId ? [c.assignedLibraryId] : []);
+          const currentNames = c.assignedLibraryNames || (c.assignedLibraryName ? [c.assignedLibraryName] : []);
+          if (!currentIds.includes(libraryId)) {
+            const nextIds = [...currentIds, libraryId];
+            const nextNames = [...currentNames, libObj?.name || "Library"];
+            return {
+              ...c,
+              assignedLibraryId: nextIds[0] || null,
+              assignedLibraryName: nextNames.join(", "),
+              assignedLibraryIds: nextIds,
+              assignedLibraryNames: nextNames,
+            };
+          }
+          return c;
+        }),
+      );
       await loadData();
     } catch (err) {
       setErrorMessage(err instanceof Error ? err.message : "Error adding library.");
@@ -349,6 +388,22 @@ export function SongLibraryAdminSection() {
         return;
       }
       setSuccessMessage("Library assignment removed.");
+      // Optimistic state update
+      setClients((prev) =>
+        prev.map((c) => {
+          if (c.id !== clientId) return c;
+          const libMap = new Map(libraries.map((l) => [l.id, l.name]));
+          const nextIds = (c.assignedLibraryIds || []).filter((id) => id !== libraryId);
+          const nextNames = nextIds.map((id) => libMap.get(id)).filter(Boolean) as string[];
+          return {
+            ...c,
+            assignedLibraryId: nextIds[0] || null,
+            assignedLibraryName: nextNames.join(", "),
+            assignedLibraryIds: nextIds,
+            assignedLibraryNames: nextNames,
+          };
+        }),
+      );
       await loadData();
     } catch (err) {
       setErrorMessage(err instanceof Error ? err.message : "Error removing library.");

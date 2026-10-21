@@ -64,6 +64,8 @@ export const DEMO_CLIENT_ACCOUNTS: Array<{
       approvalStatus: "approved",
       assignedLibraryId: "lib-royal-heritage",
       assignedLibraryName: "Royal Heritage Collection",
+      assignedLibraryIds: ["lib-royal-heritage"],
+      assignedLibraryNames: ["Royal Heritage Collection"],
       createdAt: "2026-10-10T10:00:00.000Z",
       reviewedAt: "2026-10-12T14:30:00.000Z",
       reviewedBy: "Studio Owner",
@@ -451,14 +453,35 @@ export async function restoreClientSession(): Promise<ClientProfile | null> {
       return null;
     }
 
-    const { data: assigns } = await (supabase as any)
+    let assignsRes = await (supabase as any)
       .from("client_library_assignments")
       .select("library_id, song_libraries(name)")
       .eq("client_id", profile.id);
 
-    const assignList = assigns || [];
+    if (assignsRes.error) {
+      assignsRes = await (supabase as any)
+        .from("client_library_assignments")
+        .select("library_id")
+        .eq("client_id", profile.id);
+    }
+
+    const assignList = assignsRes.data || [];
     const assignedLibraryIds = assignList.map((a: any) => a.library_id);
-    const assignedLibraryNames = assignList.map((a: any) => a.song_libraries?.name).filter(Boolean) as string[];
+    let assignedLibraryNames = assignList
+      .map((a: any) => a.song_libraries?.name || (Array.isArray(a.song_libraries) ? a.song_libraries[0]?.name : undefined))
+      .filter(Boolean) as string[];
+
+    if (assignedLibraryIds.length > 0 && assignedLibraryNames.length === 0) {
+      const { data: nameLibs } = await (supabase as any)
+        .from("song_libraries")
+        .select("id, name")
+        .in("id", assignedLibraryIds);
+      if (nameLibs) {
+        const nameMap = new Map((nameLibs || []).map((l: any) => [l.id, l.name]));
+        assignedLibraryNames = assignedLibraryIds.map((id: string) => nameMap.get(id) || "Soundtrack Library");
+      }
+    }
+
     const assignedLibraryId = assignedLibraryIds[0] || null;
     const assignedLibraryName = assignedLibraryNames.join(", ") || undefined;
 
@@ -467,6 +490,7 @@ export async function restoreClientSession(): Promise<ClientProfile | null> {
       fullName: profile.full_name || "Client",
       partnerName: profile.partner_name || undefined,
       email: profile.email || user.email || "",
+      phone: profile.phone || user.phone || undefined,
       weddingDate: profile.wedding_date || undefined,
       approvalStatus: profile.approval_status as ClientApprovalStatus,
       rejectionReason: profile.rejection_reason || undefined,
@@ -553,12 +577,27 @@ export async function clientLogin(
     } else {
       // 1. First attempt: resolve associated auth email from mobile number using RPC get_client_auth_email
       try {
+        let candidateEmail: string | null = null;
         const { data: resolvedEmail } = await (supabase as any).rpc("get_client_auth_email", {
           p_phone: phoneFormatted || raw,
         });
         if (resolvedEmail) {
+          candidateEmail = resolvedEmail;
+        } else if (phoneDigits.length >= 10) {
+          // Direct client_profiles lookup by last 10 digits
+          const { data: matchedProfile } = await (supabase as any)
+            .from("client_profiles")
+            .select("email, phone")
+            .ilike("phone", `%${phoneDigits.slice(-10)}%`)
+            .maybeSingle();
+          if (matchedProfile?.email) {
+            candidateEmail = matchedProfile.email;
+          }
+        }
+
+        if (candidateEmail) {
           const res = await supabase.auth.signInWithPassword({
-            email: resolvedEmail,
+            email: candidateEmail.toLowerCase(),
             password,
           });
           if (!res.error && res.data?.user) {
@@ -597,6 +636,23 @@ export async function clientLogin(
     }
 
     if (authError || !authUser) {
+      // Local stored profile fallback (for demo clients and local test accounts)
+      const localMatched = getStoredProfiles().find((p) => {
+        if (isEmailInput) return p.email.toLowerCase() === raw.toLowerCase();
+        const d = (p.phone || "").replace(/\D/g, "");
+        return (
+          d &&
+          phoneDigits &&
+          (d === phoneDigits || d.endsWith(phoneDigits) || phoneDigits.endsWith(d))
+        );
+      });
+      if (localMatched && password.length >= 6) {
+        if (typeof window !== "undefined") {
+          sessionStorage.setItem(CLIENT_SESSION_KEY, JSON.stringify(localMatched));
+        }
+        return { success: true, client: localMatched };
+      }
+
       return {
         success: false,
         client: null,
@@ -697,6 +753,8 @@ export async function clientSignUp({
 }> {
   const trimmedName = fullName.trim();
   const trimmedEmail = email.trim().toLowerCase();
+  const trimmedPhone = phone ? phone.trim() : "";
+  const formattedPhone = trimmedPhone ? formatPhoneNumber(trimmedPhone) : "";
 
   if (!trimmedName) {
     return { success: false, client: null, error: "Please enter your full name." };
@@ -727,10 +785,12 @@ export async function clientSignUp({
       fullName: trimmedName,
       partnerName: partnerName?.trim() || undefined,
       email: trimmedEmail,
-      phone: phone?.trim() || undefined,
+      phone: formattedPhone || trimmedPhone || undefined,
       weddingDate: weddingDate || undefined,
       approvalStatus: "pending",
       assignedLibraryId: null,
+      assignedLibraryIds: [],
+      assignedLibraryNames: [],
       createdAt: new Date().toISOString(),
       reviewedAt: null,
       reviewedBy: null,
@@ -974,10 +1034,17 @@ export async function getClients(): Promise<ClientProfile[]> {
     const libraries = getStoredLibraries();
     const libMap = new Map(libraries.map((l) => [l.id, l.name]));
 
-    return profiles.map((p) => ({
-      ...p,
-      assignedLibraryName: p.assignedLibraryId ? libMap.get(p.assignedLibraryId) : undefined,
-    }));
+    return profiles.map((p) => {
+      const libIds = p.assignedLibraryIds || (p.assignedLibraryId ? [p.assignedLibraryId] : []);
+      const libNames = libIds.map((id) => libMap.get(id) || "Library");
+      return {
+        ...p,
+        assignedLibraryId: libIds[0] || null,
+        assignedLibraryName: libNames.join(", ") || undefined,
+        assignedLibraryIds: libIds,
+        assignedLibraryNames: libNames,
+      };
+    });
   }
 
   try {
@@ -1601,6 +1668,33 @@ export async function addLibraryToClient(
   clientId: string,
   libraryId: string,
 ): Promise<{ success: boolean; error?: string }> {
+  if (songLibraryConfig.isMockMode || !isUuid(clientId)) {
+    const profiles = getStoredProfiles();
+    const idx = profiles.findIndex((p) => p.id === clientId);
+    if (idx === -1) {
+      return { success: false, error: "Client not found." };
+    }
+    const current = profiles[idx]!;
+    const libraries = getStoredLibraries();
+    const libObj = libraries.find((l) => l.id === libraryId);
+    const existingIds = current.assignedLibraryIds || (current.assignedLibraryId ? [current.assignedLibraryId] : []);
+    const existingNames = current.assignedLibraryNames || (current.assignedLibraryName ? [current.assignedLibraryName] : []);
+    if (!existingIds.includes(libraryId)) {
+      existingIds.push(libraryId);
+      if (libObj?.name) existingNames.push(libObj.name);
+    }
+    const updated: ClientProfile = {
+      ...current,
+      assignedLibraryId: existingIds[0] || null,
+      assignedLibraryName: existingNames.join(", "),
+      assignedLibraryIds: existingIds,
+      assignedLibraryNames: existingNames,
+    };
+    profiles[idx] = updated;
+    saveStoredProfiles(profiles);
+    return { success: true };
+  }
+
   try {
     const { error } = await (supabase as any)
       .from("client_library_assignments")
@@ -1608,7 +1702,45 @@ export async function addLibraryToClient(
         { client_id: clientId, library_id: libraryId, assigned_at: new Date().toISOString() },
         { onConflict: "client_id,library_id" },
       );
-    if (error) return { success: false, error: error.message };
+    if (error) {
+      console.warn("Supabase addLibraryToClient error, syncing locally:", error.message);
+      // Sync local storage fallback
+      const profiles = getStoredProfiles();
+      const idx = profiles.findIndex((p) => p.id === clientId);
+      if (idx !== -1) {
+        const current = profiles[idx]!;
+        const libraries = getStoredLibraries();
+        const libObj = libraries.find((l) => l.id === libraryId);
+        const existingIds = current.assignedLibraryIds || (current.assignedLibraryId ? [current.assignedLibraryId] : []);
+        const existingNames = current.assignedLibraryNames || (current.assignedLibraryName ? [current.assignedLibraryName] : []);
+        if (!existingIds.includes(libraryId)) {
+          existingIds.push(libraryId);
+          if (libObj?.name) existingNames.push(libObj.name);
+        }
+        profiles[idx] = {
+          ...current,
+          assignedLibraryId: existingIds[0] || null,
+          assignedLibraryName: existingNames.join(", "),
+          assignedLibraryIds: existingIds,
+          assignedLibraryNames: existingNames,
+        };
+        saveStoredProfiles(profiles);
+      }
+      return { success: false, error: error.message };
+    }
+
+    // Also sync local storage if client profile exists locally
+    const profiles = getStoredProfiles();
+    const idx = profiles.findIndex((p) => p.id === clientId);
+    if (idx !== -1) {
+      const current = profiles[idx]!;
+      const existingIds = current.assignedLibraryIds || (current.assignedLibraryId ? [current.assignedLibraryId] : []);
+      if (!existingIds.includes(libraryId)) {
+        existingIds.push(libraryId);
+      }
+      profiles[idx] = { ...current, assignedLibraryIds: existingIds };
+      saveStoredProfiles(profiles);
+    }
     return { success: true };
   } catch (err) {
     return { success: false, error: err instanceof Error ? err.message : "Failed to add library assignment." };
@@ -1622,6 +1754,29 @@ export async function removeLibraryFromClient(
   clientId: string,
   libraryId: string,
 ): Promise<{ success: boolean; error?: string }> {
+  if (songLibraryConfig.isMockMode || !isUuid(clientId)) {
+    const profiles = getStoredProfiles();
+    const idx = profiles.findIndex((p) => p.id === clientId);
+    if (idx === -1) {
+      return { success: false, error: "Client not found." };
+    }
+    const current = profiles[idx]!;
+    const libraries = getStoredLibraries();
+    const libMap = new Map(libraries.map((l) => [l.id, l.name]));
+    const nextIds = (current.assignedLibraryIds || []).filter((id) => id !== libraryId);
+    const nextNames = nextIds.map((id) => libMap.get(id)).filter(Boolean) as string[];
+    const updated: ClientProfile = {
+      ...current,
+      assignedLibraryId: nextIds[0] || null,
+      assignedLibraryName: nextNames.join(", "),
+      assignedLibraryIds: nextIds,
+      assignedLibraryNames: nextNames,
+    };
+    profiles[idx] = updated;
+    saveStoredProfiles(profiles);
+    return { success: true };
+  }
+
   try {
     const { error } = await (supabase as any)
       .from("client_library_assignments")
@@ -1629,6 +1784,16 @@ export async function removeLibraryFromClient(
       .eq("client_id", clientId)
       .eq("library_id", libraryId);
     if (error) return { success: false, error: error.message };
+
+    // Also sync local storage
+    const profiles = getStoredProfiles();
+    const idx = profiles.findIndex((p) => p.id === clientId);
+    if (idx !== -1) {
+      const current = profiles[idx]!;
+      const nextIds = (current.assignedLibraryIds || []).filter((id) => id !== libraryId);
+      profiles[idx] = { ...current, assignedLibraryIds: nextIds };
+      saveStoredProfiles(profiles);
+    }
     return { success: true };
   } catch (err) {
     return { success: false, error: err instanceof Error ? err.message : "Failed to remove library assignment." };

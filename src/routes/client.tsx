@@ -91,8 +91,8 @@ function ClientRouteComponent() {
   const [savingCustomSong, setSavingCustomSong] = useState<boolean>(false);
   const [customSongNotice, setCustomSongNotice] = useState<string>("");
 
-  // Login form state
-  const [loginPhone, setLoginPhone] = useState<string>("");
+  // Login form state (supports mobile number or email)
+  const [loginIdentifier, setLoginIdentifier] = useState<string>("");
   const [loginPassword, setLoginPassword] = useState<string>("");
 
   // Signup form state (role is NEVER an option)
@@ -117,7 +117,7 @@ function ClientRouteComponent() {
   const handleQuickDemo = (demoAccount: (typeof DEMO_CLIENT_ACCOUNTS)[number]) => {
     setAuthError("");
     setSuccessNotice("");
-    setLoginPhone(demoAccount.profile.phone || demoAccount.profile.email);
+    setLoginIdentifier(demoAccount.profile.phone || demoAccount.profile.email);
     setLoginPassword(demoAccount.demoPasswordHint);
     setMode("login");
   };
@@ -129,7 +129,7 @@ function ClientRouteComponent() {
     setLoading(true);
 
     try {
-      const res = await clientLogin(loginPhone, loginPassword);
+      const res = await clientLogin(loginIdentifier, loginPassword);
       if (!res.success || !res.client) {
         setAuthError(res.error || "Login failed.");
       } else {
@@ -189,8 +189,13 @@ function ClientRouteComponent() {
     if (!session) return;
     setCheckingStatus(true);
     try {
-      const newStatus = await refreshClientStatus(session.id);
-      setSession((prev) => (prev ? { ...prev, approvalStatus: newStatus } : null));
+      const updatedProfile = await restoreClientSession();
+      if (updatedProfile) {
+        setSession(updatedProfile);
+      } else {
+        const newStatus = await refreshClientStatus(session.id);
+        setSession((prev) => (prev ? { ...prev, approvalStatus: newStatus } : null));
+      }
     } finally {
       setCheckingStatus(false);
     }
@@ -1210,21 +1215,23 @@ function ClientRouteComponent() {
           {mode === "login" ? (
             <form onSubmit={handleLoginSubmit} className="mt-6 space-y-4">
               <div>
-                <label className="block text-xs font-medium text-stone-700">Mobile Number</label>
+                <label className="block text-xs font-medium text-stone-700">
+                  Mobile Number or Email
+                </label>
                 <div className="relative mt-1">
                   <Phone className="absolute left-3 top-2.5 size-4 text-stone-400" />
                   <Input
-                    type="tel"
+                    type="text"
                     required
-                    placeholder="+91 98765 43210 or your mobile number"
-                    value={loginPhone}
-                    onChange={(e) => setLoginPhone(e.target.value)}
+                    placeholder="+91 98765 43210 or your email"
+                    value={loginIdentifier}
+                    onChange={(e) => setLoginIdentifier(e.target.value)}
                     className="pl-9 text-xs"
-                    autoComplete="tel"
+                    autoComplete="username tel"
                   />
                 </div>
                 <p className="mt-1 text-[11px] text-stone-400">
-                  Enter your registered mobile number (or email)
+                  Enter your registered mobile number (e.g. +91 98765 43210) or email address
                 </p>
               </div>
 
