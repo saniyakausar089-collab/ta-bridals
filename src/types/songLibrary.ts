@@ -36,6 +36,8 @@ export interface ClientProfile {
   rejectionReason?: string | undefined;
   assignedLibraryId: string | null;
   assignedLibraryName?: string | undefined;
+  assignedLibraryIds?: string[] | undefined;
+  assignedLibraryNames?: string[] | undefined;
   createdAt: string;
   reviewedAt?: string | null | undefined;
   reviewedBy?: string | null | undefined;

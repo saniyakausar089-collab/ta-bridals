@@ -39,6 +39,7 @@ import {
   restoreClientSession,
   refreshClientStatus,
   getSongsByLibrary,
+  getSongsByMultipleLibraries,
   getSongPlaybackUrl,
   saveClientSelections,
   getClientSelections,
@@ -69,6 +70,7 @@ function ClientRouteComponent() {
 
   // Songs & selections state for approved clients
   const [songs, setSongs] = useState<SongItem[]>([]);
+  const [selectedLibraryFilter, setSelectedLibraryFilter] = useState<string>("all");
   const [loadingSongs, setLoadingSongs] = useState<boolean>(false);
   const [selectedSongIds, setSelectedSongIds] = useState<Set<string>>(new Set());
   const [savingSelections, setSavingSelections] = useState<boolean>(false);
@@ -90,7 +92,7 @@ function ClientRouteComponent() {
   const [customSongNotice, setCustomSongNotice] = useState<string>("");
 
   // Login form state
-  const [loginEmail, setLoginEmail] = useState<string>("");
+  const [loginPhone, setLoginPhone] = useState<string>("");
   const [loginPassword, setLoginPassword] = useState<string>("");
 
   // Signup form state (role is NEVER an option)
@@ -115,7 +117,7 @@ function ClientRouteComponent() {
   const handleQuickDemo = (demoAccount: (typeof DEMO_CLIENT_ACCOUNTS)[number]) => {
     setAuthError("");
     setSuccessNotice("");
-    setLoginEmail(demoAccount.profile.email);
+    setLoginPhone(demoAccount.profile.phone || demoAccount.profile.email);
     setLoginPassword(demoAccount.demoPasswordHint);
     setMode("login");
   };
@@ -127,7 +129,7 @@ function ClientRouteComponent() {
     setLoading(true);
 
     try {
-      const res = await clientLogin(loginEmail, loginPassword);
+      const res = await clientLogin(loginPhone, loginPassword);
       if (!res.success || !res.client) {
         setAuthError(res.error || "Login failed.");
       } else {
@@ -205,12 +207,19 @@ function ClientRouteComponent() {
 
   // Load songs, custom song requests & existing selections when client is approved & assigned
   useEffect(() => {
-    if (session?.approvalStatus === "approved" && session.assignedLibraryId) {
+    const assignedIds =
+      session?.assignedLibraryIds && session.assignedLibraryIds.length > 0
+        ? session.assignedLibraryIds
+        : session?.assignedLibraryId
+          ? [session.assignedLibraryId]
+          : [];
+
+    if (session?.approvalStatus === "approved" && assignedIds.length > 0) {
       void (async () => {
         setLoadingSongs(true);
         try {
           const [loadedSongs, savedSelections, customSongs] = await Promise.all([
-            getSongsByLibrary(session.assignedLibraryId!),
+            getSongsByMultipleLibraries(assignedIds),
             getClientSelections(session.id),
             getClientCustomSongRequests(session.id),
           ]);
@@ -239,7 +248,12 @@ function ClientRouteComponent() {
         }
       })();
     }
-  }, [session?.approvalStatus, session?.assignedLibraryId, session?.id]);
+  }, [
+    session?.approvalStatus,
+    session?.assignedLibraryId,
+    session?.assignedLibraryIds?.join(","),
+    session?.id,
+  ]);
 
   // YouTube preview player state
   const [activeYouTubeVideoId, setActiveYouTubeVideoId] = useState<string | null>(null);
@@ -621,7 +635,12 @@ function ClientRouteComponent() {
             </h2>
             <p className="mt-2 text-sm text-stone-600 max-w-lg mx-auto">
               Your client profile is active!
-              {session.assignedLibraryName ? (
+              {session.assignedLibraryNames && session.assignedLibraryNames.length > 0 ? (
+                <span>
+                  {" "}
+                  You have access to <strong>{session.assignedLibraryNames.join(", ")}</strong>.
+                </span>
+              ) : session.assignedLibraryName ? (
                 <span>
                   {" "}
                   You have been assigned to the <strong>{session.assignedLibraryName}</strong>.
@@ -636,10 +655,12 @@ function ClientRouteComponent() {
                 <span className="text-stone-500">Client ID:</span>
                 <span className="font-mono text-stone-700">{session.id}</span>
               </div>
-              <div className="flex justify-between">
-                <span className="text-stone-500">Assigned Library:</span>
-                <span className="font-semibold text-stone-800">
-                  {session.assignedLibraryName || "Pending Admin Library Assignment"}
+              <div className="flex justify-between items-start gap-3">
+                <span className="text-stone-500 whitespace-nowrap">Assigned Libraries:</span>
+                <span className="font-semibold text-stone-800 text-right">
+                  {session.assignedLibraryNames && session.assignedLibraryNames.length > 0
+                    ? session.assignedLibraryNames.join(", ")
+                    : session.assignedLibraryName || "Pending Admin Library Assignment"}
                 </span>
               </div>
               {session.weddingDate && (
@@ -650,7 +671,7 @@ function ClientRouteComponent() {
               )}
             </div>
 
-            {session.assignedLibraryId ? (
+            {(session.assignedLibraryId || (session.assignedLibraryIds && session.assignedLibraryIds.length > 0)) ? (
               <div className="mt-8 border-t border-stone-100 pt-6 text-left">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
                   <div>
@@ -917,6 +938,41 @@ function ClientRouteComponent() {
                   </div>
                 )}
 
+                {/* Library Filter Pills when assigned multiple libraries */}
+                {session.assignedLibraryIds && session.assignedLibraryIds.length > 1 && (
+                  <div className="mb-6 flex flex-wrap items-center gap-1.5 p-1 rounded-xl bg-stone-100 border border-stone-200/80">
+                    <button
+                      type="button"
+                      onClick={() => setSelectedLibraryFilter("all")}
+                      className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${
+                        selectedLibraryFilter === "all"
+                          ? "bg-white text-stone-900 shadow-2xs font-semibold"
+                          : "text-stone-600 hover:text-stone-900 hover:bg-stone-50"
+                      }`}
+                    >
+                      All Assigned Libraries ({songs.length})
+                    </button>
+                    {session.assignedLibraryIds.map((libId, idx) => {
+                      const libName = session.assignedLibraryNames?.[idx] || `Library ${idx + 1}`;
+                      const count = songs.filter((s) => s.libraryId === libId).length;
+                      return (
+                        <button
+                          key={libId}
+                          type="button"
+                          onClick={() => setSelectedLibraryFilter(libId)}
+                          className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${
+                            selectedLibraryFilter === libId
+                              ? "bg-white text-stone-900 shadow-2xs font-semibold"
+                              : "text-stone-600 hover:text-stone-900 hover:bg-stone-50"
+                          }`}
+                        >
+                          {libName} ({count})
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+
                 {loadingSongs ? (
                   <div className="py-12 text-center text-xs text-stone-500">
                     Loading your assigned soundtrack library...
@@ -929,7 +985,11 @@ function ClientRouteComponent() {
                 ) : (
                   <div className="space-y-6">
                     {WEDDING_EVENT_GROUPS.map((eventGroup) => {
-                      const groupSongs = songs.filter((s) => s.eventGroup === eventGroup);
+                      const displayedSongs =
+                        selectedLibraryFilter === "all"
+                          ? songs
+                          : songs.filter((s) => s.libraryId === selectedLibraryFilter);
+                      const groupSongs = displayedSongs.filter((s) => s.eventGroup === eventGroup);
                       if (groupSongs.length === 0) return null;
 
                       return (
@@ -1150,16 +1210,17 @@ function ClientRouteComponent() {
           {mode === "login" ? (
             <form onSubmit={handleLoginSubmit} className="mt-6 space-y-4">
               <div>
-                <label className="block text-xs font-medium text-stone-700">Client Email</label>
+                <label className="block text-xs font-medium text-stone-700">Mobile Number</label>
                 <div className="relative mt-1">
-                  <Mail className="absolute left-3 top-2.5 size-4 text-stone-400" />
+                  <Phone className="absolute left-3 top-2.5 size-4 text-stone-400" />
                   <Input
-                    type="email"
+                    type="tel"
                     required
-                    placeholder="client@tabridals.com"
-                    value={loginEmail}
-                    onChange={(e) => setLoginEmail(e.target.value)}
+                    placeholder="+91 98765 43210 or your mobile number"
+                    value={loginPhone}
+                    onChange={(e) => setLoginPhone(e.target.value)}
                     className="pl-9 text-xs"
+                    autoComplete="tel"
                   />
                 </div>
               </div>

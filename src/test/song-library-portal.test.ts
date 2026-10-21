@@ -19,6 +19,7 @@ import { supabase } from "../integrations/supabase/client";
 
 describe("Phase 4: Song Library Portal & Security Verification", () => {
   const testEmail = `test.client.${Date.now()}@tabridals.internal`;
+  const testPhone = `+91 9999${Math.floor(100000 + Math.random() * 900000)}`;
   const testPassword = "Password123!";
   let testClientId: string | null = null;
   let testLibraryId: string | null = null;
@@ -29,7 +30,7 @@ describe("Phase 4: Song Library Portal & Security Verification", () => {
       partnerName: "Partner Name",
       email: testEmail,
       weddingDate: "2026-12-25",
-      phone: "+91 99999 00000",
+      phone: testPhone,
       password: testPassword,
       confirmPassword: testPassword,
     });
@@ -39,6 +40,11 @@ describe("Phase 4: Song Library Portal & Security Verification", () => {
     expect(signupRes.client?.approvalStatus).toBe("pending");
     expect(signupRes.client?.assignedLibraryId).toBeNull();
     testClientId = signupRes.client?.id || null;
+
+    // Verify client can log in using their mobile number and password
+    const phoneLoginRes = await clientLogin(testPhone, testPassword);
+    expect(phoneLoginRes.success).toBe(true);
+    expect(phoneLoginRes.client?.id).toBe(signupRes.client?.id);
   });
 
   it("Step 2 (RLS Denial): Client cannot self-elevate approval_status", async () => {

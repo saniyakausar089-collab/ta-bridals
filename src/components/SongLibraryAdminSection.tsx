@@ -42,6 +42,9 @@ import {
   updateSongLibrary,
   archiveSongLibrary,
   assignClientToLibrary,
+  addLibraryToClient,
+  removeLibraryFromClient,
+  assignClientToLibraries,
   deleteSongLibrary,
   getSongsByLibrary,
   addSongToLibrary,
@@ -312,6 +315,39 @@ export function SongLibraryAdminSection() {
     }
   };
 
+  const handleAddLibraryToClient = async (clientId: string, libraryId: string) => {
+    if (!libraryId) return;
+    setErrorMessage("");
+    setSuccessMessage("");
+    try {
+      const res = await addLibraryToClient(clientId, libraryId);
+      if (!res.success) {
+        setErrorMessage(res.error || "Failed to add library assignment.");
+        return;
+      }
+      setSuccessMessage("Library successfully added to client.");
+      await loadData();
+    } catch (err) {
+      setErrorMessage(err instanceof Error ? err.message : "Error adding library.");
+    }
+  };
+
+  const handleRemoveLibraryFromClient = async (clientId: string, libraryId: string) => {
+    setErrorMessage("");
+    setSuccessMessage("");
+    try {
+      const res = await removeLibraryFromClient(clientId, libraryId);
+      if (!res.success) {
+        setErrorMessage(res.error || "Failed to remove library assignment.");
+        return;
+      }
+      setSuccessMessage("Library assignment removed.");
+      await loadData();
+    } catch (err) {
+      setErrorMessage(err instanceof Error ? err.message : "Error removing library.");
+    }
+  };
+
   const handleAssignLibrary = async (clientId: string, libraryId: string) => {
     setErrorMessage("");
     setSuccessMessage("");
@@ -345,6 +381,9 @@ export function SongLibraryAdminSection() {
         }
         setSuccessMessage(`Library "${res.library.name}" updated successfully.`);
         setEditingLibraryId(null);
+        setLibraries((prev) =>
+          prev.map((l) => (l.id === res.library!.id ? { ...l, ...res.library! } : l)),
+        );
       } else {
         const res = await createSongLibrary(libFormName, libFormDesc);
         if (!res.success || !res.library) {
@@ -353,6 +392,7 @@ export function SongLibraryAdminSection() {
         }
         setSuccessMessage(`Library "${res.library.name}" created successfully.`);
         setIsCreatingLibrary(false);
+        setLibraries((prev) => [res.library!, ...prev.filter((l) => l.id !== res.library!.id)]);
       }
 
       setLibFormName("");
@@ -613,7 +653,7 @@ export function SongLibraryAdminSection() {
       c.fullName.toLowerCase().includes(query) ||
       c.email.toLowerCase().includes(query) ||
       (c.partnerName && c.partnerName.toLowerCase().includes(query)) ||
-      (c.assignedLibraryName && c.assignedLibraryName.toLowerCase().includes(query));
+      (c.assignedLibraryName && c.assignedLibraryName.toLowerCase().includes(query)) || (c.assignedLibraryNames && c.assignedLibraryNames.some((n) => n.toLowerCase().includes(query)));
     return matchesStatus && matchesQuery;
   });
 
@@ -894,22 +934,64 @@ export function SongLibraryAdminSection() {
 
                           <td className="px-4 py-3.5">
                             {isApproved ? (
-                              <select
-                                value={client.assignedLibraryId || ""}
-                                onChange={(e) => handleAssignLibrary(client.id, e.target.value)}
-                                className="h-8 rounded-lg border border-[#dedbd2] bg-white px-2 py-1 text-xs text-[#343a33] focus:border-[#344234] focus:outline-hidden"
-                              >
-                                <option value="" disabled>
-                                  Select Library
-                                </option>
-                                {libraries
-                                  .filter((l) => !l.isArchived)
-                                  .map((lib) => (
-                                    <option key={lib.id} value={lib.id}>
-                                      {lib.name} ({lib.songCount} songs)
+                              <div className="space-y-1.5 min-w-[200px]">
+                                {client.assignedLibraryIds && client.assignedLibraryIds.length > 0 ? (
+                                  <div className="flex flex-wrap gap-1">
+                                    {client.assignedLibraryIds.map((libId, idx) => {
+                                      const libObj = libraries.find((l) => l.id === libId);
+                                      const libName =
+                                        libObj?.name || client.assignedLibraryNames?.[idx] || "Library";
+                                      return (
+                                        <span
+                                          key={libId}
+                                          className="inline-flex items-center gap-1 rounded-md bg-[#f4f1ea] border border-[#dedbd2] px-2 py-0.5 text-xs text-[#343a33]"
+                                        >
+                                          <span className="font-medium truncate max-w-[130px]" title={libName}>
+                                            {libName}
+                                          </span>
+                                          <button
+                                            type="button"
+                                            onClick={() => void handleRemoveLibraryFromClient(client.id, libId)}
+                                            className="rounded-full p-0.5 text-[#8a867c] hover:bg-[#dedbd2] hover:text-rose-600 transition-colors"
+                                            title={`Remove ${libName}`}
+                                          >
+                                            <X className="size-3" />
+                                          </button>
+                                        </span>
+                                      );
+                                    })}
+                                  </div>
+                                ) : (
+                                  <span className="text-xs text-[#a09d93] italic">No library assigned</span>
+                                )}
+
+                                {libraries.filter(
+                                  (l) => !l.isArchived && !client.assignedLibraryIds?.includes(l.id),
+                                ).length > 0 && (
+                                  <select
+                                    value=""
+                                    onChange={(e) => {
+                                      if (e.target.value) {
+                                        void handleAddLibraryToClient(client.id, e.target.value);
+                                      }
+                                    }}
+                                    className="h-7 w-full max-w-[190px] rounded border border-dashed border-[#c5c1b6] bg-white px-2 py-0.5 text-[11px] text-[#555a50] hover:border-[#344234] focus:outline-hidden"
+                                  >
+                                    <option value="" disabled>
+                                      + Assign library...
                                     </option>
-                                  ))}
-                              </select>
+                                    {libraries
+                                      .filter(
+                                        (l) => !l.isArchived && !client.assignedLibraryIds?.includes(l.id),
+                                      )
+                                      .map((lib) => (
+                                        <option key={lib.id} value={lib.id}>
+                                          {lib.name} ({lib.songCount} songs)
+                                        </option>
+                                      ))}
+                                  </select>
+                                )}
+                              </div>
                             ) : isPending ? (
                               <select
                                 value={selectedLibraryMap[client.id] || libraries[0]?.id || ""}
@@ -1706,7 +1788,7 @@ export function SongLibraryAdminSection() {
                   {inspectingClient.partnerName ? ` & ${inspectingClient.partnerName}` : ""}
                   {" · "}
                   <span className="font-medium text-stone-700">
-                    {inspectingClient.assignedLibraryName || "Assigned Library"}
+                    {inspectingClient.assignedLibraryNames && inspectingClient.assignedLibraryNames.length > 0 ? inspectingClient.assignedLibraryNames.join(", ") : inspectingClient.assignedLibraryName || "Assigned Library"}
                   </span>
                 </p>
               </div>

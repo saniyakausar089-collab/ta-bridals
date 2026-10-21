@@ -1,3 +1,19 @@
+export function formatPhoneNumber(input: string): string {
+  const trimmed = input.trim();
+  if (!trimmed) return "";
+  const digits = trimmed.replace(/\D/g, "");
+  if (!trimmed.startsWith("+")) {
+    if (digits.length === 10) {
+      return "+91" + digits;
+    }
+    return "+" + digits;
+  }
+  return "+" + digits;
+}
+
+const isUUID = (str: string): boolean =>
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
+
 /**
  * TA Bridals - Song Library Service Layer
  *
@@ -432,19 +448,16 @@ export async function restoreClientSession(): Promise<ClientProfile | null> {
       return null;
     }
 
-    let assignedLibraryId: string | null = null;
-    let assignedLibraryName: string | undefined;
-
-    const { data: assign } = await (supabase as any)
+    const { data: assigns } = await (supabase as any)
       .from("client_library_assignments")
       .select("library_id, song_libraries(name)")
-      .eq("client_id", profile.id)
-      .maybeSingle();
+      .eq("client_id", profile.id);
 
-    if (assign) {
-      assignedLibraryId = assign.library_id;
-      assignedLibraryName = assign.song_libraries?.name;
-    }
+    const assignList = assigns || [];
+    const assignedLibraryIds = assignList.map((a: any) => a.library_id);
+    const assignedLibraryNames = assignList.map((a: any) => a.song_libraries?.name).filter(Boolean) as string[];
+    const assignedLibraryId = assignedLibraryIds[0] || null;
+    const assignedLibraryName = assignedLibraryNames.join(", ") || undefined;
 
     const clientProfile: ClientProfile = {
       id: profile.id,
@@ -456,6 +469,8 @@ export async function restoreClientSession(): Promise<ClientProfile | null> {
       rejectionReason: profile.rejection_reason || undefined,
       assignedLibraryId,
       assignedLibraryName,
+      assignedLibraryIds,
+      assignedLibraryNames,
       createdAt: profile.created_at,
     };
 
@@ -474,26 +489,41 @@ export async function restoreClientSession(): Promise<ClientProfile | null> {
  * // TODO: Enforce server-side (RLS) security check - Check client_profiles for auth.uid()
  */
 export async function clientLogin(
-  email: string,
+  identifier: string,
   password: string,
 ): Promise<{ success: boolean; client: ClientProfile | null; error?: string }> {
-  const normalizedEmail = email.trim().toLowerCase();
+  const raw = identifier.trim();
 
-  if (!normalizedEmail || !normalizedEmail.includes("@")) {
-    return { success: false, client: null, error: "Please enter a valid email address." };
+  if (!raw) {
+    return { success: false, client: null, error: "Please enter your mobile number." };
   }
   if (!password) {
     return { success: false, client: null, error: "Please enter your password." };
   }
 
+  const isEmailInput = raw.includes("@");
+  const phoneFormatted = !isEmailInput ? formatPhoneNumber(raw) : "";
+  const phoneDigits = raw.replace(/\D/g, "");
+
   if (songLibraryConfig.isMockMode) {
     const profiles = getStoredProfiles();
-    const matched = profiles.find((p) => p.email.toLowerCase() === normalizedEmail);
+    const matched = profiles.find((p) => {
+      if (isEmailInput) {
+        return p.email.toLowerCase() === raw.toLowerCase();
+      }
+      const pDigits = (p.phone || "").replace(/\D/g, "");
+      return (
+        (p.phone && p.phone === phoneFormatted) ||
+        (pDigits.length >= 10 &&
+          phoneDigits.length >= 10 &&
+          (pDigits.endsWith(phoneDigits) || phoneDigits.endsWith(pDigits)))
+      );
+    });
     if (!matched) {
       return {
         success: false,
         client: null,
-        error: "No client account found with this email. Please check your email or sign up.",
+        error: "No client account found with this mobile number. Please check your number or sign up.",
       };
     }
     if (password.length < 6) {
@@ -505,18 +535,69 @@ export async function clientLogin(
     return { success: true, client: matched };
   }
 
-  // Real Supabase Auth
+  // Real Supabase Auth for Clients
   try {
-    const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
-      email: normalizedEmail,
-      password,
-    });
+    let authUser: any = null;
+    let authError: any = null;
 
-    if (authError || !authData.user) {
+    if (isEmailInput) {
+      const res = await supabase.auth.signInWithPassword({
+        email: raw.toLowerCase(),
+        password,
+      });
+      authUser = res.data?.user;
+      authError = res.error;
+    } else {
+      // 1. First attempt: resolve associated auth email from mobile number using RPC get_client_auth_email
+      try {
+        const { data: resolvedEmail } = await (supabase as any).rpc("get_client_auth_email", {
+          p_phone: phoneFormatted || raw,
+        });
+        if (resolvedEmail) {
+          const res = await supabase.auth.signInWithPassword({
+            email: resolvedEmail,
+            password,
+          });
+          if (!res.error && res.data?.user) {
+            authUser = res.data.user;
+            authError = null;
+          }
+        }
+      } catch {
+        // Fall through to direct phone sign-in
+      }
+
+      // 2. Direct phone login in Supabase Auth if not yet authenticated
+      if (!authUser) {
+        const res = await supabase.auth.signInWithPassword({
+          phone: phoneFormatted,
+          password,
+        });
+        if (!res.error && res.data?.user) {
+          authUser = res.data.user;
+          authError = null;
+        } else {
+          authError = res.error;
+          // Fallback with unformatted raw input if different
+          if (phoneFormatted !== raw) {
+            const fallbackRes = await supabase.auth.signInWithPassword({
+              phone: raw,
+              password,
+            });
+            if (!fallbackRes.error && fallbackRes.data?.user) {
+              authUser = fallbackRes.data.user;
+              authError = null;
+            }
+          }
+        }
+      }
+    }
+
+    if (authError || !authUser) {
       return {
         success: false,
         client: null,
-        error: authError?.message || "Invalid email or password.",
+        error: authError?.message || "Invalid mobile number or password.",
       };
     }
 
@@ -524,45 +605,48 @@ export async function clientLogin(
     const { data: profile, error: profError } = await (supabase as any)
       .from("client_profiles")
       .select("*")
-      .eq("id", authData.user.id)
+      .eq("id", authUser.id)
       .maybeSingle();
 
     if (profError || !profile) {
-      // User is not a client (e.g. staff or admin logging into client portal)
       await supabase.auth.signOut();
       return {
         success: false,
         client: null,
         error:
-          "No client account found for this email. If you are studio staff, please log in through the Staff portal.",
+          "No client account found for this mobile number. If you are studio staff, please log in through the Staff portal.",
       };
     }
 
-    let assignedLibraryId: string | null = null;
-    let assignedLibraryName: string | undefined;
-
-    const { data: assign } = await (supabase as any)
+    const { data: assigns } = await (supabase as any)
       .from("client_library_assignments")
       .select("library_id, song_libraries(name)")
-      .eq("client_id", profile.id)
-      .maybeSingle();
+      .eq("client_id", profile.id);
 
-    if (assign) {
-      assignedLibraryId = assign.library_id;
-      assignedLibraryName = assign.song_libraries?.name;
-    }
+    const assignList = assigns || [];
+    const assignedLibraryIds = assignList.map((a: any) => a.library_id);
+    const assignedLibraryNames = assignList
+      .map((a: any) => a.song_libraries?.name)
+      .filter(Boolean) as string[];
+    const assignedLibraryId = assignedLibraryIds[0] || null;
+    const assignedLibraryName = assignedLibraryNames.join(", ") || undefined;
 
     const clientProfile: ClientProfile = {
       id: profile.id,
       fullName: profile.full_name || "Client",
       partnerName: profile.partner_name || undefined,
-      email: profile.email || authData.user.email || normalizedEmail,
+      email: profile.email || authUser.email || "",
+      phone: profile.phone || authUser.phone || phoneFormatted || undefined,
       weddingDate: profile.wedding_date || undefined,
       approvalStatus: profile.approval_status as ClientApprovalStatus,
       rejectionReason: profile.rejection_reason || undefined,
       assignedLibraryId,
       assignedLibraryName,
-      createdAt: profile.created_at,
+      assignedLibraryIds,
+      assignedLibraryNames,
+      createdAt: profile.created_at || new Date().toISOString(),
+      reviewedAt: null,
+      reviewedBy: null,
     };
 
     if (typeof window !== "undefined") {
@@ -686,6 +770,7 @@ export async function clientSignUp({
         {
           id: authData.user.id,
           email: trimmedEmail,
+          phone: formattedPhone || trimmedPhone || null,
           full_name: trimmedName,
           partner_name: partnerName?.trim() || null,
           wedding_date: weddingDate || null,
@@ -761,18 +846,20 @@ export async function refreshClientStatus(clientId: string): Promise<ClientAppro
 
     let assignedLibraryId: string | null = null;
     let assignedLibraryName: string | undefined;
+    let assignedLibraryIds: string[] = [];
+    let assignedLibraryNames: string[] = [];
 
     if (data.approval_status === "approved") {
-      const { data: assign } = await (supabase as any)
+      const { data: assigns } = await (supabase as any)
         .from("client_library_assignments")
         .select("library_id, song_libraries(name)")
-        .eq("client_id", clientId)
-        .maybeSingle();
+        .eq("client_id", clientId);
 
-      if (assign) {
-        assignedLibraryId = assign.library_id;
-        assignedLibraryName = assign.song_libraries?.name;
-      }
+      const assignList = assigns || [];
+      assignedLibraryIds = assignList.map((a: any) => a.library_id);
+      assignedLibraryNames = assignList.map((a: any) => a.song_libraries?.name).filter(Boolean) as string[];
+      assignedLibraryId = assignedLibraryIds[0] || null;
+      assignedLibraryName = assignedLibraryNames.join(", ") || undefined;
     }
 
     const current = getClientSession();
@@ -783,6 +870,8 @@ export async function refreshClientStatus(clientId: string): Promise<ClientAppro
         rejectionReason: data.rejection_reason || undefined,
         assignedLibraryId,
         assignedLibraryName,
+        assignedLibraryIds,
+        assignedLibraryNames,
       };
       if (typeof window !== "undefined") {
         sessionStorage.setItem(CLIENT_SESSION_KEY, JSON.stringify(updated));
@@ -802,6 +891,10 @@ export async function refreshClientStatus(clientId: string): Promise<ClientAppro
 export async function getSongPlaybackUrl(audioPathOrId: string): Promise<string> {
   if (!audioPathOrId) return "";
 
+  if (audioPathOrId.startsWith("http://") || audioPathOrId.startsWith("https://")) {
+    return audioPathOrId;
+  }
+
   if (songLibraryConfig.isMockMode) {
     return "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3";
   }
@@ -812,10 +905,12 @@ export async function getSongPlaybackUrl(audioPathOrId: string): Promise<string>
       .createSignedUrl(audioPathOrId, songLibraryConfig.playbackTokenExpirySeconds);
 
     if (error || !data?.signedUrl) {
+      console.warn("Playback URL error:", error?.message);
       return "";
     }
     return data.signedUrl;
-  } catch {
+  } catch (err) {
+    console.warn("Exception generating playback URL:", err);
     return "";
   }
 }
@@ -845,10 +940,18 @@ export async function uploadSongAudio(
 
     const { data, error } = await supabase.storage.from("songs-audio").upload(storagePath, file, {
       contentType: file.type || "audio/mpeg",
-      upsert: false,
+      upsert: true,
     });
 
-    if (error) return { success: false, error: error.message };
+    if (error) {
+      if (error.code === "23505") {
+        return {
+          success: false,
+          error: `A song library named "${trimmedName}" already exists. Please choose a different name.`,
+        };
+      }
+      return { success: false, error: error.message };
+    }
     return { success: true, storagePath: data.path };
   } catch (err) {
     return {
@@ -887,26 +990,34 @@ export async function getClients(): Promise<ClientProfile[]> {
 
     if (profilesRes.error) throw profilesRes.error;
 
-    const assignMap = new Map<string, { libraryId: string; libraryName?: string }>();
+    const assignMap = new Map<string, Array<{ libraryId: string; libraryName?: string }>>();
     (assignsRes.data || []).forEach((a: any) => {
-      assignMap.set(a.client_id, {
+      const list = assignMap.get(a.client_id) || [];
+      list.push({
         libraryId: a.library_id,
         libraryName: a.song_libraries?.name,
       });
+      assignMap.set(a.client_id, list);
     });
 
     return (profilesRes.data || []).map((p: any) => {
-      const a = assignMap.get(p.id);
+      const assignments = assignMap.get(p.id) || [];
+      const first = assignments[0];
+      const libraryIds = assignments.map((x) => x.libraryId);
+      const libraryNames = assignments.map((x) => x.libraryName).filter(Boolean) as string[];
       return {
         id: p.id,
         fullName: p.full_name || "Client",
         partnerName: p.partner_name || undefined,
         email: p.email || "",
+        phone: p.phone || undefined,
         weddingDate: p.wedding_date || undefined,
         approvalStatus: (p.approval_status as ClientApprovalStatus) || "pending",
         rejectionReason: p.rejection_reason || undefined,
-        assignedLibraryId: a?.libraryId || null,
-        assignedLibraryName: a?.libraryName || undefined,
+        assignedLibraryId: first?.libraryId || null,
+        assignedLibraryName: libraryNames.join(", ") || undefined,
+        assignedLibraryIds: libraryIds,
+        assignedLibraryNames: libraryNames,
         createdAt: p.created_at,
         reviewedAt: p.created_at,
         reviewedBy: "Studio Owner",
@@ -925,6 +1036,7 @@ export async function getClients(): Promise<ClientProfile[]> {
 export async function approveClient(
   clientId: string,
   libraryId?: string,
+  libraryIds?: string[],
 ): Promise<{ success: boolean; client?: ClientProfile; error?: string }> {
   if (songLibraryConfig.isMockMode) {
     const profiles = getStoredProfiles();
@@ -970,13 +1082,19 @@ export async function approveClient(
 
     if (profileError) return { success: false, error: profileError.message };
 
-    if (libraryId) {
+    const targetLibIds: string[] = libraryIds && libraryIds.length > 0
+      ? libraryIds
+      : (libraryId ? [libraryId] : []);
+
+    if (targetLibIds.length > 0) {
+      const rows = targetLibIds.map((lId) => ({
+        client_id: clientId,
+        library_id: lId,
+        assigned_at: new Date().toISOString(),
+      }));
       const { error: assignError } = await (supabase as any)
         .from("client_library_assignments")
-        .upsert(
-          { client_id: clientId, library_id: libraryId, assigned_at: new Date().toISOString() },
-          { onConflict: "client_id" },
-        );
+        .upsert(rows, { onConflict: "client_id,library_id" });
 
       if (assignError) return { success: false, error: assignError.message };
     }
@@ -1098,18 +1216,21 @@ export async function getSongLibraries(includeArchived = false): Promise<SongLib
     const { data: libs, error: libErr } = await query.order("created_at", { ascending: false });
     if (libErr) throw libErr;
 
-    const [{ data: songs }, { data: assigns }] = await Promise.all([
+    const [songsRes, assignsRes] = await Promise.allSettled([
       (supabase as any).from("songs").select("library_id"),
       (supabase as any).from("client_library_assignments").select("library_id"),
     ]);
 
+    const songs = songsRes.status === "fulfilled" ? songsRes.value.data || [] : [];
+    const assigns = assignsRes.status === "fulfilled" ? assignsRes.value.data || [] : [];
+
     const songCountMap = new Map<string, number>();
-    (songs || []).forEach((s: any) => {
+    songs.forEach((s: any) => {
       songCountMap.set(s.library_id, (songCountMap.get(s.library_id) || 0) + 1);
     });
 
     const clientCountMap = new Map<string, number>();
-    (assigns || []).forEach((a: any) => {
+    assigns.forEach((a: any) => {
       clientCountMap.set(a.library_id, (clientCountMap.get(a.library_id) || 0) + 1);
     });
 
@@ -1353,6 +1474,150 @@ export async function archiveSongLibrary(
  * Only APPROVED clients can be assigned. Enforced client-side and by database trigger.
  * // TODO: Enforce server-side (RLS) security check - Admin only (DB trigger trg_enforce_approved_assignment)
  */
+/**
+ * ADMIN: Assign multiple song libraries to a client.
+ */
+export async function assignClientToLibraries(
+  clientId: string,
+  libraryIds: string[],
+): Promise<{ success: boolean; error?: string }> {
+  if (songLibraryConfig.isMockMode) {
+    const profiles = getStoredProfiles();
+    const index = profiles.findIndex((p) => p.id === clientId);
+    if (index === -1) return { success: false, error: "Client not found." };
+    const current = profiles[index];
+    if (current.approvalStatus !== "approved") {
+      return { success: false, error: "Only approved clients can be assigned to a library." };
+    }
+    const libraries = getStoredLibraries();
+    const validIds = libraryIds.filter((id) => libraries.some((l) => l.id === id));
+    const names = validIds.map((id) => libraries.find((l) => l.id === id)?.name).filter(Boolean) as string[];
+    profiles[index] = {
+      ...current,
+      assignedLibraryId: validIds[0] || null,
+      assignedLibraryName: names.join(", ") || undefined,
+      assignedLibraryIds: validIds,
+      assignedLibraryNames: names,
+    };
+    saveStoredProfiles(profiles);
+    return { success: true };
+  }
+
+  try {
+    const { data: client, error: clientErr } = await (supabase as any)
+      .from("client_profiles")
+      .select("approval_status, full_name")
+      .eq("id", clientId)
+      .single();
+
+    if (clientErr || !client) {
+      return { success: false, error: clientErr?.message || "Client not found." };
+    }
+
+    if (client.approval_status !== "approved") {
+      return {
+        success: false,
+        error: `Cannot assign library: Client "${client.full_name}" is "${client.approval_status}". Only approved clients can be assigned to a song library.`,
+      };
+    }
+
+    // If no libraries passed, remove all assignments for this client
+    if (libraryIds.length === 0) {
+      await (supabase as any)
+        .from("client_library_assignments")
+        .delete()
+        .eq("client_id", clientId);
+      return { success: true };
+    }
+
+    // First remove assignments not in the new set
+    const { data: existing } = await (supabase as any)
+      .from("client_library_assignments")
+      .select("library_id")
+      .eq("client_id", clientId);
+
+    const currentIds = (existing || []).map((e: any) => e.library_id);
+    const toRemove = currentIds.filter((id: string) => !libraryIds.includes(id));
+    if (toRemove.length > 0) {
+      await (supabase as any)
+        .from("client_library_assignments")
+        .delete()
+        .eq("client_id", clientId)
+        .in("library_id", toRemove);
+    }
+
+    // Upsert all assigned libraries
+    const rows = libraryIds.map((lId) => ({
+      client_id: clientId,
+      library_id: lId,
+      assigned_at: new Date().toISOString(),
+    }));
+
+    const { error: upsertErr } = await (supabase as any)
+      .from("client_library_assignments")
+      .upsert(rows, { onConflict: "client_id,library_id" });
+
+    if (upsertErr) return { success: false, error: upsertErr.message };
+    return { success: true };
+  } catch (err) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Failed to assign libraries on Supabase.",
+    };
+  }
+}
+
+/**
+ * ADMIN: Add a single library assignment to a client (preserving existing assignments).
+ */
+export async function addLibraryToClient(
+  clientId: string,
+  libraryId: string,
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const { error } = await (supabase as any)
+      .from("client_library_assignments")
+      .upsert(
+        { client_id: clientId, library_id: libraryId, assigned_at: new Date().toISOString() },
+        { onConflict: "client_id,library_id" },
+      );
+    if (error) return { success: false, error: error.message };
+    return { success: true };
+  } catch (err) {
+    return { success: false, error: err instanceof Error ? err.message : "Failed to add library assignment." };
+  }
+}
+
+/**
+ * ADMIN: Remove a single library assignment from a client.
+ */
+export async function removeLibraryFromClient(
+  clientId: string,
+  libraryId: string,
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const { error } = await (supabase as any)
+      .from("client_library_assignments")
+      .delete()
+      .eq("client_id", clientId)
+      .eq("library_id", libraryId);
+    if (error) return { success: false, error: error.message };
+    return { success: true };
+  } catch (err) {
+    return { success: false, error: err instanceof Error ? err.message : "Failed to remove library assignment." };
+  }
+}
+
+/**
+ * SONGS: Get songs across multiple libraries.
+ */
+export async function getSongsByMultipleLibraries(libraryIds: string[]): Promise<SongItem[]> {
+  if (!libraryIds || libraryIds.length === 0) return [];
+  const batches = await Promise.all(libraryIds.map((libId) => getSongsByLibrary(libId)));
+  const all = batches.flat();
+  return Array.from(new Map(all.map((s) => [s.id, s])).values());
+}
+
 export async function assignClientToLibrary(
   clientId: string,
   libraryId: string,
@@ -1417,7 +1682,7 @@ export async function assignClientToLibrary(
       .from("client_library_assignments")
       .upsert(
         { client_id: clientId, library_id: libraryId, assigned_at: new Date().toISOString() },
-        { onConflict: "client_id" },
+        { onConflict: "client_id,library_id" },
       );
 
     if (error) return { success: false, error: error.message };
@@ -1491,7 +1756,7 @@ export async function deleteSongLibrary(
  * // TODO: Enforce server-side (RLS) security check - Admin or assigned client
  */
 export async function getSongsByLibrary(libraryId: string): Promise<SongItem[]> {
-  if (songLibraryConfig.isMockMode) {
+  if (songLibraryConfig.isMockMode || !isUUID(libraryId)) {
     const songs = getStoredSongs();
     return songs.filter((s) => s.libraryId === libraryId && s.isActive !== false);
   }
@@ -1576,7 +1841,7 @@ export async function addSongToLibrary(
     return { success: false, error: "Artist name is required." };
   }
 
-  if (songLibraryConfig.isMockMode) {
+  if (songLibraryConfig.isMockMode || !isUUID(params.libraryId)) {
     const libraries = getStoredLibraries();
     if (!libraries.some((l) => l.id === params.libraryId)) {
       return { success: false, error: `Library with ID "${params.libraryId}" does not exist.` };
@@ -1764,7 +2029,7 @@ export async function updateSong(
     audioFileName?: string;
   },
 ): Promise<{ success: boolean; song?: SongItem; error?: string }> {
-  if (songLibraryConfig.isMockMode) {
+  if (songLibraryConfig.isMockMode || !isUUID(songId)) {
     const songs = getStoredSongs();
     const index = songs.findIndex((s) => s.id === songId);
 
@@ -1841,7 +2106,7 @@ export async function updateSong(
  * // TODO: Enforce server-side (RLS) security check - Admin only
  */
 export async function deleteSong(songId: string): Promise<{ success: boolean; error?: string }> {
-  if (songLibraryConfig.isMockMode) {
+  if (songLibraryConfig.isMockMode || !isUUID(songId)) {
     const songs = getStoredSongs();
     // Soft delete to preserve client selection references
     const updated = songs.map((s) => (s.id === songId ? { ...s, isActive: false } : s));
