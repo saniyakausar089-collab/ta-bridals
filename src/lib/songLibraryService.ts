@@ -23,6 +23,7 @@ export function formatPhoneNumber(input: string): string {
 
 import { songLibraryConfig } from "@/config/songLibraryConfig";
 import { supabase } from "@/integrations/supabase/client";
+import { validateIndianMobile, isMobileNumberAvailable, sanitizeMobileInput } from "./phoneAuth";
 import type {
   ClientProfile,
   ClientApprovalStatus,
@@ -468,7 +469,11 @@ export async function restoreClientSession(): Promise<ClientProfile | null> {
     const assignList = assignsRes.data || [];
     const assignedLibraryIds = assignList.map((a: any) => a.library_id);
     let assignedLibraryNames = assignList
-      .map((a: any) => a.song_libraries?.name || (Array.isArray(a.song_libraries) ? a.song_libraries[0]?.name : undefined))
+      .map(
+        (a: any) =>
+          a.song_libraries?.name ||
+          (Array.isArray(a.song_libraries) ? a.song_libraries[0]?.name : undefined),
+      )
       .filter(Boolean) as string[];
 
     if (assignedLibraryIds.length > 0 && assignedLibraryNames.length === 0) {
@@ -478,7 +483,9 @@ export async function restoreClientSession(): Promise<ClientProfile | null> {
         .in("id", assignedLibraryIds);
       if (nameLibs) {
         const nameMap = new Map((nameLibs || []).map((l: any) => [l.id, l.name]));
-        assignedLibraryNames = assignedLibraryIds.map((id: string) => nameMap.get(id) || "Soundtrack Library");
+        assignedLibraryNames = assignedLibraryIds.map(
+          (id: string) => nameMap.get(id) || "Soundtrack Library",
+        );
       }
     }
 
@@ -519,18 +526,30 @@ export async function clientLogin(
   identifier: string,
   password: string,
 ): Promise<{ success: boolean; client: ClientProfile | null; error?: string }> {
-  const raw = identifier.trim();
+  const raw = (identifier ?? "").trim();
 
   if (!raw) {
-    return { success: false, client: null, error: "Please enter your mobile number." };
+    return { success: false, client: null, error: "Enter your 10-digit mobile number" };
   }
   if (!password) {
     return { success: false, client: null, error: "Please enter your password." };
   }
 
   const isEmailInput = raw.includes("@");
-  const phoneFormatted = !isEmailInput ? formatPhoneNumber(raw) : "";
-  const phoneDigits = raw.replace(/\D/g, "");
+  let phoneDigits = "";
+
+  if (!isEmailInput) {
+    // Strict 10-digit validation for mobile login
+    const phoneVal = validateIndianMobile(raw);
+    if (!phoneVal.isValid) {
+      return {
+        success: false,
+        client: null,
+        error: phoneVal.error || "Enter a valid 10-digit mobile number",
+      };
+    }
+    phoneDigits = phoneVal.digits;
+  }
 
   if (songLibraryConfig.isMockMode) {
     const profiles = getStoredProfiles();
@@ -540,17 +559,15 @@ export async function clientLogin(
       }
       const pDigits = (p.phone || "").replace(/\D/g, "");
       return (
-        (p.phone && p.phone === phoneFormatted) ||
-        (pDigits.length >= 10 &&
-          phoneDigits.length >= 10 &&
-          (pDigits.endsWith(phoneDigits) || phoneDigits.endsWith(pDigits)))
+        pDigits === phoneDigits ||
+        (pDigits.length >= 10 && (pDigits.endsWith(phoneDigits) || phoneDigits.endsWith(pDigits)))
       );
     });
     if (!matched) {
       return {
         success: false,
         client: null,
-        error: "No client account found with this mobile number. Please check your number or sign up.",
+        error: "Invalid mobile number or password.",
       };
     }
     if (password.length < 6) {
@@ -567,76 +584,45 @@ export async function clientLogin(
     let authUser: any = null;
     let authError: any = null;
 
+    let candidateEmail: string | null = null;
     if (isEmailInput) {
-      const res = await supabase.auth.signInWithPassword({
-        email: raw.toLowerCase(),
-        password,
-      });
-      authUser = res.data?.user;
-      authError = res.error;
+      candidateEmail = raw;
     } else {
-      // 1. First attempt: resolve associated auth email from mobile number using RPC get_client_auth_email
+      // Resolve registered auth email from 10-digit mobile number using RPC
       try {
-        let candidateEmail: string | null = null;
-        const { data: resolvedEmail } = await (supabase as any).rpc("get_client_auth_email", {
-          p_phone: phoneFormatted || raw,
+        const { data: resolvedEmail } = await (supabase as any).rpc("resolve_auth_email_by_phone", {
+          p_phone: phoneDigits,
         });
         if (resolvedEmail) {
           candidateEmail = resolvedEmail;
-        } else if (phoneDigits.length >= 10) {
-          // Direct client_profiles lookup by last 10 digits
-          const { data: matchedProfile } = await (supabase as any)
-            .from("client_profiles")
-            .select("email, phone")
-            .ilike("phone", `%${phoneDigits.slice(-10)}%`)
-            .maybeSingle();
-          if (matchedProfile?.email) {
-            candidateEmail = matchedProfile.email;
-          }
-        }
-
-        if (candidateEmail) {
-          const res = await supabase.auth.signInWithPassword({
-            email: candidateEmail.toLowerCase(),
-            password,
+        } else {
+          const { data: legacyEmail } = await (supabase as any).rpc("get_client_auth_email", {
+            p_phone: phoneDigits,
           });
-          if (!res.error && res.data?.user) {
-            authUser = res.data.user;
-            authError = null;
-          }
+          if (legacyEmail) candidateEmail = legacyEmail;
         }
       } catch {
-        // Fall through to direct phone sign-in
-      }
-
-      // 2. Direct phone login in Supabase Auth if not yet authenticated
-      if (!authUser) {
-        const res = await supabase.auth.signInWithPassword({
-          phone: phoneFormatted,
-          password,
-        });
-        if (!res.error && res.data?.user) {
-          authUser = res.data.user;
-          authError = null;
-        } else {
-          authError = res.error;
-          // Fallback with unformatted raw input if different
-          if (phoneFormatted !== raw) {
-            const fallbackRes = await supabase.auth.signInWithPassword({
-              phone: raw,
-              password,
-            });
-            if (!fallbackRes.error && fallbackRes.data?.user) {
-              authUser = fallbackRes.data.user;
-              authError = null;
-            }
-          }
-        }
+        // Fallback
       }
     }
 
+    if (candidateEmail) {
+      const res = await supabase.auth.signInWithPassword({
+        email: candidateEmail.toLowerCase(),
+        password,
+      });
+      if (!res.error && res.data?.user) {
+        authUser = res.data.user;
+        authError = null;
+      } else {
+        authError = res.error;
+      }
+    } else {
+      authError = { message: "Invalid mobile number or password." };
+    }
+
     if (authError || !authUser) {
-      // Local stored profile fallback (for demo clients and local test accounts)
+      // Local stored profile fallback (for demo clients in preview)
       const localMatched = getStoredProfiles().find((p) => {
         if (isEmailInput) return p.email.toLowerCase() === raw.toLowerCase();
         const d = (p.phone || "").replace(/\D/g, "");
@@ -656,7 +642,7 @@ export async function clientLogin(
       return {
         success: false,
         client: null,
-        error: authError?.message || "Invalid mobile number or password.",
+        error: "Invalid mobile number or password.",
       };
     }
 
@@ -695,17 +681,15 @@ export async function clientLogin(
       fullName: profile.full_name || "Client",
       partnerName: profile.partner_name || undefined,
       email: profile.email || authUser.email || "",
-      phone: profile.phone || authUser.phone || phoneFormatted || undefined,
+      phone: profile.phone || phoneDigits,
       weddingDate: profile.wedding_date || undefined,
       approvalStatus: profile.approval_status as ClientApprovalStatus,
       rejectionReason: profile.rejection_reason || undefined,
       assignedLibraryId,
-      assignedLibraryName,
       assignedLibraryIds,
+      assignedLibraryName,
       assignedLibraryNames,
-      createdAt: profile.created_at || new Date().toISOString(),
-      reviewedAt: null,
-      reviewedBy: null,
+      createdAt: profile.created_at,
     };
 
     if (typeof window !== "undefined") {
@@ -753,12 +737,33 @@ export async function clientSignUp({
 }> {
   const trimmedName = fullName.trim();
   const trimmedEmail = email.trim().toLowerCase();
-  const trimmedPhone = phone ? phone.trim() : "";
-  const formattedPhone = trimmedPhone ? formatPhoneNumber(trimmedPhone) : "";
+  const rawPhone = (phone ?? "").trim();
 
   if (!trimmedName) {
     return { success: false, client: null, error: "Please enter your full name." };
   }
+
+  // Strict 10-digit mobile number validation
+  const phoneVal = validateIndianMobile(rawPhone);
+  if (!phoneVal.isValid) {
+    return {
+      success: false,
+      client: null,
+      error: phoneVal.error || "Enter a valid 10-digit mobile number",
+    };
+  }
+  const normalizedPhone = phoneVal.digits;
+
+  // Enforce server-side uniqueness of mobile number
+  const isAvailable = await isMobileNumberAvailable(normalizedPhone);
+  if (!isAvailable) {
+    return {
+      success: false,
+      client: null,
+      error: "An account with this mobile number already exists. Please sign in instead.",
+    };
+  }
+
   if (!trimmedEmail || !trimmedEmail.includes("@")) {
     return { success: false, client: null, error: "Please enter a valid email address." };
   }
@@ -920,7 +925,9 @@ export async function refreshClientStatus(clientId: string): Promise<ClientAppro
 
       const assignList = assigns || [];
       assignedLibraryIds = assignList.map((a: any) => a.library_id);
-      assignedLibraryNames = assignList.map((a: any) => a.song_libraries?.name).filter(Boolean) as string[];
+      assignedLibraryNames = assignList
+        .map((a: any) => a.song_libraries?.name)
+        .filter(Boolean) as string[];
       assignedLibraryId = assignedLibraryIds[0] || null;
       assignedLibraryName = assignedLibraryNames.join(", ") || undefined;
     }
@@ -1159,9 +1166,8 @@ export async function approveClient(
 
     if (profileError) return { success: false, error: profileError.message };
 
-    const targetLibIds: string[] = libraryIds && libraryIds.length > 0
-      ? libraryIds
-      : (libraryId ? [libraryId] : []);
+    const targetLibIds: string[] =
+      libraryIds && libraryIds.length > 0 ? libraryIds : libraryId ? [libraryId] : [];
 
     if (targetLibIds.length > 0) {
       const rows = targetLibIds.map((lId) => ({
@@ -1322,7 +1328,10 @@ export async function getSongLibraries(includeArchived = false): Promise<SongLib
       updatedAt: lib.created_at,
     }));
   } catch (err) {
-    console.warn("Failed to load song libraries from Supabase, falling back to local libraries:", err);
+    console.warn(
+      "Failed to load song libraries from Supabase, falling back to local libraries:",
+      err,
+    );
     const libraries = getStoredLibraries();
     const profiles = getStoredProfiles();
     const songs = getStoredSongs();
@@ -1585,7 +1594,9 @@ export async function assignClientToLibraries(
     }
     const libraries = getStoredLibraries();
     const validIds = libraryIds.filter((id) => libraries.some((l) => l.id === id));
-    const names = validIds.map((id) => libraries.find((l) => l.id === id)?.name).filter(Boolean) as string[];
+    const names = validIds
+      .map((id) => libraries.find((l) => l.id === id)?.name)
+      .filter(Boolean) as string[];
     profiles[index] = {
       ...current,
       assignedLibraryId: validIds[0] || null,
@@ -1617,10 +1628,7 @@ export async function assignClientToLibraries(
 
     // If no libraries passed, remove all assignments for this client
     if (libraryIds.length === 0) {
-      await (supabase as any)
-        .from("client_library_assignments")
-        .delete()
-        .eq("client_id", clientId);
+      await (supabase as any).from("client_library_assignments").delete().eq("client_id", clientId);
       return { success: true };
     }
 
@@ -1677,8 +1685,11 @@ export async function addLibraryToClient(
     const current = profiles[idx]!;
     const libraries = getStoredLibraries();
     const libObj = libraries.find((l) => l.id === libraryId);
-    const existingIds = current.assignedLibraryIds || (current.assignedLibraryId ? [current.assignedLibraryId] : []);
-    const existingNames = current.assignedLibraryNames || (current.assignedLibraryName ? [current.assignedLibraryName] : []);
+    const existingIds =
+      current.assignedLibraryIds || (current.assignedLibraryId ? [current.assignedLibraryId] : []);
+    const existingNames =
+      current.assignedLibraryNames ||
+      (current.assignedLibraryName ? [current.assignedLibraryName] : []);
     if (!existingIds.includes(libraryId)) {
       existingIds.push(libraryId);
       if (libObj?.name) existingNames.push(libObj.name);
@@ -1711,8 +1722,12 @@ export async function addLibraryToClient(
         const current = profiles[idx]!;
         const libraries = getStoredLibraries();
         const libObj = libraries.find((l) => l.id === libraryId);
-        const existingIds = current.assignedLibraryIds || (current.assignedLibraryId ? [current.assignedLibraryId] : []);
-        const existingNames = current.assignedLibraryNames || (current.assignedLibraryName ? [current.assignedLibraryName] : []);
+        const existingIds =
+          current.assignedLibraryIds ||
+          (current.assignedLibraryId ? [current.assignedLibraryId] : []);
+        const existingNames =
+          current.assignedLibraryNames ||
+          (current.assignedLibraryName ? [current.assignedLibraryName] : []);
         if (!existingIds.includes(libraryId)) {
           existingIds.push(libraryId);
           if (libObj?.name) existingNames.push(libObj.name);
@@ -1734,7 +1749,9 @@ export async function addLibraryToClient(
     const idx = profiles.findIndex((p) => p.id === clientId);
     if (idx !== -1) {
       const current = profiles[idx]!;
-      const existingIds = current.assignedLibraryIds || (current.assignedLibraryId ? [current.assignedLibraryId] : []);
+      const existingIds =
+        current.assignedLibraryIds ||
+        (current.assignedLibraryId ? [current.assignedLibraryId] : []);
       if (!existingIds.includes(libraryId)) {
         existingIds.push(libraryId);
       }
@@ -1743,7 +1760,10 @@ export async function addLibraryToClient(
     }
     return { success: true };
   } catch (err) {
-    return { success: false, error: err instanceof Error ? err.message : "Failed to add library assignment." };
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Failed to add library assignment.",
+    };
   }
 }
 
@@ -1796,7 +1816,10 @@ export async function removeLibraryFromClient(
     }
     return { success: true };
   } catch (err) {
-    return { success: false, error: err instanceof Error ? err.message : "Failed to remove library assignment." };
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Failed to remove library assignment.",
+    };
   }
 }
 
@@ -2285,8 +2308,7 @@ export async function updateSong(
       youtubeUrl: params.youtubeUrl !== undefined ? params.youtubeUrl : current.youtubeUrl,
       youtubeVideoId:
         params.youtubeVideoId !== undefined ? params.youtubeVideoId : current.youtubeVideoId,
-      thumbnailUrl:
-        params.thumbnailUrl !== undefined ? params.thumbnailUrl : current.thumbnailUrl,
+      thumbnailUrl: params.thumbnailUrl !== undefined ? params.thumbnailUrl : current.thumbnailUrl,
       channelName: params.channelName !== undefined ? params.channelName : current.channelName,
     };
 
@@ -2817,4 +2839,3 @@ export function extractYouTubeVideoId(input: string): string | null {
 
   return null;
 }
-

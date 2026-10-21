@@ -31,6 +31,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { AccountSettingsModal } from "@/components/AccountSettingsModal";
 import { songLibraryConfig } from "@/config/songLibraryConfig";
+import { sanitizeMobileInput, validateIndianMobile } from "@/lib/phoneAuth";
 import {
   clientLogin,
   clientSignUp,
@@ -117,7 +118,9 @@ function ClientRouteComponent() {
   const handleQuickDemo = (demoAccount: (typeof DEMO_CLIENT_ACCOUNTS)[number]) => {
     setAuthError("");
     setSuccessNotice("");
-    setLoginIdentifier(demoAccount.profile.phone || demoAccount.profile.email);
+    const raw = demoAccount.profile.phone || "";
+    const digits = raw.replace(/\D/g, "").slice(-10);
+    setLoginIdentifier(digits);
     setLoginPassword(demoAccount.demoPasswordHint);
     setMode("login");
   };
@@ -676,7 +679,8 @@ function ClientRouteComponent() {
               )}
             </div>
 
-            {(session.assignedLibraryId || (session.assignedLibraryIds && session.assignedLibraryIds.length > 0)) ? (
+            {session.assignedLibraryId ||
+            (session.assignedLibraryIds && session.assignedLibraryIds.length > 0) ? (
               <div className="mt-8 border-t border-stone-100 pt-6 text-left">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
                   <div>
@@ -1215,23 +1219,23 @@ function ClientRouteComponent() {
           {mode === "login" ? (
             <form onSubmit={handleLoginSubmit} className="mt-6 space-y-4">
               <div>
-                <label className="block text-xs font-medium text-stone-700">
-                  Mobile Number or Email
-                </label>
+                <label className="block text-xs font-medium text-stone-700">Mobile Number</label>
                 <div className="relative mt-1">
                   <Phone className="absolute left-3 top-2.5 size-4 text-stone-400" />
                   <Input
-                    type="text"
+                    type="tel"
+                    inputMode="numeric"
                     required
-                    placeholder="+91 98765 43210 or your email"
+                    placeholder="Enter your 10-digit mobile number"
                     value={loginIdentifier}
-                    onChange={(e) => setLoginIdentifier(e.target.value)}
+                    onChange={(e) => setLoginIdentifier(sanitizeMobileInput(e.target.value))}
+                    maxLength={10}
                     className="pl-9 text-xs"
-                    autoComplete="username tel"
+                    autoComplete="tel"
                   />
                 </div>
                 <p className="mt-1 text-[11px] text-stone-400">
-                  Enter your registered mobile number (e.g. +91 98765 43210) or email address
+                  Enter your 10-digit Indian mobile number
                 </p>
               </div>
 
@@ -1306,12 +1310,16 @@ function ClientRouteComponent() {
               <div className="grid grid-cols-2 gap-2.5">
                 <div>
                   <label className="block text-[11px] font-medium text-stone-700">
-                    Phone (optional)
+                    Mobile Number *
                   </label>
                   <Input
-                    placeholder="+91 98765..."
+                    type="tel"
+                    inputMode="numeric"
+                    required
+                    placeholder="10-digit number"
+                    maxLength={10}
                     value={signupPhone}
-                    onChange={(e) => setSignupPhone(e.target.value)}
+                    onChange={(e) => setSignupPhone(sanitizeMobileInput(e.target.value))}
                     className="text-xs mt-1"
                   />
                 </div>

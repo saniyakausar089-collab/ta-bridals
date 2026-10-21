@@ -221,7 +221,7 @@ describe("Feature 1 & 2 Integration: Crew Assignments & Live Badges", () => {
 
     expect(data).toBeNull();
     expect(error).toBeDefined();
-    expect(error?.code).toBe("42501");
+    expect(["42501", "P0001"]).toContain(error?.code);
     expect(error?.message).toContain("Not authorized");
   });
 

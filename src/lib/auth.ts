@@ -1,5 +1,22 @@
 import type { Session, User } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
+import {
+  validateIndianMobile,
+  isMobileNumberAvailable,
+  signInWithMobileNumber,
+  sanitizeMobileInput,
+  linkCurrentAccountMobileNumber,
+  type SignInWithMobileResult,
+} from "./phoneAuth";
+
+export {
+  validateIndianMobile,
+  isMobileNumberAvailable,
+  signInWithMobileNumber,
+  sanitizeMobileInput,
+  linkCurrentAccountMobileNumber,
+  type SignInWithMobileResult,
+};
 
 export type UserRole = "admin" | "team_member" | "client";
 export type ApprovalStatus = "pending" | "approved" | "rejected";
@@ -19,6 +36,7 @@ export interface ProfileRecord {
   user_id: string;
   display_name: string;
   email: string | null;
+  phone_number?: string | null;
   approval_status: ApprovalStatus;
   reviewed_at: string | null;
   reviewed_by: string | null;
@@ -175,6 +193,7 @@ export interface SignUpParams {
   email: string;
   password: string;
   confirmPassword: string;
+  mobileNumber?: string;
 }
 
 export interface SignUpResult {
@@ -187,13 +206,15 @@ export interface SignUpResult {
 
 /**
  * Registers a new user with Supabase Auth.
- * Sanitizes input, enforces password match and minimum length, and handles duplicate registrations.
+ * Sanitizes input, strictly validates 10-digit mobile number, enforces password match and minimum length,
+ * and handles duplicate registrations and mobile uniqueness.
  */
 export async function signUpTeamMember({
   fullName,
   email,
   password,
   confirmPassword,
+  mobileNumber,
 }: SignUpParams): Promise<SignUpResult> {
   const trimmedName = fullName.trim();
   const trimmedEmail = email.trim().toLowerCase();
@@ -205,6 +226,31 @@ export async function signUpTeamMember({
       user: null,
       error: "Please enter your full name.",
     };
+  }
+
+  let normalizedPhone: string | undefined;
+  if (mobileNumber !== undefined) {
+    const phoneVal = validateIndianMobile(mobileNumber);
+    if (!phoneVal.isValid) {
+      return {
+        success: false,
+        requiresEmailConfirmation: false,
+        user: null,
+        error: phoneVal.error || "Enter a valid 10-digit mobile number",
+      };
+    }
+    normalizedPhone = phoneVal.digits;
+
+    // Check server uniqueness
+    const available = await isMobileNumberAvailable(normalizedPhone);
+    if (!available) {
+      return {
+        success: false,
+        requiresEmailConfirmation: false,
+        user: null,
+        error: "An account with this mobile number already exists. Please sign in instead.",
+      };
+    }
   }
 
   if (!trimmedEmail || !trimmedEmail.includes("@")) {
@@ -242,6 +288,7 @@ export async function signUpTeamMember({
       data: {
         full_name: trimmedName,
         display_name: trimmedName,
+        ...(normalizedPhone ? { phone: normalizedPhone, phone_number: normalizedPhone } : {}),
       },
     },
   });

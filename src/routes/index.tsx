@@ -86,6 +86,11 @@ import {
   isOwnerEmail,
   rejectRegistration,
   signUpTeamMember,
+  validateIndianMobile,
+  sanitizeMobileInput,
+  signInWithMobileNumber,
+  isMobileNumberAvailable,
+  linkCurrentAccountMobileNumber,
   type AccessStatus,
   type ApprovalStatus,
   type ProfileRecord,
@@ -395,7 +400,8 @@ function Index() {
       );
     }
 
-    const savedTitle = (result.data as any).couple_name || (result.data as any)["shoot name"] || shootTitle;
+    const savedTitle =
+      (result.data as any).couple_name || (result.data as any)["shoot name"] || shootTitle;
     const normalizedSavedShoot = {
       ...result.data,
       couple_name: savedTitle,
@@ -447,9 +453,10 @@ function Index() {
     }
 
     setShoots((current) =>
-      [...current.filter((shoot) => shoot.id !== normalizedSavedShoot.id), normalizedSavedShoot].sort((a, b) =>
-        a.event_date.localeCompare(b.event_date),
-      ),
+      [
+        ...current.filter((shoot) => shoot.id !== normalizedSavedShoot.id),
+        normalizedSavedShoot,
+      ].sort((a, b) => a.event_date.localeCompare(b.event_date)),
     );
   }
 
@@ -826,13 +833,23 @@ function AuthScreen({
   const [internalError, setInternalError] = useState("");
   const [noticeMessage, setNoticeMessage] = useState("");
 
-  const [signInEmail, setSignInEmail] = useState("");
+  const [signInMobile, setSignInMobile] = useState("");
   const [signInPassword, setSignInPassword] = useState("");
 
   const [fullName, setFullName] = useState("");
+  const [signUpMobile, setSignUpMobile] = useState("");
   const [signUpEmail, setSignUpEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+
+  // Account linking modal state for existing email users
+  const [showLinkModal, setShowLinkModal] = useState(false);
+  const [linkEmail, setLinkEmail] = useState("");
+  const [linkPassword, setLinkPassword] = useState("");
+  const [linkMobile, setLinkMobile] = useState("");
+  const [linkLoading, setLinkLoading] = useState(false);
+  const [linkError, setLinkError] = useState("");
+  const [linkSuccess, setLinkSuccess] = useState("");
 
   const config = getSupabaseConfig();
   const activeError = internalError || externalError;
@@ -851,15 +868,22 @@ function AuthScreen({
     setNoticeMessage("");
     onDismissError();
 
+    // Validate 10-digit mobile number
+    const phoneVal = validateIndianMobile(signInMobile);
+    if (!phoneVal.isValid) {
+      setInternalError(phoneVal.error || "Enter a valid 10-digit mobile number");
+      setLoading(false);
+      return;
+    }
+
     try {
-      const email = signInEmail.trim();
-      const { error: signInError } = await supabase.auth.signInWithPassword({
-        email,
+      const res = await signInWithMobileNumber({
+        mobileNumber: phoneVal.digits,
         password: signInPassword,
       });
 
-      if (signInError) {
-        setInternalError(signInError.message);
+      if (!res.success) {
+        setInternalError(res.error || "Invalid mobile number or password.");
       }
     } catch (err) {
       setInternalError(err instanceof Error ? err.message : "We couldn't sign you in.");
@@ -875,9 +899,17 @@ function AuthScreen({
     setNoticeMessage("");
     onDismissError();
 
+    const phoneVal = validateIndianMobile(signUpMobile);
+    if (!phoneVal.isValid) {
+      setInternalError(phoneVal.error || "Enter a valid 10-digit mobile number");
+      setLoading(false);
+      return;
+    }
+
     try {
       const res = await signUpTeamMember({
         fullName,
+        mobileNumber: phoneVal.digits,
         email: signUpEmail,
         password,
         confirmPassword,
@@ -904,6 +936,55 @@ function AuthScreen({
       setInternalError(err instanceof Error ? err.message : "Unable to complete registration.");
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function handleLinkAccountSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setLinkLoading(true);
+    setLinkError("");
+    setLinkSuccess("");
+
+    const phoneVal = validateIndianMobile(linkMobile);
+    if (!phoneVal.isValid) {
+      setLinkError(phoneVal.error || "Enter a valid 10-digit mobile number");
+      setLinkLoading(false);
+      return;
+    }
+
+    try {
+      // 1. Verify credentials by signing in with email + password
+      const { data: authData, error: authErr } = await supabase.auth.signInWithPassword({
+        email: linkEmail.trim().toLowerCase(),
+        password: linkPassword,
+      });
+
+      if (authErr || !authData.user) {
+        setLinkError("Incorrect email or password. Please verify your credentials.");
+        setLinkLoading(false);
+        return;
+      }
+
+      // 2. Link mobile number to account
+      const linkRes = await linkCurrentAccountMobileNumber(phoneVal.digits);
+      if (!linkRes.success) {
+        setLinkError(linkRes.error || "Failed to link mobile number.");
+        setLinkLoading(false);
+        return;
+      }
+
+      setLinkSuccess(
+        "Mobile number linked successfully! You can now log in using your mobile number.",
+      );
+      setSignInMobile(phoneVal.digits);
+      setTimeout(() => {
+        setShowLinkModal(false);
+        setLinkSuccess("");
+      }, 1500);
+    } catch (err) {
+      setLinkError(err instanceof Error ? err.message : "Failed to link mobile number.");
+    } finally {
+      setLinkLoading(false);
     }
   }
 
@@ -976,7 +1057,7 @@ function AuthScreen({
           </h2>
           <p className="mt-2 text-sm leading-6 text-[#77786f]">
             {mode === "signin"
-              ? "Sign in with your account to access your studio workspace."
+              ? "Sign in with your mobile number to access your studio workspace."
               : "Register below. New accounts require owner approval before accessing studio data."}
           </p>
 
@@ -1038,22 +1119,31 @@ function AuthScreen({
           {mode === "signin" ? (
             <form className="mt-7 space-y-4" onSubmit={handleSignInSubmit}>
               <label className="block space-y-1.5 text-sm font-medium text-[#444941]">
-                Studio email address
+                Mobile Number
                 <Input
-                  className="h-12 rounded-lg border-[#dedbd2] bg-white px-4"
-                  type="email"
-                  name="email"
-                  value={signInEmail}
-                  onChange={(e) => setSignInEmail(e.target.value)}
-                  autoComplete="username"
-                  placeholder="owner@tabridals.com or you@example.com"
+                  className="h-12 rounded-lg border-[#dedbd2] bg-white px-4 text-sm"
+                  type="tel"
+                  inputMode="numeric"
+                  name="mobileNumber"
+                  value={signInMobile}
+                  onChange={(e) => {
+                    setSignInMobile(sanitizeMobileInput(e.target.value));
+                    if (internalError) setInternalError("");
+                  }}
+                  autoComplete="tel"
+                  placeholder="Enter your 10-digit mobile number"
+                  maxLength={10}
                   required
                 />
+                <span className="block text-[11px] text-[#7d7c73]">
+                  Enter your 10-digit Indian mobile number (e.g. 98765 43210)
+                </span>
               </label>
+
               <label className="block space-y-1.5 text-sm font-medium text-[#444941]">
                 Password
                 <Input
-                  className="h-12 rounded-lg border-[#dedbd2] bg-white px-4"
+                  className="h-12 rounded-lg border-[#dedbd2] bg-white px-4 text-sm"
                   type="password"
                   name="password"
                   value={signInPassword}
@@ -1079,15 +1169,27 @@ function AuthScreen({
                 )}
               </Button>
 
-              <div className="pt-2 text-center text-xs text-[#7d7c73]">
-                Need an account?{" "}
-                <button
-                  type="button"
-                  onClick={() => handleModeSwitch("signup")}
-                  className="font-medium text-[#344234] underline underline-offset-2 hover:text-[#1e271e]"
-                >
-                  Create account & request access
-                </button>
+              <div className="pt-2 text-center text-xs text-[#7d7c73] space-y-2">
+                <div>
+                  Need an account?{" "}
+                  <button
+                    type="button"
+                    onClick={() => handleModeSwitch("signup")}
+                    className="font-medium text-[#344234] underline underline-offset-2 hover:text-[#1e271e]"
+                  >
+                    Create account & request access
+                  </button>
+                </div>
+
+                <div>
+                  <button
+                    type="button"
+                    onClick={() => setShowLinkModal(true)}
+                    className="text-[#656358] underline underline-offset-2 hover:text-[#344234]"
+                  >
+                    Existing user with email? Link your mobile number
+                  </button>
+                </div>
               </div>
 
               <div className="mt-4 border-t border-[#dedbd2] pt-3 text-center">
@@ -1120,7 +1222,26 @@ function AuthScreen({
               </label>
 
               <label className="block space-y-1.5 text-sm font-medium text-[#444941]">
-                Email address
+                Mobile Number
+                <Input
+                  className="h-12 rounded-lg border-[#dedbd2] bg-white px-4 text-sm"
+                  type="tel"
+                  inputMode="numeric"
+                  name="signUpMobile"
+                  value={signUpMobile}
+                  onChange={(e) => setSignUpMobile(sanitizeMobileInput(e.target.value))}
+                  autoComplete="tel"
+                  placeholder="Enter your 10-digit mobile number"
+                  maxLength={10}
+                  required
+                />
+                <span className="block text-[11px] text-[#7d7c73]">
+                  Must be exactly 10 numeric digits
+                </span>
+              </label>
+
+              <label className="block space-y-1.5 text-sm font-medium text-[#444941]">
+                Recovery Email Address
                 <Input
                   className="h-12 rounded-lg border-[#dedbd2] bg-white px-4"
                   type="email"
@@ -1128,7 +1249,7 @@ function AuthScreen({
                   value={signUpEmail}
                   onChange={(e) => setSignUpEmail(e.target.value)}
                   autoComplete="email"
-                  placeholder="you@example.com"
+                  placeholder="you@example.com (used for account recovery)"
                   required
                 />
               </label>
@@ -1179,39 +1300,97 @@ function AuthScreen({
                 {loading ? (
                   <>
                     <LoaderCircle className="size-4 animate-spin" aria-hidden="true" />
-                    Submitting registration…
+                    Registering…
                   </>
                 ) : (
                   "Create account & request access"
                 )}
               </Button>
-
-              <div className="pt-2 text-center text-xs text-[#7d7c73]">
-                Already have an account?{" "}
-                <button
-                  type="button"
-                  onClick={() => handleModeSwitch("signin")}
-                  className="font-medium text-[#344234] underline underline-offset-2 hover:text-[#1e271e]"
-                >
-                  Sign in
-                </button>
-              </div>
-
-              <div className="border-t border-[#dedbd2] pt-3 text-center text-xs text-[#89877e]">
-                Are you a client?{" "}
-                <Link
-                  to="/client"
-                  className="font-medium text-[#344234] underline hover:text-[#1e271e]"
-                >
-                  Go to Client Signup &rarr;
-                </Link>
-              </div>
             </form>
           )}
 
-          <p className="mt-6 text-center text-xs leading-5 text-[#89877e]">
-            TA Bridals · Wedding Shoot & Studio Management
-          </p>
+          {/* Account Linking Modal for Existing Users */}
+          {showLinkModal && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+              <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl border border-stone-200">
+                <h3 className="font-serif text-xl text-[#30382f]">Link Mobile Number to Account</h3>
+                <p className="mt-1 text-xs text-stone-600 leading-relaxed">
+                  If you created your account with an email address previously, enter your
+                  credentials below along with your 10-digit mobile number to enable mobile login.
+                </p>
+
+                {linkError && (
+                  <div className="mt-4 rounded-lg bg-red-50 p-3 text-xs text-red-700 border border-red-200">
+                    {linkError}
+                  </div>
+                )}
+                {linkSuccess && (
+                  <div className="mt-4 rounded-lg bg-green-50 p-3 text-xs text-green-700 border border-green-200">
+                    {linkSuccess}
+                  </div>
+                )}
+
+                <form onSubmit={handleLinkAccountSubmit} className="mt-4 space-y-3">
+                  <label className="block text-xs font-medium text-stone-700">
+                    Registered Email
+                    <Input
+                      type="email"
+                      value={linkEmail}
+                      onChange={(e) => setLinkEmail(e.target.value)}
+                      placeholder="you@example.com"
+                      required
+                      className="mt-1 text-xs"
+                    />
+                  </label>
+
+                  <label className="block text-xs font-medium text-stone-700">
+                    Account Password
+                    <Input
+                      type="password"
+                      value={linkPassword}
+                      onChange={(e) => setLinkPassword(e.target.value)}
+                      placeholder="Enter your current password"
+                      required
+                      className="mt-1 text-xs"
+                    />
+                  </label>
+
+                  <label className="block text-xs font-medium text-stone-700">
+                    10-Digit Mobile Number
+                    <Input
+                      type="tel"
+                      inputMode="numeric"
+                      value={linkMobile}
+                      onChange={(e) => setLinkMobile(sanitizeMobileInput(e.target.value))}
+                      placeholder="Enter your 10-digit mobile number"
+                      maxLength={10}
+                      required
+                      className="mt-1 text-xs"
+                    />
+                  </label>
+
+                  <div className="mt-5 flex justify-end gap-2 pt-2 border-t border-stone-100">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => setShowLinkModal(false)}
+                      disabled={linkLoading}
+                      className="text-xs"
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      type="submit"
+                      disabled={linkLoading}
+                      className="bg-[#344234] text-white hover:bg-[#283528] text-xs"
+                    >
+                      {linkLoading ? "Linking..." : "Verify & Link Number"}
+                    </Button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          )}
         </div>
       </section>
     </main>
@@ -1505,12 +1684,7 @@ function Workspace({
   }, [isAdmin]);
 
   useEffect(() => {
-    if (
-      !isAdmin &&
-      (section === "approvals" ||
-        section === "analytics" ||
-        section === "finance")
-    ) {
+    if (!isAdmin && (section === "approvals" || section === "analytics" || section === "finance")) {
       onSectionChange("overview");
     }
   }, [isAdmin, section, onSectionChange]);
@@ -1941,7 +2115,9 @@ function RegistrationsView({
   }
 
   async function handleDelete(userId: string, name: string) {
-    if (!window.confirm(`Permanently delete the registration record for ${name || "this applicant"}?`)) {
+    if (
+      !window.confirm(`Permanently delete the registration record for ${name || "this applicant"}?`)
+    ) {
       return;
     }
     setProcessingId(userId);
@@ -1977,14 +2153,19 @@ function RegistrationsView({
     try {
       const { error: rpcErr } = await (supabase.rpc as any)("clear_rejected_registrations");
       if (rpcErr) {
-        const { error: directErr } = await supabase.from("profiles").delete().eq("approval_status", "rejected");
+        const { error: directErr } = await supabase
+          .from("profiles")
+          .delete()
+          .eq("approval_status", "rejected");
         if (directErr) throw directErr;
       }
       onRegistrationsChange(registrations.filter((r) => r.approval_status !== "rejected"));
       setActionNotice("All rejected registration history has been permanently deleted.");
       await reload();
     } catch (err) {
-      setActionError(err instanceof Error ? err.message : "Failed to clear rejected registrations.");
+      setActionError(
+        err instanceof Error ? err.message : "Failed to clear rejected registrations.",
+      );
     } finally {
       setRefreshing(false);
     }
