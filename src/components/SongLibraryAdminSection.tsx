@@ -51,6 +51,7 @@ import {
   uploadSongAudio,
   getClientCompleteSelections,
   deleteClientProfile,
+  extractYouTubeVideoId,
 } from "@/lib/songLibraryService";
 import {
   WEDDING_EVENT_GROUPS,
@@ -100,12 +101,18 @@ export function SongLibraryAdminSection() {
   const [songArtist, setSongArtist] = useState<string>("");
   const [songEventGroup, setSongEventGroup] = useState<WeddingEventGroup>("Haldi");
   const [songAudioRef, setSongAudioRef] = useState<string>("");
+  const [songYoutubeUrl, setSongYoutubeUrl] = useState<string>("");
   const [songFile, setSongFile] = useState<File | null>(null);
   const [uploadingAudio, setUploadingAudio] = useState<boolean>(false);
   const [submittingSong, setSubmittingSong] = useState<boolean>(false);
 
-  // YouTube Music Search State
+  // YouTube Music Search & Direct URL State
   const [isSearchingYouTube, setIsSearchingYouTube] = useState<boolean>(false);
+  const [ytActiveTab, setYtActiveTab] = useState<"search" | "direct">("direct");
+  const [directYtUrl, setDirectYtUrl] = useState<string>("");
+  const [directYtTitle, setDirectYtTitle] = useState<string>("");
+  const [directYtArtist, setDirectYtArtist] = useState<string>("");
+  const [directYtSubmitting, setDirectYtSubmitting] = useState<boolean>(false);
   const [ytSearchQuery, setYtSearchQuery] = useState<string>("");
   const [ytSearching, setYtSearching] = useState<boolean>(false);
   const [ytSearchResults, setYtSearchResults] = useState<
@@ -457,12 +464,23 @@ export function SongLibraryAdminSection() {
         finalAudioPath = uploadRes.storagePath;
       }
 
+      // Check for YouTube URL input
+      const rawYtUrl = songYoutubeUrl.trim();
+      const extractedVideoId = rawYtUrl ? extractYouTubeVideoId(rawYtUrl) : null;
+      const ytVideoId = extractedVideoId || undefined;
+      const ytThumbnail = extractedVideoId
+        ? `https://img.youtube.com/vi/${extractedVideoId}/hqdefault.jpg`
+        : undefined;
+
       if (editingSongId) {
         const res = await updateSong(editingSongId, {
           title: songTitle,
           artist: songArtist,
           eventGroup: songEventGroup,
           ...(finalAudioPath ? { audioFileName: finalAudioPath } : {}),
+          ...(rawYtUrl ? { youtubeUrl: rawYtUrl } : {}),
+          ...(ytVideoId ? { youtubeVideoId: ytVideoId } : {}),
+          ...(ytThumbnail ? { thumbnailUrl: ytThumbnail } : {}),
         });
         if (!res.success || !res.song) {
           setErrorMessage(res.error || "Failed to update song.");
@@ -477,6 +495,9 @@ export function SongLibraryAdminSection() {
           artist: songArtist,
           eventGroup: songEventGroup,
           ...(finalAudioPath ? { audioFileName: finalAudioPath } : {}),
+          ...(rawYtUrl ? { youtubeUrl: rawYtUrl } : {}),
+          ...(ytVideoId ? { youtubeVideoId: ytVideoId } : {}),
+          ...(ytThumbnail ? { thumbnailUrl: ytThumbnail } : {}),
         });
         if (!res.success || !res.song) {
           setErrorMessage(res.error || "Failed to add song.");
@@ -489,6 +510,7 @@ export function SongLibraryAdminSection() {
       setSongTitle("");
       setSongArtist("");
       setSongAudioRef("");
+      setSongYoutubeUrl("");
       setSongFile(null);
       setSongEventGroup("Haldi");
       await loadSongs(selectedLibraryForSongs.id);
@@ -508,6 +530,68 @@ export function SongLibraryAdminSection() {
     setSongArtist(song.artist);
     setSongEventGroup(song.eventGroup);
     setSongAudioRef(song.audioFileName || "");
+    setSongYoutubeUrl(song.youtubeUrl || (song.youtubeVideoId ? `https://www.youtube.com/watch?v=s${song.youtubeVideoId}` : ""));
+  };
+
+  // Direct YouTube URL quick-add handler
+  const handleAddDirectYouTubeSong = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedLibraryForSongs) {
+      setErrorMessage("Please select a library first.");
+      return;
+    }
+
+    const inputUrl = directYtUrl.trim();
+    if (!inputUrl) {
+      setErrorMessage("Please provide a YouTube video URL or ID.");
+      return;
+    }
+
+    const videoId = extractYouTubeVideoId(inputUrl);
+    if (!videoId) {
+      setErrorMessage("Could not parse a valid YouTube Video ID from the provided URL.");
+      return;
+    }
+
+    setDirectYtSubmitting(true);
+    setErrorMessage("");
+    setSuccessMessage("");
+
+    try {
+      const cleanTitle = directYtTitle.trim() || `YouTube Song (${videoId})`;
+      const cleanArtist = directYtArtist.trim() || "YouTube Creator";
+      const fullUrl = inputUrl.startsWith("http")
+        ? inputUrl
+        : `https://www.youtube.com/watch?v=${videoId}`;
+      const thumbUrl = `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`;
+
+      const res = await addSongToLibrary({
+        libraryId: selectedLibraryForSongs.id,
+        title: cleanTitle,
+        artist: cleanArtist,
+        eventGroup: ytSelectedCategory,
+        youtubeVideoId: videoId,
+        youtubeUrl: fullUrl,
+        thumbnailUrl: thumbUrl,
+        channelName: cleanArtist,
+      });
+
+      if (!res.success || !res.song) {
+        setErrorMessage(res.error || "Failed to add YouTube song.");
+        return;
+      }
+
+      setSuccessMessage(`"${res.song.title}" added to ${ytSelectedCategory} in this library.`);
+      setDirectYtUrl("");
+      setDirectYtTitle("");
+      setDirectYtArtist("");
+      await loadSongs(selectedLibraryForSongs.id);
+      await loadData();
+    } catch (err) {
+      setErrorMessage(err instanceof Error ? err.message : "Error adding YouTube song.");
+    } finally {
+      setDirectYtSubmitting(false);
+    }
   };
 
   const handleDeleteSong = async (songId: string, title: string) => {
@@ -1109,33 +1193,126 @@ export function SongLibraryAdminSection() {
                     </div>
                   </div>
 
-                  {/* Search Input Bar */}
-                  <form onSubmit={handleSearchYouTube} className="flex gap-2">
-                    <div className="relative flex-1">
-                      <Search className="absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-stone-400" />
-                      <Input
-                        type="search"
-                        placeholder="Search song title, artist, or wedding soundtrack (e.g. Din Shagna Da, Kesariya, Kudmayi)..."
-                        value={ytSearchQuery}
-                        onChange={(e) => setYtSearchQuery(e.target.value)}
-                        className="h-9 pl-9 text-xs border-stone-200 bg-white"
-                      />
-                    </div>
-                    <Button
-                      type="submit"
-                      disabled={ytSearching || !ytSearchQuery.trim()}
-                      className="h-9 bg-red-700 hover:bg-red-800 text-white text-xs px-4"
+                  {/* Mode switcher tabs: Direct URL vs Search Catalog */}
+                  <div className="flex items-center gap-2 border-b border-red-100 pb-2">
+                    <button
+                      type="button"
+                      onClick={() => setYtActiveTab("direct")}
+                      className={`text-xs px-3 py-1.5 rounded-lg font-medium transition-colors ${
+                        ytActiveTab === "direct"
+                          ? "bg-red-700 text-white shadow-2xs font-semibold"
+                          : "text-stone-600 hover:text-red-700 hover:bg-red-50"
+                      }`}
                     >
-                      {ytSearching ? (
-                        <>
-                          <RefreshCw className="size-3.5 mr-1.5 animate-spin" />
-                          Searching...
-                        </>
-                      ) : (
-                        "Search"
-                      )}
-                    </Button>
-                  </form>
+                      Paste YouTube URL
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setYtActiveTab("search")}
+                      className={`text-xs px-3 py-1.5 rounded-lg font-medium transition-colors ${
+                        ytActiveTab === "search"
+                          ? "bg-red-700 text-white shadow-2xs font-semibold"
+                          : "text-stone-600 hover:text-red-700 hover:bg-red-50"
+                      }`}
+                    >
+                      Search YouTube Catalog
+                    </button>
+                  </div>
+
+                  {/* TAB 1: Direct YouTube URL input form */}
+                  {ytActiveTab === "direct" ? (
+                    <form onSubmit={handleAddDirectYouTubeSong} className="space-y-3">
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                        <div className="sm:col-span-1">
+                          <label className="block text-[11px] font-medium text-stone-700">
+                            YouTube URL or Video ID *
+                          </label>
+                          <Input
+                            required
+                            placeholder="https://www.youtube.com/watch?v=... or youtu.be/..."
+                            value={directYtUrl}
+                            onChange={(e) => setDirectYtUrl(e.target.value)}
+                            className="h-9 mt-1 text-xs border-stone-200 bg-white"
+                          />
+                          {directYtUrl && extractYouTubeVideoId(directYtUrl) && (
+                            <span className="text-[10px] text-emerald-600 mt-0.5 block truncate">
+                              Valid Video ID: {extractYouTubeVideoId(directYtUrl)}
+                            </span>
+                          )}
+                        </div>
+                        <div>
+                          <label className="block text-[11px] font-medium text-stone-700">
+                            Song Title (Optional)
+                          </label>
+                          <Input
+                            placeholder="e.g. Din Shagna Da"
+                            value={directYtTitle}
+                            onChange={(e) => setDirectYtTitle(e.target.value)}
+                            className="h-9 mt-1 text-xs border-stone-200 bg-white"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[11px] font-medium text-stone-700">
+                            Artist / Channel Name (Optional)
+                          </label>
+                          <Input
+                            placeholder="e.g. Jasleen Royal"
+                            value={directYtArtist}
+                            onChange={(e) => setDirectYtArtist(e.target.value)}
+                            className="h-9 mt-1 text-xs border-stone-200 bg-white"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="flex justify-end pt-1">
+                        <Button
+                          type="submit"
+                          disabled={directYtSubmitting || !directYtUrl.trim()}
+                          className="h-9 bg-red-700 hover:bg-red-800 text-white text-xs px-5 shadow-xs"
+                        >
+                          {directYtSubmitting ? (
+                            <>
+                              <RefreshCw className="size-3.5 mr-1.5 animate-spin" />
+                              Adding Song...
+                            </>
+                          ) : (
+                            <>
+                              <Plus className="size-3.5 mr-1.5" />
+                              Add YouTube Song to Library
+                            </>
+                          )}
+                        </Button>
+                      </div>
+                    </form>
+                  ) : (
+                    /* TAB 2: YouTube Search Catalog Bar */
+                    <form onSubmit={handleSearchYouTube} className="flex gap-2">
+                      <div className="relative flex-1">
+                        <Search className="absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-stone-400" />
+                        <Input
+                          type="search"
+                          placeholder="Search song title, artist, or wedding soundtrack (e.g. Din Shagna Da, Kesariya, Kudmayi)..."
+                          value={ytSearchQuery}
+                          onChange={(e) => setYtSearchQuery(e.target.value)}
+                          className="h-9 pl-9 text-xs border-stone-200 bg-white"
+                        />
+                      </div>
+                      <Button
+                        type="submit"
+                        disabled={ytSearching || !ytSearchQuery.trim()}
+                        className="h-9 bg-red-700 hover:bg-red-800 text-white text-xs px-4"
+                      >
+                        {ytSearching ? (
+                          <>
+                            <RefreshCw className="size-3.5 mr-1.5 animate-spin" />
+                            Searching...
+                          </>
+                        ) : (
+                          "Search"
+                        )}
+                      </Button>
+                    </form>
+                  )}
 
                   {/* YouTube Video Player Modal / Preview Banner */}
                   {ytPreviewVideoId && (
@@ -1266,7 +1443,7 @@ export function SongLibraryAdminSection() {
                   <h4 className="text-xs font-semibold uppercase tracking-wider text-[#586651]">
                     {editingSongId ? "Edit Song Details" : "Add Song to Library"}
                   </h4>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
                     <div>
                       <label className="block text-[11px] font-medium text-[#444941]">
                         Song Title *
@@ -1308,8 +1485,25 @@ export function SongLibraryAdminSection() {
                       </select>
                     </div>
                     <div>
+                      <label className="block text-[11px] font-medium text-[#444941] flex items-center gap-1">
+                        <Youtube className="size-3 text-red-600" />
+                        YouTube URL / Video ID
+                      </label>
+                      <Input
+                        placeholder="https://youtu.be/... or ID"
+                        value={songYoutubeUrl}
+                        onChange={(e) => setSongYoutubeUrl(e.target.value)}
+                        className="mt-1 text-xs"
+                      />
+                      {songYoutubeUrl && extractYouTubeVideoId(songYoutubeUrl) && (
+                        <span className="text-[10px] text-emerald-600 mt-0.5 block truncate">
+                          Detected Video ID: {extractYouTubeVideoId(songYoutubeUrl)}
+                        </span>
+                      )}
+                    </div>
+                    <div>
                       <label className="block text-[11px] font-medium text-[#444941]">
-                        Upload Audio File (.mp3, .wav, .m4a)
+                        Upload Audio File (Optional)
                       </label>
                       <Input
                         type="file"

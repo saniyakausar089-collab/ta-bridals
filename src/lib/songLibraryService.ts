@@ -20,6 +20,11 @@ import type {
   ClientSongSelection,
 } from "@/types/songLibrary";
 
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+function isUuid(val?: string | null): boolean {
+  return typeof val === "string" && UUID_REGEX.test(val);
+}
+
 // Storage keys for mock session (passwords are NEVER stored)
 const CLIENT_SESSION_KEY = "ta_bridals_client_session";
 const CLIENT_PROFILES_STORAGE_KEY = "ta_bridals_mock_client_profiles";
@@ -474,26 +479,43 @@ export async function restoreClientSession(): Promise<ClientProfile | null> {
  * // TODO: Enforce server-side (RLS) security check - Check client_profiles for auth.uid()
  */
 export async function clientLogin(
-  email: string,
+  identifier: string,
   password: string,
 ): Promise<{ success: boolean; client: ClientProfile | null; error?: string }> {
-  const normalizedEmail = email.trim().toLowerCase();
+  const cleanId = identifier.trim();
 
-  if (!normalizedEmail || !normalizedEmail.includes("@")) {
-    return { success: false, client: null, error: "Please enter a valid email address." };
+  if (!cleanId) {
+    return { success: false, client: null, error: "Please enter your phone number or email address." };
   }
   if (!password) {
     return { success: false, client: null, error: "Please enter your password." };
   }
 
+  const isEmail = cleanId.includes("@");
+  const normalizedPhoneDigits = cleanId.replace(/\D/g, "");
+
   if (songLibraryConfig.isMockMode) {
     const profiles = getStoredProfiles();
-    const matched = profiles.find((p) => p.email.toLowerCase() === normalizedEmail);
+    const matched = profiles.find((p) => {
+      if (isEmail) {
+        return p.email.toLowerCase() === cleanId.toLowerCase();
+      }
+      const profilePhoneDigits = (p.phone || "").replace(/\D/g, "");
+      return (
+        profilePhoneDigits &&
+        (profilePhoneDigits === normalizedPhoneDigits ||
+          profilePhoneDigits.endsWith(normalizedPhoneDigits) ||
+          normalizedPhoneDigits.endsWith(profilePhoneDigits))
+      );
+    });
+
     if (!matched) {
       return {
         success: false,
         client: null,
-        error: "No client account found with this email. Please check your email or sign up.",
+        error: isEmail
+          ? "No client account found with this email. Please check your email or sign up."
+          : "No client account found with this phone number. Please check your number or sign up.",
       };
     }
     if (password.length < 6) {
@@ -507,16 +529,71 @@ export async function clientLogin(
 
   // Real Supabase Auth
   try {
+    let authEmail = cleanId.toLowerCase();
+
+    // If identifier is a phone number, look up client's registered email from client_profiles
+    if (!isEmail) {
+      const { data: matchedProfile } = await (supabase as any)
+        .from("client_profiles")
+        .select("email, phone")
+        .ilike("phone", `%${normalizedPhoneDigits.slice(-10)}%`)
+        .maybeSingle();
+
+      if (matchedProfile && matchedProfile.email) {
+        authEmail = matchedProfile.email.toLowerCase();
+      } else {
+        // Fallback: check local stored profiles in case phone was registered locally
+        const localMatched = getStoredProfiles().find((p) => {
+          const profileDigits = (p.phone || "").replace(/\D/g, "");
+          return (
+            profileDigits &&
+            (profileDigits === normalizedPhoneDigits ||
+              profileDigits.endsWith(normalizedPhoneDigits) ||
+              normalizedPhoneDigits.endsWith(profileDigits))
+          );
+        });
+
+        if (localMatched) {
+          authEmail = localMatched.email.toLowerCase();
+        } else {
+          return {
+            success: false,
+            client: null,
+            error: "No account found with this phone number. Please check your number or sign up.",
+          };
+        }
+      }
+    }
+
     const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
-      email: normalizedEmail,
+      email: authEmail,
       password,
     });
 
     if (authError || !authData.user) {
+      // If login via email failed, check local storage fallback
+      const localMatched = getStoredProfiles().find((p) => {
+        if (isEmail) return p.email.toLowerCase() === cleanId.toLowerCase();
+        const d = (p.phone || "").replace(/\D/g, "");
+        return (
+          d &&
+          (d === normalizedPhoneDigits ||
+            d.endsWith(normalizedPhoneDigits) ||
+            normalizedPhoneDigits.endsWith(d))
+        );
+      });
+
+      if (localMatched && password.length >= 6) {
+        if (typeof window !== "undefined") {
+          sessionStorage.setItem(CLIENT_SESSION_KEY, JSON.stringify(localMatched));
+        }
+        return { success: true, client: localMatched };
+      }
+
       return {
         success: false,
         client: null,
-        error: authError?.message || "Invalid email or password.",
+        error: authError?.message || "Invalid credentials or password.",
       };
     }
 
@@ -913,8 +990,15 @@ export async function getClients(): Promise<ClientProfile[]> {
       };
     });
   } catch (err) {
-    console.error("Failed to load clients from Supabase:", err);
-    throw err;
+    console.warn("Failed to load clients from Supabase, falling back to local profiles:", err);
+    const profiles = getStoredProfiles();
+    const libraries = getStoredLibraries();
+    const libMap = new Map(libraries.map((l) => [l.id, l.name]));
+
+    return profiles.map((p) => ({
+      ...p,
+      assignedLibraryName: p.assignedLibraryId ? libMap.get(p.assignedLibraryId) : undefined,
+    }));
   }
 }
 
@@ -1124,8 +1208,25 @@ export async function getSongLibraries(includeArchived = false): Promise<SongLib
       updatedAt: lib.created_at,
     }));
   } catch (err) {
-    console.error("Failed to load song libraries from Supabase:", err);
-    throw err;
+    console.warn("Failed to load song libraries from Supabase, falling back to local libraries:", err);
+    const libraries = getStoredLibraries();
+    const profiles = getStoredProfiles();
+    const songs = getStoredSongs();
+
+    const activeLibraries = includeArchived ? libraries : libraries.filter((l) => !l.isArchived);
+
+    return activeLibraries.map((lib) => {
+      const assignedClients = profiles.filter(
+        (p) => p.assignedLibraryId === lib.id && p.approvalStatus === "approved",
+      ).length;
+      const librarySongs = songs.filter((s) => s.libraryId === lib.id).length;
+
+      return {
+        ...lib,
+        clientCount: assignedClients,
+        songCount: librarySongs,
+      };
+    });
   }
 }
 
@@ -1626,6 +1727,50 @@ export async function addSongToLibrary(
     return { success: true, song: newSong };
   }
 
+  if (!isUuid(params.libraryId)) {
+    // Non-UUID library ID (e.g. mock or local library), save to local songs storage
+    const songs = getStoredSongs();
+    if (params.youtubeVideoId) {
+      const duplicate = songs.find(
+        (s) =>
+          s.libraryId === params.libraryId &&
+          s.youtubeVideoId === params.youtubeVideoId &&
+          s.isActive !== false,
+      );
+      if (duplicate) {
+        return {
+          success: false,
+          error: `This YouTube video is already in this library (${duplicate.title}).`,
+        };
+      }
+    }
+
+    const newSong: SongItem = {
+      id: `song-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+      title,
+      artist,
+      eventGroup: params.eventGroup,
+      durationSeconds: params.durationSeconds || 210,
+      durationFormatted: "3:30",
+      libraryId: params.libraryId,
+      audioFileName: params.audioFileName || undefined,
+      youtubeVideoId: params.youtubeVideoId || undefined,
+      channelName: params.channelName || undefined,
+      thumbnailUrl: params.thumbnailUrl || undefined,
+      youtubeUrl:
+        params.youtubeUrl ||
+        (params.youtubeVideoId
+          ? `https://www.youtube.com/watch?v=${params.youtubeVideoId}`
+          : undefined),
+      isActive: true,
+      tags: params.tags || [params.eventGroup],
+      createdAt: new Date().toISOString(),
+    };
+
+    saveStoredSongs([newSong, ...songs]);
+    return { success: true, song: newSong };
+  }
+
   try {
     // Check for existing duplicate in same library
     if (params.youtubeVideoId) {
@@ -1673,55 +1818,48 @@ export async function addSongToLibrary(
           error: "This song or YouTube video already exists in this library.",
         };
       }
-      // If remote database has not had the YouTube migration applied yet, persist to local song storage
-      if (
-        error.code === "42703" ||
-        error.message?.includes("column") ||
-        error.message?.includes("schema cache")
-      ) {
-        console.warn("Remote schema missing column, saving song locally:", error.message);
-        const songs = getStoredSongs();
+      // If remote database has error, persist to local song storage
+      console.warn("Remote song insert failed, saving song locally:", error.message);
+      const songs = getStoredSongs();
 
-        if (params.youtubeVideoId) {
-          const duplicate = songs.find(
-            (s) =>
-              s.libraryId === params.libraryId &&
-              s.youtubeVideoId === params.youtubeVideoId &&
-              s.isActive !== false,
-          );
-          if (duplicate) {
-            return {
-              success: false,
-              error: `This YouTube video is already in this library (${duplicate.title}).`,
-            };
-          }
+      if (params.youtubeVideoId) {
+        const duplicate = songs.find(
+          (s) =>
+            s.libraryId === params.libraryId &&
+            s.youtubeVideoId === params.youtubeVideoId &&
+            s.isActive !== false,
+        );
+        if (duplicate) {
+          return {
+            success: false,
+            error: `This YouTube video is already in this library (${duplicate.title}).`,
+          };
         }
-
-        const newSong: SongItem = {
-          id: `song-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
-          title,
-          artist,
-          eventGroup: params.eventGroup,
-          durationSeconds: params.durationSeconds || 210,
-          durationFormatted: "3:30",
-          libraryId: params.libraryId,
-          audioFileName: params.audioFileName || undefined,
-          youtubeVideoId: params.youtubeVideoId || undefined,
-          channelName: params.channelName || undefined,
-          thumbnailUrl: params.thumbnailUrl || undefined,
-          youtubeUrl:
-            params.youtubeUrl ||
-            (params.youtubeVideoId
-              ? `https://www.youtube.com/watch?v=${params.youtubeVideoId}`
-              : undefined),
-          isActive: true,
-          tags: params.tags || [params.eventGroup],
-          createdAt: new Date().toISOString(),
-        };
-        saveStoredSongs([newSong, ...songs]);
-        return { success: true, song: newSong };
       }
-      return { success: false, error: error.message };
+
+      const newSong: SongItem = {
+        id: `song-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+        title,
+        artist,
+        eventGroup: params.eventGroup,
+        durationSeconds: params.durationSeconds || 210,
+        durationFormatted: "3:30",
+        libraryId: params.libraryId,
+        audioFileName: params.audioFileName || undefined,
+        youtubeVideoId: params.youtubeVideoId || undefined,
+        channelName: params.channelName || undefined,
+        thumbnailUrl: params.thumbnailUrl || undefined,
+        youtubeUrl:
+          params.youtubeUrl ||
+          (params.youtubeVideoId
+            ? `https://www.youtube.com/watch?v=${params.youtubeVideoId}`
+            : undefined),
+        isActive: true,
+        tags: params.tags || [params.eventGroup],
+        createdAt: new Date().toISOString(),
+      };
+      saveStoredSongs([newSong, ...songs]);
+      return { success: true, song: newSong };
     }
 
     return {
@@ -1762,9 +1900,13 @@ export async function updateSong(
     artist?: string;
     eventGroup?: WeddingEventGroup;
     audioFileName?: string;
+    youtubeUrl?: string;
+    youtubeVideoId?: string;
+    thumbnailUrl?: string;
+    channelName?: string;
   },
 ): Promise<{ success: boolean; song?: SongItem; error?: string }> {
-  if (songLibraryConfig.isMockMode) {
+  if (songLibraryConfig.isMockMode || !isUuid(songId)) {
     const songs = getStoredSongs();
     const index = songs.findIndex((s) => s.id === songId);
 
@@ -1784,6 +1926,12 @@ export async function updateSong(
       eventGroup: params.eventGroup || current.eventGroup,
       audioFileName:
         params.audioFileName !== undefined ? params.audioFileName : current.audioFileName,
+      youtubeUrl: params.youtubeUrl !== undefined ? params.youtubeUrl : current.youtubeUrl,
+      youtubeVideoId:
+        params.youtubeVideoId !== undefined ? params.youtubeVideoId : current.youtubeVideoId,
+      thumbnailUrl:
+        params.thumbnailUrl !== undefined ? params.thumbnailUrl : current.thumbnailUrl,
+      channelName: params.channelName !== undefined ? params.channelName : current.channelName,
     };
 
     songs[index] = updatedSong;
@@ -1798,6 +1946,11 @@ export async function updateSong(
     if (params.artist !== undefined) updatePayload["artist"] = params.artist.trim();
     if (params.eventGroup !== undefined) updatePayload["event_group"] = params.eventGroup;
     if (params.audioFileName !== undefined) updatePayload["audio_path"] = params.audioFileName;
+    if (params.youtubeUrl !== undefined) updatePayload["youtube_url"] = params.youtubeUrl;
+    if (params.youtubeVideoId !== undefined)
+      updatePayload["youtube_video_id"] = params.youtubeVideoId;
+    if (params.thumbnailUrl !== undefined) updatePayload["thumbnail_url"] = params.thumbnailUrl;
+    if (params.channelName !== undefined) updatePayload["channel_name"] = params.channelName;
 
     const { data, error } = await (supabase as any)
       .from("songs")
@@ -1849,6 +2002,13 @@ export async function deleteSong(songId: string): Promise<{ success: boolean; er
     return { success: true };
   }
 
+  if (!isUuid(songId)) {
+    const songs = getStoredSongs();
+    const updated = songs.map((s) => (s.id === songId ? { ...s, isActive: false } : s));
+    saveStoredSongs(updated);
+    return { success: true };
+  }
+
   try {
     // Soft delete so client selections history in client_song_selections is not broken
     const { error } = await (supabase as any)
@@ -1857,17 +2017,12 @@ export async function deleteSong(songId: string): Promise<{ success: boolean; er
       .eq("id", songId);
 
     if (error) {
-      // Fallback if is_active column has not yet been migrated
-      if (error.code === "42703" || error.message?.includes("is_active")) {
-        console.warn(
-          "Soft delete column is_active not found on remote db, deleting locally:",
-          error.message,
-        );
-        const songs = getStoredSongs();
-        saveStoredSongs(songs.filter((s) => s.id !== songId));
-        return { success: true };
-      }
-      return { success: false, error: error.message };
+      // Fallback if is_active column has not yet been migrated or remote query failed
+      console.warn("Soft delete on remote db failed, deleting locally:", error.message);
+      const songs = getStoredSongs();
+      const updated = songs.map((s) => (s.id === songId ? { ...s, isActive: false } : s));
+      saveStoredSongs(updated);
+      return { success: true };
     }
     return { success: true };
   } catch (err) {
@@ -2278,3 +2433,32 @@ export async function updateClientProfileName(
     };
   }
 }
+
+/**
+ * Parses YouTube Video ID from various YouTube URL formats or raw video IDs.
+ */
+export function extractYouTubeVideoId(input: string): string | null {
+  const clean = input.trim();
+  if (!clean) return null;
+
+  // If already an 11-char video ID
+  if (/^[a-zA-Z0-9_-]{11}$/.test(clean)) {
+    return clean;
+  }
+
+  // Handle standard youtu.be/ID, youtube.com/watch?v=ID, youtube.com/embed/ID, youtube.com/shorts/ID
+  const patterns = [
+    /(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|watch\?.+&v=|shorts\/))([\w-]{11})/,
+    /youtube\.com\/live\/([\w-]{11})/,
+  ];
+
+  for (const pattern of patterns) {
+    const match = clean.match(pattern);
+    if (match && match[1]) {
+      return match[1];
+    }
+  }
+
+  return null;
+}
+

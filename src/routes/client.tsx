@@ -89,8 +89,8 @@ function ClientRouteComponent() {
   const [savingCustomSong, setSavingCustomSong] = useState<boolean>(false);
   const [customSongNotice, setCustomSongNotice] = useState<string>("");
 
-  // Login form state
-  const [loginEmail, setLoginEmail] = useState<string>("");
+  // Login form state (supports phone number or email)
+  const [loginIdentifier, setLoginIdentifier] = useState<string>("");
   const [loginPassword, setLoginPassword] = useState<string>("");
 
   // Signup form state (role is NEVER an option)
@@ -115,7 +115,7 @@ function ClientRouteComponent() {
   const handleQuickDemo = (demoAccount: (typeof DEMO_CLIENT_ACCOUNTS)[number]) => {
     setAuthError("");
     setSuccessNotice("");
-    setLoginEmail(demoAccount.profile.email);
+    setLoginIdentifier(demoAccount.profile.phone || demoAccount.profile.email);
     setLoginPassword(demoAccount.demoPasswordHint);
     setMode("login");
   };
@@ -127,7 +127,7 @@ function ClientRouteComponent() {
     setLoading(true);
 
     try {
-      const res = await clientLogin(loginEmail, loginPassword);
+      const res = await clientLogin(loginIdentifier, loginPassword);
       if (!res.success || !res.client) {
         setAuthError(res.error || "Login failed.");
       } else {
@@ -1150,18 +1150,23 @@ function ClientRouteComponent() {
           {mode === "login" ? (
             <form onSubmit={handleLoginSubmit} className="mt-6 space-y-4">
               <div>
-                <label className="block text-xs font-medium text-stone-700">Client Email</label>
+                <label className="block text-xs font-medium text-stone-700">
+                  Phone Number
+                </label>
                 <div className="relative mt-1">
-                  <Mail className="absolute left-3 top-2.5 size-4 text-stone-400" />
+                  <Phone className="absolute left-3 top-2.5 size-4 text-stone-400" />
                   <Input
-                    type="email"
+                    type="tel"
                     required
-                    placeholder="client@tabridals.com"
-                    value={loginEmail}
-                    onChange={(e) => setLoginEmail(e.target.value)}
+                    placeholder="+91 98765 43210 or your mobile number"
+                    value={loginIdentifier}
+                    onChange={(e) => setLoginIdentifier(e.target.value)}
                     className="pl-9 text-xs"
                   />
                 </div>
+                <p className="mt-1 text-[11px] text-stone-400">
+                  Enter your registered mobile number (or email)
+                </p>
               </div>
 
               <div>
