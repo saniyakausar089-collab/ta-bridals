@@ -2597,13 +2597,34 @@ export async function getClientCustomSongRequests(
 export async function getClientSelections(
   clientId: string,
 ): Promise<Array<{ id: string; clientId: string; songId: string; eventGroup: WeddingEventGroup }>> {
+  // If not mock mode and valid UUID, query Supabase first so admin gets live selections
+  if (!songLibraryConfig.isMockMode && isUUID(clientId)) {
+    try {
+      const { data, error } = await (supabase as any)
+        .from("client_song_selections")
+        .select("*")
+        .eq("client_id", clientId);
+
+      if (!error && data && data.length > 0) {
+        return data.map((row: any) => ({
+          id: row.id,
+          clientId: row.client_id,
+          songId: row.song_id,
+          eventGroup: row.event_group as WeddingEventGroup,
+        }));
+      }
+    } catch (err) {
+      console.warn("Failed to query remote client_song_selections, checking cache:", err);
+    }
+  }
+
+  // Fallback to local storage (mock mode or offline cache)
   if (typeof window !== "undefined") {
     try {
       const raw = localStorage.getItem(CLIENT_SELECTIONS_STORAGE_KEY);
       if (raw) {
         const map = JSON.parse(raw);
         const stored = map[clientId];
-        // Support legacy array format or { selections: [], notes: "" }
         const userSelections: Array<{ songId: string; eventGroup: WeddingEventGroup }> =
           Array.isArray(stored) ? stored : stored?.selections || [];
         if (userSelections.length > 0) {
@@ -2620,26 +2641,7 @@ export async function getClientSelections(
     }
   }
 
-  try {
-    const { data, error } = await (supabase as any)
-      .from("client_song_selections")
-      .select("*")
-      .eq("client_id", clientId);
-
-    if (error || !data || data.length === 0) {
-      return [];
-    }
-
-    return (data || []).map((row: any) => ({
-      id: row.id,
-      clientId: row.client_id,
-      songId: row.song_id,
-      eventGroup: row.event_group as WeddingEventGroup,
-    }));
-  } catch (err) {
-    console.error("Failed to load client selections from Supabase:", err);
-    return [];
-  }
+  return [];
 }
 
 /**
@@ -2654,9 +2656,48 @@ export async function getClientCompleteSelections(clientId: string): Promise<{
   const rawSelections = await getClientSelections(clientId);
   const selectedSongIds = new Set(rawSelections.map((s) => s.songId));
 
-  // 2. Fetch all songs from stored/remote
-  const allSongs = getStoredSongs();
-  const selectedSongs = allSongs.filter((s) => selectedSongIds.has(s.id));
+  // 2. Fetch songs matching selectedSongIds (check remote Supabase first if available)
+  let selectedSongs: SongItem[] = [];
+  if (selectedSongIds.size > 0) {
+    const allStoredSongs = getStoredSongs();
+    const localMatches = allStoredSongs.filter((s) => selectedSongIds.has(s.id));
+    
+    // If running with Supabase, query matching songs directly by ID from the database
+    if (!songLibraryConfig.isMockMode && localMatches.length < selectedSongIds.size) {
+      try {
+        const { data: dbSongs } = await (supabase as any)
+          .from("songs")
+          .select("*")
+          .in("id", Array.from(selectedSongIds));
+
+        if (dbSongs && dbSongs.length > 0) {
+          selectedSongs = dbSongs.map((s: any) => ({
+            id: s.id,
+            title: s.title,
+            artist: s.artist || "Unknown Artist",
+            eventGroup: s.event_group as WeddingEventGroup,
+            durationSeconds: 210,
+            durationFormatted: "3:30",
+            libraryId: s.library_id,
+            audioFileName: s.audio_path || undefined,
+            youtubeVideoId: s.youtube_video_id || undefined,
+            channelName: s.channel_name || undefined,
+            thumbnailUrl: s.thumbnail_url || undefined,
+            youtubeUrl: s.youtube_url || undefined,
+            isActive: s.is_active ?? true,
+            createdAt: s.created_at,
+          }));
+        } else {
+          selectedSongs = localMatches;
+        }
+      } catch (err) {
+        console.warn("Failed to fetch selected songs from Supabase, falling back to local:", err);
+        selectedSongs = localMatches;
+      }
+    } else {
+      selectedSongs = localMatches;
+    }
+  }
 
   // 3. Fetch custom requests
   const customRequests = await getClientCustomSongRequests(clientId);
