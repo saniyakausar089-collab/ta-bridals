@@ -2955,6 +2955,51 @@ function MetricCard({
   );
 }
 
+const DEFAULT_EVENT_TYPES = [
+  "Wedding",
+  "Reception",
+  "Engagement",
+  "Pre-wedding",
+  "Haldi",
+  "Mehendi",
+  "Sangeet",
+  "Birthday",
+  "Baby Shower",
+  "Maternity",
+  "Anniversary",
+  "Housewarming",
+  "Corporate",
+  "Other",
+];
+
+function getCustomEventTypes(): string[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = localStorage.getItem("ta_custom_event_types");
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed)
+      ? parsed.filter((t): t is string => typeof t === "string" && t.trim().length > 0)
+      : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveCustomEventType(type: string): void {
+  if (typeof window === "undefined" || !type) return;
+  const cleaned = type.trim();
+  if (!cleaned || DEFAULT_EVENT_TYPES.includes(cleaned)) return;
+  try {
+    const existing = getCustomEventTypes();
+    if (!existing.includes(cleaned)) {
+      localStorage.setItem("ta_custom_event_types", JSON.stringify([...existing, cleaned]));
+    }
+  } catch {
+    // Ignore storage errors
+  }
+}
+
 function ShootsView({
   shoots,
   assignments,
@@ -2991,6 +3036,12 @@ function ShootsView({
   const [assigningShoot, setAssigningShoot] = useState<Shoot | null>(null);
   const [actionError, setActionError] = useState("");
   useEffect(() => setQuery(externalQuery), [externalQuery]);
+  const allFilterEventTypes = useMemo(() => {
+    const fromShoots = shoots.map((s) => s.event_type).filter(Boolean);
+    const customTypes = getCustomEventTypes();
+    return Array.from(new Set([...DEFAULT_EVENT_TYPES, ...fromShoots, ...customTypes]));
+  }, [shoots]);
+
   const filteredShoots = useMemo(() => {
     const normalizedQuery = query.trim().toLocaleLowerCase();
     return shoots.filter(
@@ -3050,11 +3101,11 @@ function ShootsView({
               onChange={(event) => setEventType(event.target.value)}
             >
               <option>All event types</option>
-              <option>Wedding</option>
-              <option>Reception</option>
-              <option>Engagement</option>
-              <option>Pre-wedding</option>
-              <option>Other</option>
+              {allFilterEventTypes.map((type) => (
+                <option key={type} value={type}>
+                  {type}
+                </option>
+              ))}
             </select>
             <select
               className="h-10 rounded-md border px-3 text-xs"
@@ -3199,6 +3250,27 @@ function ShootEditor({
   const [startTime, setStartTime] = useState<string>(shoot?.start_time?.slice(0, 5) ?? "09:00");
   const [endTime, setEndTime] = useState<string>(shoot?.end_time?.slice(0, 5) ?? "");
 
+  // Event type state & custom event type support
+  const [customTypes, setCustomTypes] = useState<string[]>(() => getCustomEventTypes());
+  const [selectedEventType, setSelectedEventType] = useState<string>(
+    shoot?.event_type ?? "Wedding",
+  );
+  const [isAddingCustom, setIsAddingCustom] = useState(false);
+  const [customEventTypeName, setCustomEventTypeName] = useState("");
+
+  const availableEventTypes = useMemo(() => {
+    const fromShoots = shoots.map((s) => s.event_type).filter(Boolean);
+    const combined = Array.from(
+      new Set([
+        ...DEFAULT_EVENT_TYPES,
+        ...fromShoots,
+        ...customTypes,
+        ...(shoot?.event_type ? [shoot.event_type] : []),
+      ]),
+    );
+    return combined;
+  }, [shoots, customTypes, shoot?.event_type]);
+
   // Crew search and role filters
   const [workerSearch, setWorkerSearch] = useState("");
   const [roleFilter, setRoleFilter] = useState("All roles");
@@ -3313,10 +3385,21 @@ function ShootEditor({
     const venue = String(form.get("venue") ?? "").trim();
     const notes = String(form.get("notes") ?? "").trim();
     const shootTitle = String(form.get("couple_name") ?? "").trim();
+    if (isAddingCustom && !customEventTypeName.trim()) {
+      setError("Please enter the name of the new event type.");
+      setSaving(false);
+      return;
+    }
+    const resolvedType = isAddingCustom
+      ? customEventTypeName.trim()
+      : (selectedEventType || String(form.get("event_type") ?? "Wedding")).trim();
+    if (resolvedType && resolvedType !== "__custom__") {
+      saveCustomEventType(resolvedType);
+    }
     const values: ShootInput = {
       couple_name: shootTitle,
       "shoot name": shootTitle,
-      event_type: String(form.get("event_type") ?? "Wedding"),
+      event_type: resolvedType || "Wedding",
       event_date: eventDate,
       location: String(form.get("location") ?? "").trim(),
       venue: venue || null,
@@ -3371,16 +3454,78 @@ function ShootEditor({
                 autoFocus
               />
             </label>
-            <label className="studio-field">
-              Event type
-              <select name="event_type" defaultValue={shoot?.event_type ?? "Wedding"} required>
-                <option>Wedding</option>
-                <option>Reception</option>
-                <option>Engagement</option>
-                <option>Pre-wedding</option>
-                <option>Other</option>
-              </select>
-            </label>
+            <div className="studio-field">
+              <div className="flex items-center justify-between">
+                <span>Event type</span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsAddingCustom((prev) => !prev);
+                    if (!isAddingCustom) {
+                      setCustomEventTypeName("");
+                    }
+                  }}
+                  className="flex items-center gap-1 text-[11px] font-medium text-[#586651] hover:text-[#344234] hover:underline"
+                >
+                  {isAddingCustom ? (
+                    "← Choose from list"
+                  ) : (
+                    <>
+                      <Plus className="size-3" /> Add new type
+                    </>
+                  )}
+                </button>
+              </div>
+
+              {isAddingCustom ? (
+                <div className="space-y-1.5">
+                  <div className="flex gap-2">
+                    <Input
+                      name="custom_event_type"
+                      value={customEventTypeName}
+                      onChange={(e) => setCustomEventTypeName(e.target.value)}
+                      placeholder="Type event type (e.g. Haldi, Sangeet)"
+                      maxLength={60}
+                      autoFocus
+                      required
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="shrink-0 text-xs"
+                      onClick={() => setIsAddingCustom(false)}
+                    >
+                      Cancel
+                    </Button>
+                  </div>
+                  <p className="text-[11px] text-[#82767d]">
+                    New event type will be saved for this and future shoots.
+                  </p>
+                </div>
+              ) : (
+                <select
+                  name="event_type"
+                  value={selectedEventType}
+                  onChange={(e) => {
+                    if (e.target.value === "__custom__") {
+                      setIsAddingCustom(true);
+                      setCustomEventTypeName("");
+                    } else {
+                      setSelectedEventType(e.target.value);
+                    }
+                  }}
+                  required
+                >
+                  {availableEventTypes.map((type) => (
+                    <option key={type} value={type}>
+                      {type}
+                    </option>
+                  ))}
+                  <option value="__custom__">+ Add new event type…</option>
+                </select>
+              )}
+            </div>
             <label className="studio-field">
               Date
               <Input

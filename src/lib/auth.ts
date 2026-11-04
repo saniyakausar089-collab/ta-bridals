@@ -45,6 +45,13 @@ export interface ProfileRecord {
 }
 
 const OWNER_EMAILS = ["saniyakausar089@gmail.com"];
+const OWNER_PHONES = ["9948026203", "9876543210"];
+
+export function isOwnerPhone(phone?: string | null): boolean {
+  const digits = (phone ?? "").replace(/\D/g, "");
+  const normalized = digits.length > 10 ? digits.slice(-10) : digits;
+  return OWNER_PHONES.includes(normalized);
+}
 
 export function isOwnerEmail(email?: string | null): boolean {
   const normalized = (email ?? "").trim().toLowerCase();
@@ -71,7 +78,9 @@ export async function checkUserAccess(session: Session | null): Promise<UserAcce
   const userEmail = (user.email ?? "").toLowerCase();
 
   // The primary owner account always has administrative owner access
-  const isOwner = isOwnerEmail(userEmail);
+  const userPhone = user.phone || user.user_metadata?.["phone"];
+  const isOwner = isOwnerEmail(userEmail) || isOwnerPhone(userPhone);
+  let isOwnerVerified = isOwner;
 
   try {
     const [rolesResult, profileResult] = await Promise.all([
@@ -80,9 +89,11 @@ export async function checkUserAccess(session: Session | null): Promise<UserAcce
     ]);
 
     const roles = (rolesResult.data ?? []).map((r) => r.role as string);
-    const hasAdminRole = roles.includes("admin") || isOwner;
+
+    const hasAdminRole = roles.includes("admin") || isOwnerVerified;
     const hasTeamRole = roles.includes("team_member");
 
+    if (isOwnerPhone(user.phone) || isOwnerPhone(user.user_metadata?.phone)) isOwnerVerified = true;
     const profile = profileResult.data as
       (ProfileRecord & { display_name?: string; approval_status?: ApprovalStatus }) | null;
     const displayName =
@@ -93,7 +104,7 @@ export async function checkUserAccess(session: Session | null): Promise<UserAcce
       (hasAdminRole ? "Studio owner" : "Team member");
 
     // 1. Studio owner account always retains administrative access
-    if (isOwner) {
+    if (isOwnerVerified) {
       return {
         status: "allowed",
         role: "admin",
@@ -165,7 +176,7 @@ export async function checkUserAccess(session: Session | null): Promise<UserAcce
     };
   } catch (error) {
     // If table fetch failed, check if it's the owner account as a failsafe
-    if (isOwner) {
+    if (isOwnerVerified) {
       return {
         status: "allowed",
         role: "admin",
