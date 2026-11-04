@@ -342,11 +342,17 @@ function Index() {
           const match = s.notes.match(/^\[Couple:\s*([^\]]+)\]/);
           if (match) coupleName = match[1];
         }
+        let eventType = s.event_type;
+        if (eventType === "Other" && s.notes) {
+          const match = s.notes.match(/\[Event Type:\s*([^\]]+)\]/);
+          if (match && match[1]) eventType = match[1].trim();
+        }
         const title = coupleName || "Untitled Shoot";
         return {
           ...s,
           couple_name: title,
           "shoot name": title,
+          event_type: eventType || "Wedding",
         };
       });
 
@@ -395,9 +401,35 @@ function Index() {
       : await supabase.from("shoots").insert(payload).select().single();
 
     if (result.error) {
-      throw new Error(
-        `Failed to save shoot: ${result.error.message || result.error.details || "Database error"}`,
-      );
+      if (
+        result.error.message?.includes("shoots_event_type_check") ||
+        (result.error as any).details?.includes("shoots_event_type_check")
+      ) {
+        // Fallback: if database has legacy check constraint, save as "Other" and store tag in notes
+        const fallbackNotes = payload.notes
+          ? `${payload.notes} [Event Type: ${values.event_type}]`
+          : `[Event Type: ${values.event_type}]`;
+        const fallbackPayload = {
+          ...payload,
+          event_type: "Other",
+          notes: fallbackNotes,
+        };
+        const fallbackResult = shootId
+          ? await supabase.from("shoots").update(fallbackPayload).eq("id", shootId).select().single()
+          : await supabase.from("shoots").insert(fallbackPayload).select().single();
+
+        if (!fallbackResult.error && fallbackResult.data) {
+          result = fallbackResult;
+        } else {
+          throw new Error(
+            `Failed to save shoot: ${result.error.message || result.error.details || "Database error"}`,
+          );
+        }
+      } else {
+        throw new Error(
+          `Failed to save shoot: ${result.error.message || result.error.details || "Database error"}`,
+        );
+      }
     }
 
     const savedTitle =
@@ -406,6 +438,7 @@ function Index() {
       ...result.data,
       couple_name: savedTitle,
       "shoot name": savedTitle,
+      event_type: values.event_type || result.data.event_type,
     };
 
     if (crewAssignments !== undefined) {
@@ -3588,7 +3621,7 @@ function ShootEditor({
             </label>
             <label className="studio-field sm:col-span-2">
               Notes <span className="font-normal text-[#82767d]">· optional</span>
-              <textarea name="notes" maxLength={2000} defaultValue={shoot?.notes ?? ""} rows={2} />
+              <textarea name="notes" maxLength={2000} defaultValue={(shoot?.notes ?? "").replace(/\s*\[Event Type:\s*[^\]]+\]/, "").trim()} rows={2} />
             </label>
           </div>
 
