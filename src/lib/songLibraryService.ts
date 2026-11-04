@@ -2661,42 +2661,60 @@ export async function getClientCompleteSelections(clientId: string): Promise<{
   if (selectedSongIds.size > 0) {
     const allStoredSongs = getStoredSongs();
     const localMatches = allStoredSongs.filter((s) => selectedSongIds.has(s.id));
-    
-    // If running with Supabase, query matching songs directly by ID from the database
-    if (!songLibraryConfig.isMockMode && localMatches.length < selectedSongIds.size) {
+    const songMap = new Map<string, SongItem>();
+    for (const s of localMatches) {
+      songMap.set(s.id, s);
+    }
+
+    // Query database for any song IDs not found locally
+    if (!songLibraryConfig.isMockMode) {
       try {
-        const { data: dbSongs } = await (supabase as any)
+        const { data: dbSongs, error: dbSongsErr } = await (supabase as any)
           .from("songs")
           .select("*")
           .in("id", Array.from(selectedSongIds));
 
-        if (dbSongs && dbSongs.length > 0) {
-          selectedSongs = dbSongs.map((s: any) => ({
-            id: s.id,
-            title: s.title,
-            artist: s.artist || "Unknown Artist",
-            eventGroup: s.event_group as WeddingEventGroup,
-            durationSeconds: 210,
-            durationFormatted: "3:30",
-            libraryId: s.library_id,
-            audioFileName: s.audio_path || undefined,
-            youtubeVideoId: s.youtube_video_id || undefined,
-            channelName: s.channel_name || undefined,
-            thumbnailUrl: s.thumbnail_url || undefined,
-            youtubeUrl: s.youtube_url || undefined,
-            isActive: s.is_active ?? true,
-            createdAt: s.created_at,
-          }));
-        } else {
-          selectedSongs = localMatches;
+        if (!dbSongsErr && dbSongs && dbSongs.length > 0) {
+          for (const s of dbSongs) {
+            songMap.set(s.id, {
+              id: s.id,
+              title: s.title,
+              artist: s.artist || "Unknown Artist",
+              eventGroup: s.event_group as WeddingEventGroup,
+              durationSeconds: 210,
+              durationFormatted: "3:30",
+              libraryId: s.library_id,
+              audioFileName: s.audio_path || undefined,
+              youtubeVideoId: s.youtube_video_id || undefined,
+              channelName: s.channel_name || undefined,
+              thumbnailUrl: s.thumbnail_url || undefined,
+              youtubeUrl: s.youtube_url || undefined,
+              isActive: s.is_active ?? true,
+              createdAt: s.created_at,
+            });
+          }
         }
       } catch (err) {
-        console.warn("Failed to fetch selected songs from Supabase, falling back to local:", err);
-        selectedSongs = localMatches;
+        console.warn("Error fetching songs from Supabase:", err);
       }
-    } else {
-      selectedSongs = localMatches;
     }
+
+    // Ensure every selected song ID is represented, even if song record was removed
+    selectedSongs = rawSelections.map((sel) => {
+      const existing = songMap.get(sel.songId);
+      if (existing) return existing;
+      return {
+        id: sel.songId,
+        title: "Selected Track",
+        artist: "Wedding Soundtrack",
+        eventGroup: sel.eventGroup,
+        durationSeconds: 210,
+        durationFormatted: "3:30",
+        libraryId: "",
+        isActive: true,
+        createdAt: new Date().toISOString(),
+      };
+    });
   }
 
   // 3. Fetch custom requests
