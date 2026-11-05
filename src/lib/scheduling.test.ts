@@ -4,6 +4,10 @@ import {
   doEventsOverlap,
   doesCrossMidnight,
   findWorkerConflicts,
+  formatScheduleDate,
+  formatTime12Hour,
+  formatTimingInterval,
+  getWorkerScheduleStatus,
   parseTimeToMinutes,
 } from "./scheduling";
 
@@ -14,6 +18,14 @@ describe("Scheduling and Staffing Calculations", () => {
     expect(parseTimeToMinutes("00:00")).toBe(0);
     expect(parseTimeToMinutes(null)).toBe(-1);
     expect(parseTimeToMinutes("invalid")).toBe(-1);
+  });
+
+  it("formats 12-hour AM/PM times and dates cleanly", () => {
+    expect(formatTime12Hour("09:00:00")).toBe("9:00 AM");
+    expect(formatTime12Hour("13:00")).toBe("1:00 PM");
+    expect(formatTime12Hour("17:30")).toBe("5:30 PM");
+    expect(formatScheduleDate("2026-11-10")).toBe("10 November 2026");
+    expect(formatTimingInterval("09:00", "13:00")).toBe("9:00 AM – 1:00 PM");
   });
 
   it("detects overlapping events on the same date", () => {
@@ -37,6 +49,36 @@ describe("Scheduling and Staffing Calculations", () => {
       { date: "2026-10-26", startTime: "10:00", endTime: "14:00" },
     );
     expect(differentDates).toBe(false);
+  });
+
+  it("strictly enforces same-day rules: allows non-overlapping, blocks overlapping, considers abutting times non-overlapping", () => {
+    // Example 1 – ALLOWED:
+    // Shoot A: 10 November | 9:00 AM – 1:00 PM (09:00 - 13:00)
+    // Shoot B: 10 November | 5:00 PM – 9:00 PM (17:00 - 21:00)
+    expect(
+      doEventsOverlap(
+        { date: "2026-11-10", startTime: "09:00", endTime: "13:00" },
+        { date: "2026-11-10", startTime: "17:00", endTime: "21:00" },
+      ),
+    ).toBe(false);
+
+    // Contiguous / abutting interval (e.g. 9:00 - 1:00 PM and 1:00 PM - 5:00 PM) is non-overlapping
+    expect(
+      doEventsOverlap(
+        { date: "2026-11-10", startTime: "09:00", endTime: "13:00" },
+        { date: "2026-11-10", startTime: "13:00", endTime: "17:00" },
+      ),
+    ).toBe(false);
+
+    // Example 2 – NOT ALLOWED:
+    // Shoot A: 10 November | 9:00 AM – 1:00 PM (09:00 - 13:00)
+    // Shoot B: 10 November | 11:00 AM – 3:00 PM (11:00 - 15:00)
+    expect(
+      doEventsOverlap(
+        { date: "2026-11-10", startTime: "09:00", endTime: "13:00" },
+        { date: "2026-11-10", startTime: "11:00", endTime: "15:00" },
+      ),
+    ).toBe(true);
   });
 
   it("handles missing end time by defaulting to standard 3-hour duration", () => {
@@ -90,19 +132,18 @@ describe("Scheduling and Staffing Calculations", () => {
       { team_member_id: "m1", assignment_type: "on_site" },
       { team_member_id: "m2", assignment_type: "on_site" },
       { team_member_id: "m3", assignment_type: "on_site" },
-      { team_member_id: "m4", assignment_type: "post_production" }, // Editor: not on-site
-      { team_member_id: "m5", assignment_type: "post_production" }, // Album designer: not on-site
+      { team_member_id: "m4", assignment_type: "post_production" },
+      { team_member_id: "m5", assignment_type: "post_production" },
     ];
 
     const metrics = calculateStaffingMetrics(plannedCrew, assignments);
 
-    // Only 3 on-site crew members
     expect(metrics.uniqueOnSiteWorkers).toBe(3);
     expect(metrics.assignedCrew).toBe(3);
     expect(metrics.uniqueTotalWorkers).toBe(5);
     expect(metrics.remainingRequired).toBe(4);
     expect(metrics.additionalCrewRequired).toBe(4);
-    expect(metrics.remainingCapacity).toBe(17); // 20 max limit - 3
+    expect(metrics.remainingCapacity).toBe(17);
     expect(metrics.staffingStatus).toBe("Understaffed");
     expect(metrics.isOverLimit).toBe(false);
   });
@@ -126,19 +167,19 @@ describe("Scheduling and Staffing Calculations", () => {
     expect(overstaffed.staffingStatus).toBe("Overstaffed");
   });
 
-  it("detects worker conflicts for overlapping shoots and ignores cancelled shoots", () => {
+  it("detects worker conflicts with exact project, event, and timing details", () => {
     const team = [
-      { id: "worker-1", full_name: "Ahmed Khan", role: "Photographer", status: "active" },
+      { id: "worker-1", full_name: "Ahmed", role: "Photographer", status: "active" },
       { id: "worker-2", full_name: "Sara Ali", role: "Videographer", status: "active" },
     ];
     const shoots = [
       {
-        id: "shoot-1",
-        couple_name: "Priya & Rahul",
-        event_type: "Wedding",
+        id: "shoot-nikah",
+        couple_name: "Ayesha & Ahmed",
+        event_type: "Nikah",
         event_date: "2026-11-10",
-        start_time: "10:00",
-        end_time: "16:00",
+        start_time: "11:00",
+        end_time: "15:00",
         status: "Upcoming",
       },
       {
@@ -152,13 +193,13 @@ describe("Scheduling and Staffing Calculations", () => {
       },
     ];
     const assignments = [
-      { shoot_id: "shoot-1", team_member_id: "worker-1", assignment_type: "on_site" },
+      { shoot_id: "shoot-nikah", team_member_id: "worker-1", assignment_type: "on_site" },
       { shoot_id: "shoot-cancelled", team_member_id: "worker-2", assignment_type: "on_site" },
     ];
 
-    // Check worker-1 on target shoot at 12:00 -> should conflict with shoot-1
+    // Check worker-1 on target shoot at 13:00 to 17:00 -> should conflict with Nikah (11:00-15:00)
     const conflicts1 = findWorkerConflicts({
-      shoot: { id: "new-shoot", event_date: "2026-11-10", start_time: "12:00", end_time: "18:00" },
+      shoot: { id: "new-shoot", event_date: "2026-11-10", start_time: "13:00", end_time: "17:00" },
       workerId: "worker-1",
       team,
       shoots,
@@ -166,7 +207,11 @@ describe("Scheduling and Staffing Calculations", () => {
     });
     expect(conflicts1.length).toBe(1);
     expect(conflicts1[0]?.type).toBe("shoot_overlap");
-    expect(conflicts1[0]?.message).toContain("Priya & Rahul");
+    expect(conflicts1[0]?.severity).toBe("error");
+    expect(conflicts1[0]?.message).toContain("Ayesha & Ahmed");
+    expect(conflicts1[0]?.message).toContain("Nikah");
+    expect(conflicts1[0]?.conflictingShoot?.coupleName).toBe("Ayesha & Ahmed");
+    expect(conflicts1[0]?.conflictingShoot?.eventType).toBe("Nikah");
 
     // Check worker-2 on target shoot at 12:00 -> cancelled shoot should NOT block worker-2
     const conflicts2 = findWorkerConflicts({
@@ -177,6 +222,44 @@ describe("Scheduling and Staffing Calculations", () => {
       assignments,
     });
     expect(conflicts2.length).toBe(0);
+  });
+
+  it("indicates member availability when member has another assignment on the same day at a different time", () => {
+    const team = [{ id: "worker-1", full_name: "Ahmed", role: "Photographer", status: "active" }];
+    const shoots = [
+      {
+        id: "shoot-morning",
+        couple_name: "Ayesha & Ahmed",
+        event_type: "Haldi",
+        event_date: "2026-11-10",
+        start_time: "09:00",
+        end_time: "13:00",
+        status: "Upcoming",
+      },
+    ];
+    const assignments = [
+      { shoot_id: "shoot-morning", team_member_id: "worker-1", assignment_type: "on_site" },
+    ];
+
+    // Worker has morning shoot (9:00 - 13:00). We test availability for evening shoot (17:00 - 21:00)
+    const status = getWorkerScheduleStatus({
+      shoot: {
+        id: "shoot-evening",
+        event_date: "2026-11-10",
+        start_time: "17:00",
+        end_time: "21:00",
+      },
+      workerId: "worker-1",
+      team,
+      shoots,
+      assignments,
+    });
+
+    expect(status.isAvailable).toBe(true);
+    expect(status.hasOverlapConflict).toBe(false);
+    expect(status.sameDayAssignments.length).toBe(1);
+    expect(status.statusText).toContain("Available · Working on Ayesha & Ahmed");
+    expect(status.statusText).toContain("Haldi");
   });
 
   it("detects worker conflicts for approved leave requests", () => {
@@ -199,7 +282,7 @@ describe("Scheduling and Staffing Calculations", () => {
         request_type: "leave",
         start_date: "2026-11-15",
         end_date: "2026-11-18",
-        status: "pending", // Pending leave should not trigger approved leave conflict
+        status: "pending",
         reason: "Medical Checkup",
       },
     ];

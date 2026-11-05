@@ -64,6 +64,7 @@ import { FinanceSection } from "@/components/FinanceSection";
 import { SongLibraryAdminSection } from "@/components/SongLibraryAdminSection";
 import { NotificationBadge, AdminNotificationCenter } from "@/components/AdminNotificationCenter";
 import { AccountSettingsModal } from "@/components/AccountSettingsModal";
+import { ShootsManagementView } from "@/components/ShootsManagementView";
 import {
   formatCurrency,
   calculateStudioTotals,
@@ -380,6 +381,30 @@ function Index() {
     }
   }, [isAdmin]);
 
+  async function renameClientProject(oldName: string, newName: string) {
+    if (!isAdmin) throw new Error("Only the studio owner can rename client projects.");
+    if (!session) throw new Error("Sign in as the studio owner to rename client projects.");
+    const cleanOld = oldName.trim();
+    const cleanNew = newName.trim();
+    if (!cleanOld || !cleanNew || cleanOld === cleanNew) return;
+
+    const matchedShoots = shoots.filter(
+      (s) =>
+        s.couple_name?.toLowerCase() === cleanOld.toLowerCase() ||
+        (s as any)["shoot name"]?.toLowerCase() === cleanOld.toLowerCase(),
+    );
+
+    for (const s of matchedShoots) {
+      const { error } = await supabase
+        .from("shoots")
+        .update({ couple_name: cleanNew, "shoot name": cleanNew })
+        .eq("id", s.id);
+      if (error) throw error;
+    }
+
+    await loadWorkspace();
+  }
+
   async function saveShoot(
     values: ShootInput,
     crewAssignments?: AssignmentInput[],
@@ -387,6 +412,40 @@ function Index() {
   ) {
     if (!isAdmin) throw new Error("Only the studio owner can save shoots.");
     if (!session) throw new Error("Sign in as the studio owner to save shoots.");
+
+    if (!values.event_date || !values.start_time) {
+      throw new Error("Event date and start time are required.");
+    }
+
+    // Backend validation: Verify no assigned on-site crew member has an overlapping shoot
+    const targetAssignments =
+      crewAssignments !== undefined
+        ? crewAssignments
+        : shootId
+          ? assignments.filter((a) => a.shoot_id === shootId && a.assignment_type === "on_site")
+          : [];
+
+    for (const assign of targetAssignments) {
+      if (assign.assignment_type !== "on_site") continue;
+      const workerConflicts = findWorkerConflicts({
+        shoot: {
+          id: shootId,
+          event_date: values.event_date,
+          start_time: values.start_time,
+          end_time: values.end_time || null,
+        },
+        workerId: assign.team_member_id,
+        team,
+        shoots,
+        assignments,
+        availabilityRequests,
+      });
+
+      const overlap = workerConflicts.find((c) => c.type === "shoot_overlap");
+      if (overlap) {
+        throw new Error(overlap.message);
+      }
+    }
 
     const shootTitle = values.couple_name || (values as any)["shoot name"] || "Untitled Shoot";
     const payload = {
@@ -449,6 +508,13 @@ function Index() {
         });
 
         if (assignError) {
+          if (
+            assignError.message?.includes("CREW MEMBER UNAVAILABLE") ||
+            assignError.code === "23P01" ||
+            assignError.message?.includes("maximum of 20")
+          ) {
+            throw new Error(assignError.message);
+          }
           console.warn(
             "replace_shoot_assignments RPC error, applying direct table fallback:",
             assignError,
@@ -465,6 +531,9 @@ function Index() {
           }
         }
       } catch (rpcErr) {
+        if (rpcErr instanceof Error && rpcErr.message.includes("CREW MEMBER UNAVAILABLE")) {
+          throw rpcErr;
+        }
         console.warn("RPC invocation exception, fallback directly to table:", rpcErr);
         await supabase.from("shoot_assignments").delete().eq("shoot_id", result.data.id);
         if (crewAssignments.length > 0) {
@@ -508,12 +577,45 @@ function Index() {
     if (!isAdmin) throw new Error("Only the studio owner can manage shoot assignments.");
     if (!session) throw new Error("Sign in as the studio owner to manage shoot assignments.");
 
+    const targetShoot = shoots.find((s) => s.id === shootId);
+    if (!targetShoot) throw new Error("Shoot not found.");
+
+    // Global crew availability check across all shoots
+    for (const assign of values) {
+      if (assign.assignment_type !== "on_site") continue;
+      const workerConflicts = findWorkerConflicts({
+        shoot: {
+          id: shootId,
+          event_date: targetShoot.event_date,
+          start_time: targetShoot.start_time,
+          end_time: targetShoot.end_time,
+        },
+        workerId: assign.team_member_id,
+        team,
+        shoots,
+        assignments,
+        availabilityRequests,
+      });
+
+      const overlap = workerConflicts.find((c) => c.type === "shoot_overlap");
+      if (overlap) {
+        throw new Error(overlap.message);
+      }
+    }
+
     try {
       const { error } = await supabase.rpc("replace_shoot_assignments", {
         p_shoot_id: shootId,
         p_assignments: values,
       });
       if (error) {
+        if (
+          error.message?.includes("CREW MEMBER UNAVAILABLE") ||
+          error.code === "23P01" ||
+          error.message?.includes("maximum of 20")
+        ) {
+          throw new Error(error.message);
+        }
         console.warn("replace_shoot_assignments RPC error, applying direct table fallback:", error);
         await supabase.from("shoot_assignments").delete().eq("shoot_id", shootId);
         if (values.length > 0) {
@@ -525,7 +627,10 @@ function Index() {
           await supabase.from("shoot_assignments").insert(rows);
         }
       }
-    } catch {
+    } catch (err) {
+      if (err instanceof Error && err.message.includes("CREW MEMBER UNAVAILABLE")) {
+        throw err;
+      }
       await supabase.from("shoot_assignments").delete().eq("shoot_id", shootId);
       if (values.length > 0) {
         const rows = values.map((c) => ({
@@ -830,6 +935,7 @@ function Index() {
       onSaveShoot={saveShoot}
       onDeleteShoot={deleteShoot}
       onSaveAssignments={saveShootAssignments}
+      onRenameProject={renameClientProject}
       onSaveTeamMember={saveTeamMember}
       onDeleteTeamMember={deleteTeamMember}
       availabilityRequests={availabilityRequests}
@@ -1563,6 +1669,7 @@ function Workspace({
   onSaveShoot,
   onDeleteShoot,
   onSaveAssignments,
+  onRenameProject,
   onSaveTeamMember,
   onDeleteTeamMember,
   availabilityRequests,
@@ -1606,6 +1713,7 @@ function Workspace({
   ) => Promise<void>;
   onDeleteShoot: (shootId: string) => Promise<void>;
   onSaveAssignments: (shootId: string, values: AssignmentInput[]) => Promise<void>;
+  onRenameProject?: (oldName: string, newName: string) => Promise<void>;
   onSaveTeamMember: (values: TeamMemberInput, memberId?: string) => Promise<void>;
   onDeleteTeamMember: (memberId: string) => Promise<void>;
   availabilityRequests: AvailabilityRequest[];
@@ -1996,6 +2104,7 @@ function Workspace({
               allShoots={shoots}
               availabilityRequests={availabilityRequests}
               onSaveAssignments={onSaveAssignments}
+              onRenameProject={onRenameProject}
             />
           ) : section === "calendar" ? (
             <CalendarView
@@ -3033,1037 +3142,8 @@ function saveCustomEventType(type: string): void {
   }
 }
 
-function ShootsView({
-  shoots,
-  assignments,
-  loading,
-  externalQuery = "",
-  editable,
-  onSaveShoot,
-  onDeleteShoot,
-  team,
-  allShoots,
-  availabilityRequests = [],
-  onSaveAssignments,
-}: {
-  shoots: Shoot[];
-  assignments: Assignment[];
-  loading: boolean;
-  externalQuery?: string;
-  editable: boolean;
-  onSaveShoot: (
-    values: ShootInput,
-    crewAssignments?: AssignmentInput[],
-    shootId?: string,
-  ) => Promise<void>;
-  onDeleteShoot: (shootId: string) => Promise<void>;
-  team: TeamMember[];
-  allShoots: Shoot[];
-  availabilityRequests?: AvailabilityRequest[];
-  onSaveAssignments: (shootId: string, values: AssignmentInput[]) => Promise<void>;
-}) {
-  const [query, setQuery] = useState(externalQuery);
-  const [eventType, setEventType] = useState("All event types");
-  const [status, setStatus] = useState("All statuses");
-  const [editingShoot, setEditingShoot] = useState<Shoot | null | undefined>(undefined);
-  const [assigningShoot, setAssigningShoot] = useState<Shoot | null>(null);
-  const [actionError, setActionError] = useState("");
-  useEffect(() => setQuery(externalQuery), [externalQuery]);
-  const allFilterEventTypes = useMemo(() => {
-    const fromShoots = shoots.map((s) => s.event_type).filter(Boolean);
-    const customTypes = getCustomEventTypes();
-    return Array.from(new Set([...DEFAULT_EVENT_TYPES, ...fromShoots, ...customTypes]));
-  }, [shoots]);
-
-  const filteredShoots = useMemo(() => {
-    const normalizedQuery = query.trim().toLocaleLowerCase();
-    return shoots.filter(
-      (shoot) =>
-        (eventType === "All event types" || shoot.event_type === eventType) &&
-        (status === "All statuses" || shoot.status === status) &&
-        [shoot.couple_name, shoot.event_type, shoot.location, shoot.venue ?? "", shoot.status]
-          .join(" ")
-          .toLocaleLowerCase()
-          .includes(normalizedQuery),
-    );
-  }, [eventType, query, shoots, status]);
-
-  async function confirmDelete(shoot: Shoot) {
-    if (
-      !window.confirm(
-        `Delete the shoot for ${shoot.couple_name}? This also removes its assignments.`,
-      )
-    )
-      return;
-    setActionError("");
-    try {
-      await onDeleteShoot(shoot.id);
-    } catch (error) {
-      setActionError(error instanceof Error ? error.message : "Could not delete this shoot.");
-    }
-  }
-
-  return (
-    <>
-      <section className="overflow-hidden rounded-2xl border border-[#e9e7df] bg-white">
-        <div className="flex flex-wrap items-center justify-between gap-4 border-b border-[#efeee9] px-5 py-5 sm:px-6">
-          <div>
-            <h2 className="font-serif text-xl text-[#3e453d]">Your shoots</h2>
-            <p className="mt-1 text-xs text-[#929086]">
-              {shoots.length} {shoots.length === 1 ? "celebration" : "celebrations"} in your studio
-            </p>
-          </div>
-          <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
-            <label className="relative block min-w-[180px] flex-1 sm:max-w-[240px]">
-              <Search
-                className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[#a09d93]"
-                aria-hidden="true"
-              />
-              <Input
-                value={query}
-                onChange={(event) => setQuery(event.target.value)}
-                placeholder="Search couples, venues…"
-                aria-label="Search shoots"
-                className="h-10 border-[#e6e4dd] pl-9 text-sm"
-              />
-            </label>
-            <select
-              className="h-10 rounded-md border px-3 text-xs"
-              aria-label="Filter by event type"
-              value={eventType}
-              onChange={(event) => setEventType(event.target.value)}
-            >
-              <option>All event types</option>
-              {allFilterEventTypes.map((type) => (
-                <option key={type} value={type}>
-                  {type}
-                </option>
-              ))}
-            </select>
-            <select
-              className="h-10 rounded-md border px-3 text-xs"
-              aria-label="Filter by shoot status"
-              value={status}
-              onChange={(event) => setStatus(event.target.value)}
-            >
-              <option>All statuses</option>
-              <option>Upcoming</option>
-              <option>In Progress</option>
-              <option>Completed</option>
-              <option>Cancelled</option>
-            </select>
-            {editable && (
-              <Button
-                className="h-10 gap-2 rounded-lg bg-[#344234] text-xs text-white"
-                onClick={() => setEditingShoot(null)}
-              >
-                <Plus className="size-4" /> Add shoot
-              </Button>
-            )}
-          </div>
-        </div>
-        {actionError && (
-          <p className="border-b border-red-200 px-5 py-3 text-xs text-red-700" role="alert">
-            {actionError}
-          </p>
-        )}
-        {loading && shoots.length === 0 ? (
-          <LoadingRows />
-        ) : filteredShoots.length === 0 ? (
-          <EmptyState
-            title={query ? "No shoots found." : "Your shoot list is empty."}
-            detail={
-              query
-                ? "Try a different name, event type, or location."
-                : "Your saved shoots will appear here."
-            }
-          />
-        ) : (
-          <div className="divide-y divide-[#f0efe9]">
-            {filteredShoots.map((shoot) => {
-              const shootAssignments = assignments.filter((a) => a.shoot_id === shoot.id);
-              const assignedMembers = shootAssignments.map((a) => {
-                const member = team.find((t) => t.id === a.team_member_id);
-                return {
-                  id: a.team_member_id,
-                  name: member?.full_name ?? "Unknown Worker",
-                  role: member?.role ?? "Crew",
-                  type: a.assignment_type,
-                };
-              });
-              const metrics = calculateStaffingMetrics(shoot.planned_team_size, shootAssignments);
-
-              return (
-                <ShootRow
-                  key={shoot.id}
-                  shoot={shoot}
-                  assignedMembers={assignedMembers}
-                  staffingMetrics={metrics}
-                  assignedCount={metrics.assignedCrew}
-                  onEdit={editable ? () => setEditingShoot(shoot) : undefined}
-                  onDelete={editable ? () => void confirmDelete(shoot) : undefined}
-                  onAssign={editable ? () => setAssigningShoot(shoot) : undefined}
-                />
-              );
-            })}
-          </div>
-        )}
-      </section>
-      {editingShoot !== undefined && (
-        <ShootEditor
-          key={editingShoot?.id ?? "new-shoot"}
-          shoot={editingShoot}
-          team={team}
-          shoots={allShoots}
-          assignments={assignments}
-          availabilityRequests={availabilityRequests}
-          onClose={() => setEditingShoot(undefined)}
-          onSave={onSaveShoot}
-        />
-      )}
-      {assigningShoot && (
-        <AssignmentEditor
-          shoot={assigningShoot}
-          team={team}
-          shoots={allShoots}
-          assignments={assignments}
-          onClose={() => setAssigningShoot(null)}
-          onSave={onSaveAssignments}
-        />
-      )}
-    </>
-  );
-}
-
-const ALL_STUDIO_ROLES = [
-  "All roles",
-  "Photographer",
-  "Videographer",
-  "Cinematographer / Creative Director",
-  "Drone Operator",
-  "Assistant Photographer",
-  "Assistant Videographer",
-  "Lighting Assistant",
-  "Data Manager / Footage Backup Assistant",
-  "Photo Editor",
-  "Video Editor",
-  "Album Designer",
-];
-
-function ShootEditor({
-  shoot,
-  team,
-  shoots,
-  assignments,
-  availabilityRequests = [],
-  onClose,
-  onSave,
-}: {
-  shoot: Shoot | null;
-  team: TeamMember[];
-  shoots: Shoot[];
-  assignments: Assignment[];
-  availabilityRequests?: AvailabilityRequest[];
-  onClose: () => void;
-  onSave: (
-    values: ShootInput,
-    crewAssignments: AssignmentInput[],
-    shootId?: string,
-  ) => Promise<void>;
-}) {
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState("");
-  const [conflictReviewed, setConflictReviewed] = useState(false);
-
-  // Form field state for live calculations & conflict checks
-  const [plannedTeamSize, setPlannedTeamSize] = useState<number>(shoot?.planned_team_size ?? 2);
-  const [eventDate, setEventDate] = useState<string>(
-    shoot?.event_date ?? format(new Date(), "yyyy-MM-dd"),
-  );
-  const [startTime, setStartTime] = useState<string>(shoot?.start_time?.slice(0, 5) ?? "09:00");
-  const [endTime, setEndTime] = useState<string>(shoot?.end_time?.slice(0, 5) ?? "");
-
-  // Event type state & custom event type support
-  const [customTypes, setCustomTypes] = useState<string[]>(() => getCustomEventTypes());
-  const [selectedEventType, setSelectedEventType] = useState<string>(
-    shoot?.event_type ?? "Wedding",
-  );
-  const [isAddingCustom, setIsAddingCustom] = useState(false);
-  const [customEventTypeName, setCustomEventTypeName] = useState("");
-
-  const availableEventTypes = useMemo(() => {
-    const fromShoots = shoots.map((s) => s.event_type).filter(Boolean);
-    const combined = Array.from(
-      new Set([
-        ...DEFAULT_EVENT_TYPES,
-        ...fromShoots,
-        ...customTypes,
-        ...(shoot?.event_type ? [shoot.event_type] : []),
-      ]),
-    );
-    return combined;
-  }, [shoots, customTypes, shoot?.event_type]);
-
-  // Crew search and role filters
-  const [workerSearch, setWorkerSearch] = useState("");
-  const [roleFilter, setRoleFilter] = useState("All roles");
-
-  // Selected crew assignments
-  const [selectedCrew, setSelectedCrew] = useState<AssignmentInput[]>(() => {
-    if (!shoot) return [];
-    return assignments
-      .filter((a) => a.shoot_id === shoot.id)
-      .map(({ team_member_id, assignment_type }) => ({ team_member_id, assignment_type }));
-  });
-
-  // Only approved, active workers may be selected
-  const activeWorkers = useMemo(() => {
-    return team.filter((member) => member.status !== "inactive");
-  }, [team]);
-
-  const filteredWorkers = useMemo(() => {
-    const q = workerSearch.trim().toLowerCase();
-    return activeWorkers.filter((member) => {
-      const matchesQuery =
-        !q || member.full_name.toLowerCase().includes(q) || member.role.toLowerCase().includes(q);
-      const matchesRole = roleFilter === "All roles" || member.role === roleFilter;
-      return matchesQuery && matchesRole;
-    });
-  }, [activeWorkers, workerSearch, roleFilter]);
-
-  const staffingMetrics = useMemo(() => {
-    return calculateStaffingMetrics(plannedTeamSize, selectedCrew);
-  }, [plannedTeamSize, selectedCrew]);
-
-  const conflicts = useMemo(() => {
-    const onSiteIds = selectedCrew
-      .filter((c) => c.assignment_type === "on_site")
-      .map((c) => c.team_member_id);
-
-    return findAllShootConflicts({
-      shoot: {
-        id: shoot?.id,
-        event_date: eventDate,
-        start_time: startTime,
-        end_time: endTime || null,
-      },
-      selectedWorkerIds: onSiteIds,
-      team,
-      shoots,
-      assignments,
-      availabilityRequests,
-    });
-  }, [
-    selectedCrew,
-    shoot?.id,
-    eventDate,
-    startTime,
-    endTime,
-    team,
-    shoots,
-    assignments,
-    availabilityRequests,
-  ]);
-
-  function toggleWorker(workerId: string) {
-    setSelectedCrew((prev) => {
-      const exists = prev.some((item) => item.team_member_id === workerId);
-      if (exists) {
-        return prev.filter((item) => item.team_member_id !== workerId);
-      }
-      const onSiteCount = prev.filter((item) => item.assignment_type === "on_site").length;
-      if (onSiteCount >= 20) {
-        setError(
-          "Maximum capacity reached: A shoot cannot have more than 20 on-site crew members.",
-        );
-        return prev;
-      }
-      return [...prev, { team_member_id: workerId, assignment_type: "on_site" }];
-    });
-  }
-
-  function removeWorker(workerId: string) {
-    setSelectedCrew((prev) => prev.filter((item) => item.team_member_id !== workerId));
-  }
-
-  function updateAssignmentType(workerId: string, type: "on_site" | "post_production") {
-    setSelectedCrew((prev) => {
-      if (type === "on_site") {
-        const onSiteCount = prev.filter((item) => item.assignment_type === "on_site").length;
-        if (onSiteCount >= 20) {
-          setError(
-            "Maximum capacity reached: A shoot cannot have more than 20 on-site crew members.",
-          );
-          return prev;
-        }
-      }
-      return prev.map((item) =>
-        item.team_member_id === workerId ? { ...item, assignment_type: type } : item,
-      );
-    });
-  }
-
-  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setSaving(true);
-    setError("");
-
-    if (conflicts.length > 0 && !conflictReviewed) {
-      setError("Please review or acknowledge the scheduling conflicts before saving.");
-      setSaving(false);
-      return;
-    }
-
-    const form = new FormData(event.currentTarget);
-    const venue = String(form.get("venue") ?? "").trim();
-    const notes = String(form.get("notes") ?? "").trim();
-    const shootTitle = String(form.get("couple_name") ?? "").trim();
-    if (isAddingCustom && !customEventTypeName.trim()) {
-      setError("Please enter the name of the new event type.");
-      setSaving(false);
-      return;
-    }
-    const resolvedType = isAddingCustom
-      ? customEventTypeName.trim()
-      : (selectedEventType || String(form.get("event_type") ?? "Wedding")).trim();
-    if (resolvedType && resolvedType !== "__custom__") {
-      saveCustomEventType(resolvedType);
-    }
-    const values: ShootInput = {
-      couple_name: shootTitle,
-      "shoot name": shootTitle,
-      event_type: resolvedType || "Wedding",
-      event_date: eventDate,
-      location: String(form.get("location") ?? "").trim(),
-      venue: venue || null,
-      start_time: startTime,
-      end_time: endTime || null,
-      planned_team_size: plannedTeamSize,
-      status: String(form.get("status") ?? "Upcoming"),
-      notes: notes || null,
-    };
-    try {
-      await onSave(values, selectedCrew, shoot?.id);
-      onClose();
-    } catch (err) {
-      setError(
-        err instanceof Error ? err.message : "Could not save this shoot and crew assignments.",
-      );
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  return (
-    <div
-      className="studio-modal-backdrop"
-      onMouseDown={(event) => {
-        if (event.target === event.currentTarget) onClose();
-      }}
-    >
-      <section
-        className="studio-modal max-w-3xl"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="shoot-editor-title"
-      >
-        <div className="mb-5">
-          <p className="text-[10px] font-medium uppercase tracking-[0.2em] text-[#9a8c77]">
-            STUDIO SCHEDULE
-          </p>
-          <h2 id="shoot-editor-title" className="mt-2 font-serif text-2xl">
-            {shoot ? "Edit shoot details" : "Add a shoot"}
-          </h2>
-        </div>
-        <form className="space-y-4" onSubmit={handleSubmit}>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <label className="studio-field sm:col-span-2">
-              Shoot name / Couple
-              <Input
-                name="couple_name"
-                defaultValue={shoot?.couple_name || (shoot as any)?.["shoot name"] || ""}
-                maxLength={120}
-                required
-                autoFocus
-              />
-            </label>
-            <div className="studio-field">
-              <div className="flex items-center justify-between">
-                <span>Event type</span>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setIsAddingCustom((prev) => !prev);
-                    if (!isAddingCustom) {
-                      setCustomEventTypeName("");
-                    }
-                  }}
-                  className="flex items-center gap-1 text-[11px] font-medium text-[#586651] hover:text-[#344234] hover:underline"
-                >
-                  {isAddingCustom ? (
-                    "← Choose from list"
-                  ) : (
-                    <>
-                      <Plus className="size-3" /> Add new type
-                    </>
-                  )}
-                </button>
-              </div>
-
-              {isAddingCustom ? (
-                <div className="space-y-1.5">
-                  <div className="flex gap-2">
-                    <Input
-                      name="custom_event_type"
-                      value={customEventTypeName}
-                      onChange={(e) => setCustomEventTypeName(e.target.value)}
-                      placeholder="Type event type (e.g. Haldi, Sangeet)"
-                      maxLength={60}
-                      autoFocus
-                      required
-                    />
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      className="shrink-0 text-xs"
-                      onClick={() => setIsAddingCustom(false)}
-                    >
-                      Cancel
-                    </Button>
-                  </div>
-                  <p className="text-[11px] text-[#82767d]">
-                    New event type will be saved for this and future shoots.
-                  </p>
-                </div>
-              ) : (
-                <select
-                  name="event_type"
-                  value={selectedEventType}
-                  onChange={(e) => {
-                    if (e.target.value === "__custom__") {
-                      setIsAddingCustom(true);
-                      setCustomEventTypeName("");
-                    } else {
-                      setSelectedEventType(e.target.value);
-                    }
-                  }}
-                  required
-                >
-                  {availableEventTypes.map((type) => (
-                    <option key={type} value={type}>
-                      {type}
-                    </option>
-                  ))}
-                  <option value="__custom__">+ Add new event type…</option>
-                </select>
-              )}
-            </div>
-            <label className="studio-field">
-              Date
-              <Input
-                name="event_date"
-                type="date"
-                value={eventDate}
-                onChange={(e) => setEventDate(e.target.value)}
-                required
-              />
-            </label>
-            <label className="studio-field">
-              Location
-              <Input name="location" defaultValue={shoot?.location} maxLength={160} required />
-            </label>
-            <label className="studio-field">
-              Venue <span className="font-normal text-[#82767d]">· optional</span>
-              <Input name="venue" defaultValue={shoot?.venue ?? ""} maxLength={160} />
-            </label>
-            <label className="studio-field">
-              Start time
-              <Input
-                name="start_time"
-                type="time"
-                value={startTime}
-                onChange={(e) => setStartTime(e.target.value)}
-                required
-              />
-            </label>
-            <label className="studio-field">
-              End time <span className="font-normal text-[#82767d]">· optional</span>
-              <Input
-                name="end_time"
-                type="time"
-                value={endTime}
-                onChange={(e) => setEndTime(e.target.value)}
-              />
-            </label>
-            <label className="studio-field">
-              Planned team size
-              <Input
-                name="planned_team_size"
-                type="number"
-                min={1}
-                max={20}
-                value={plannedTeamSize}
-                onChange={(e) =>
-                  setPlannedTeamSize(Math.max(1, Math.min(20, Number(e.target.value) || 1)))
-                }
-                required
-              />
-            </label>
-            <label className="studio-field">
-              Shoot status
-              <select name="status" defaultValue={shoot?.status ?? "Upcoming"}>
-                <option>Upcoming</option>
-                <option>In Progress</option>
-                <option>Completed</option>
-                <option>Cancelled</option>
-              </select>
-            </label>
-            <label className="studio-field sm:col-span-2">
-              Notes <span className="font-normal text-[#82767d]">· optional</span>
-              <textarea name="notes" maxLength={2000} defaultValue={(shoot?.notes ?? "").replace(/\s*\[Event Type:\s*[^\]]+\]/, "").trim()} rows={2} />
-            </label>
-          </div>
-
-          {/* Assigned Crew Members Section */}
-          <div className="mt-6 border-t border-[#30282e] pt-5">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <h3 className="font-serif text-lg text-[#f7f0ee]">Assigned Crew Members</h3>
-                <p className="text-xs text-[#82767d]">
-                  Select approved studio workers. Search by name, filter by role, and set assignment
-                  nature.
-                </p>
-              </div>
-              <div className="flex flex-wrap items-center gap-2 text-xs">
-                <span className="rounded-lg border border-[#30282e] bg-[#120f12] px-2.5 py-1 text-[#f7f0ee]">
-                  Selected crew:{" "}
-                  <strong className="font-semibold text-[#d9b98c]">
-                    {staffingMetrics.assignedCrew}
-                  </strong>
-                </span>
-                <span className="rounded-lg border border-[#30282e] bg-[#120f12] px-2.5 py-1 text-[#b8adb2]">
-                  Planned crew:{" "}
-                  <strong className="font-semibold">{staffingMetrics.plannedTeamSize}</strong>
-                </span>
-                <span
-                  className={`rounded-lg border px-2.5 py-1 font-medium ${
-                    staffingMetrics.additionalCrewRequired > 0
-                      ? "border-amber-500/30 bg-amber-500/10 text-amber-300"
-                      : "border-emerald-500/30 bg-emerald-500/10 text-emerald-300"
-                  }`}
-                >
-                  {staffingMetrics.additionalCrewRequired > 0
-                    ? `Additional crew required: ${staffingMetrics.additionalCrewRequired}`
-                    : "Staffing fulfilled"}
-                </span>
-                <span className="rounded-lg border border-[#30282e] bg-[#120f12] px-2.5 py-1 text-[#82767d]">
-                  Remaining capacity: {staffingMetrics.remainingCapacity}
-                </span>
-              </div>
-            </div>
-
-            {/* Conflicts Warning */}
-            {conflicts.length > 0 && (
-              <div
-                className="mt-4 rounded-xl border border-amber-500/40 bg-amber-500/10 p-3.5 text-xs text-amber-200"
-                role="alert"
-              >
-                <div className="flex items-start gap-2.5">
-                  <AlertTriangle className="size-4 shrink-0 text-amber-400 mt-0.5" />
-                  <div className="flex-1 space-y-1">
-                    <p className="font-semibold text-amber-300">Scheduling conflict notice</p>
-                    {conflicts.map((c, idx) => (
-                      <p key={idx} className="text-[11px] text-amber-200/90 leading-tight">
-                        • {c.message}
-                      </p>
-                    ))}
-                    {!conflictReviewed && (
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setConflictReviewed(true)}
-                        className="mt-2 h-7 border-amber-500/40 bg-amber-500/20 text-[11px] text-amber-200 hover:bg-amber-500/30"
-                      >
-                        Acknowledge conflicts & continue
-                      </Button>
-                    )}
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Selected Workers Chips Preview */}
-            {selectedCrew.length > 0 && (
-              <div className="mt-3 flex flex-wrap gap-1.5 p-2 rounded-xl border border-[#30282e]/80 bg-[#161217]">
-                {selectedCrew.map((assignment) => {
-                  const worker = team.find((m) => m.id === assignment.team_member_id);
-                  if (!worker) return null;
-                  return (
-                    <span
-                      key={assignment.team_member_id}
-                      className="inline-flex items-center gap-1.5 rounded-lg border border-[#40343e] bg-[#221c25] px-2.5 py-1 text-xs text-[#f7f0ee]"
-                    >
-                      <span className="font-medium">{worker.full_name}</span>
-                      <span className="text-[10px] text-[#d9b98c]">({worker.role})</span>
-                      <span className="text-[9px] uppercase tracking-wider text-[#82767d]">
-                        [{assignment.assignment_type === "on_site" ? "On-site" : "Post-prod"}]
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => removeWorker(worker.id)}
-                        className="ml-1 text-[#82767d] hover:text-red-400"
-                        aria-label={`Remove ${worker.full_name}`}
-                      >
-                        <X className="size-3" />
-                      </button>
-                    </span>
-                  );
-                })}
-              </div>
-            )}
-
-            {/* Search and Role Filter Bar */}
-            <div className="mt-3 grid gap-2 sm:grid-cols-2">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-[#82767d]" />
-                <Input
-                  value={workerSearch}
-                  onChange={(e) => setWorkerSearch(e.target.value)}
-                  placeholder="Search workers by name or role…"
-                  className="h-9 pl-8 text-xs bg-[#120f12] border-[#30282e] text-[#f7f0ee]"
-                />
-              </div>
-              <select
-                value={roleFilter}
-                onChange={(e) => setRoleFilter(e.target.value)}
-                className="h-9 rounded-md border border-[#30282e] bg-[#120f12] px-3 text-xs text-[#f7f0ee]"
-              >
-                {ALL_STUDIO_ROLES.map((role) => (
-                  <option key={role} value={role}>
-                    {role}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            {/* Workers Multi-Select List */}
-            <div className="mt-3 max-h-[240px] space-y-1.5 overflow-y-auto pr-1">
-              {filteredWorkers.length === 0 ? (
-                <p className="py-6 text-center text-xs text-[#82767d]">
-                  No active workers matching "{workerSearch || roleFilter}".
-                </p>
-              ) : (
-                filteredWorkers.map((member) => {
-                  const isSelected = selectedCrew.some((i) => i.team_member_id === member.id);
-                  const currentAssign = selectedCrew.find((i) => i.team_member_id === member.id);
-                  const workerConflicts = conflicts.filter((c) => c.workerId === member.id);
-
-                  return (
-                    <div
-                      key={member.id}
-                      className={`flex flex-wrap items-center justify-between gap-3 rounded-xl border p-2.5 transition-colors text-xs ${
-                        isSelected
-                          ? "border-[#762d40] bg-[#221c25]"
-                          : "border-[#30282e]/80 bg-[#161217] hover:border-[#40343e]"
-                      }`}
-                    >
-                      <label className="flex items-center gap-3 cursor-pointer flex-1 min-w-[200px]">
-                        <input
-                          type="checkbox"
-                          checked={isSelected}
-                          onChange={() => toggleWorker(member.id)}
-                          className="size-4 rounded border-[#40343e] accent-[#762d40]"
-                        />
-                        <div>
-                          <p className="font-medium text-[#f7f0ee]">{member.full_name}</p>
-                          <p className="text-[11px] text-[#82767d]">
-                            {member.role} ·{" "}
-                            <span
-                              className={member.available ? "text-[#71d8aa]" : "text-amber-400"}
-                            >
-                              {member.available ? "Available" : "Busy"}
-                            </span>
-                            {member.status === "on_leave" && " (On Leave)"}
-                          </p>
-                          {workerConflicts.length > 0 && (
-                            <p className="text-[10px] text-amber-300 font-medium">
-                              ⚠️ {workerConflicts[0]?.message}
-                            </p>
-                          )}
-                        </div>
-                      </label>
-
-                      {isSelected && (
-                        <select
-                          value={currentAssign?.assignment_type ?? "on_site"}
-                          onChange={(e) =>
-                            updateAssignmentType(
-                              member.id,
-                              e.target.value as "on_site" | "post_production",
-                            )
-                          }
-                          className="h-7 rounded border border-[#40343e] bg-[#120f12] px-2 text-[11px] text-[#f7f0ee]"
-                        >
-                          <option value="on_site">On site</option>
-                          <option value="post_production">Post production</option>
-                        </select>
-                      )}
-                    </div>
-                  );
-                })
-              )}
-            </div>
-          </div>
-
-          {error && (
-            <p
-              className="rounded-md border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-300"
-              role="alert"
-            >
-              {error}
-            </p>
-          )}
-          <div className="flex justify-end gap-2 border-t border-[#30282e] pt-4">
-            <Button type="button" variant="outline" onClick={onClose} disabled={saving}>
-              Cancel
-            </Button>
-            <Button type="submit" disabled={saving}>
-              {saving ? "Saving…" : shoot ? "Save changes" : "Add shoot"}
-            </Button>
-          </div>
-        </form>
-      </section>
-    </div>
-  );
-}
-
-function AssignmentEditor({
-  shoot,
-  team,
-  shoots,
-  assignments,
-  onClose,
-  onSave,
-}: {
-  shoot: Shoot;
-  team: TeamMember[];
-  shoots: Shoot[];
-  assignments: Assignment[];
-  onClose: () => void;
-  onSave: (shootId: string, values: AssignmentInput[]) => Promise<void>;
-}) {
-  const [selected, setSelected] = useState<AssignmentInput[]>(() =>
-    assignments
-      .filter((assignment) => assignment.shoot_id === shoot.id)
-      .map(({ team_member_id, assignment_type }) => ({ team_member_id, assignment_type })),
-  );
-  const [conflictsReviewed, setConflictsReviewed] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState("");
-  const selectedIds = new Set(selected.map((assignment) => assignment.team_member_id));
-
-  const staffingMetrics = useMemo(
-    () => calculateStaffingMetrics(shoot.planned_team_size, selected),
-    [shoot.planned_team_size, selected],
-  );
-
-  const conflicts = useMemo(() => {
-    return selected.flatMap((assignment) => {
-      if (assignment.assignment_type !== "on_site") return [];
-      return assignments
-        .filter(
-          (existing) =>
-            existing.team_member_id === assignment.team_member_id &&
-            existing.assignment_type === "on_site" &&
-            existing.shoot_id !== shoot.id,
-        )
-        .map((existing) => shoots.find((otherShoot) => otherShoot.id === existing.shoot_id))
-        .filter((otherShoot): otherShoot is Shoot => {
-          if (!otherShoot || otherShoot.status === "Cancelled") return false;
-          return doEventsOverlap(
-            {
-              date: shoot.event_date,
-              startTime: shoot.start_time,
-              endTime: shoot.end_time,
-            },
-            {
-              date: otherShoot.event_date,
-              startTime: otherShoot.start_time,
-              endTime: otherShoot.end_time,
-            },
-          );
-        })
-        .map((otherShoot) => ({
-          member: team.find((item) => item.id === assignment.team_member_id),
-          shoot: otherShoot,
-        }));
-    });
-  }, [assignments, selected, shoot, shoots, team]);
-
-  function toggleMember(memberId: string) {
-    setSelected((current) => {
-      const exists = current.some((item) => item.team_member_id === memberId);
-      if (exists) {
-        return current.filter((item) => item.team_member_id !== memberId);
-      }
-      const onSiteCount = current.filter((i) => i.assignment_type === "on_site").length;
-      if (onSiteCount >= 20) {
-        setError(
-          "Maximum capacity reached: A shoot cannot have more than 20 on-site crew members.",
-        );
-        return current;
-      }
-      return [...current, { team_member_id: memberId, assignment_type: "on_site" }];
-    });
-  }
-
-  function changeType(memberId: string, assignmentType: Assignment["assignment_type"]) {
-    setSelected((current) =>
-      current.map((item) =>
-        item.team_member_id === memberId ? { ...item, assignment_type: assignmentType } : item,
-      ),
-    );
-  }
-
-  async function handleSave() {
-    setSaving(true);
-    setError("");
-    try {
-      await onSave(shoot.id, selected);
-      onClose();
-    } catch (error) {
-      setError(error instanceof Error ? error.message : "Could not save assignments.");
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  return (
-    <div
-      className="studio-modal-backdrop"
-      onMouseDown={(event) => {
-        if (event.target === event.currentTarget) onClose();
-      }}
-    >
-      <section
-        className="studio-modal"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="assignment-editor-title"
-      >
-        <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <p className="text-[10px] font-medium uppercase tracking-[0.2em] text-[#9a8c77]">
-              CREW ASSIGNMENT
-            </p>
-            <h2 id="assignment-editor-title" className="mt-2 font-serif text-2xl">
-              {shoot.couple_name}
-            </h2>
-            <p className="mt-1 text-xs text-[#82767d]">
-              {format(parseISO(shoot.event_date), "EEEE, MMMM d, yyyy")} · Planned crew:{" "}
-              {shoot.planned_team_size}
-            </p>
-          </div>
-          <div className="text-right">
-            <span
-              className={`inline-block rounded-full px-2.5 py-0.5 text-[11px] font-medium ${
-                staffingMetrics.staffingStatus === "Fully Staffed"
-                  ? "bg-emerald-500/10 text-emerald-300 border border-emerald-500/20"
-                  : staffingMetrics.staffingStatus === "Overstaffed"
-                    ? "bg-amber-500/10 text-amber-300 border border-amber-500/20"
-                    : "bg-red-500/10 text-red-300 border border-red-500/20"
-              }`}
-            >
-              {staffingMetrics.staffingStatus} ({staffingMetrics.uniqueOnSiteWorkers}/
-              {staffingMetrics.plannedTeamSize} on-site)
-            </span>
-            <p className="mt-1 text-[11px] text-[#82767d]">
-              {staffingMetrics.remainingRequired > 0
-                ? `${staffingMetrics.remainingRequired} more required`
-                : "Requirement fulfilled"}{" "}
-              · {staffingMetrics.remainingCapacity} capacity left
-            </p>
-          </div>
-        </div>
-        {conflicts.length > 0 && !conflictsReviewed && (
-          <div
-            className="mb-4 rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-xs text-amber-200"
-            role="alert"
-          >
-            <p className="font-semibold">Scheduling notice</p>
-            <p className="mt-1">
-              One or more team members are already assigned to overlapping events on this date.
-            </p>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="mt-3 text-xs"
-              onClick={() => setConflictsReviewed(true)}
-            >
-              Continue anyway
-            </Button>
-          </div>
-        )}
-        <div className="max-h-[360px] space-y-2 overflow-y-auto pr-1">
-          {team.map((member) => {
-            const isAssigned = selectedIds.has(member.id);
-            const current = selected.find((item) => item.team_member_id === member.id);
-            return (
-              <div
-                key={member.id}
-                className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[#30282e] bg-[#1d171d] p-3 text-xs"
-              >
-                <label className="flex items-center gap-3">
-                  <input
-                    type="checkbox"
-                    checked={isAssigned}
-                    onChange={() => toggleMember(member.id)}
-                  />
-                  <div>
-                    <p className="font-medium text-[#f7f0ee]">{member.full_name}</p>
-                    <p className="text-[11px] text-[#82767d]">
-                      {member.role} · {member.available ? "Available" : "Busy"}
-                    </p>
-                  </div>
-                </label>
-                {isAssigned && (
-                  <select
-                    className="rounded-md border border-[#30282e] bg-[#120f12] px-2 py-1 text-xs text-[#f7f0ee]"
-                    value={current?.assignment_type ?? "on_site"}
-                    onChange={(event) =>
-                      changeType(member.id, event.target.value as Assignment["assignment_type"])
-                    }
-                  >
-                    <option value="on_site">On site</option>
-                    <option value="post_production">Post production</option>
-                  </select>
-                )}
-              </div>
-            );
-          })}
-        </div>
-        {error && (
-          <p
-            className="mt-4 rounded-md border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-300"
-            role="alert"
-          >
-            {error}
-          </p>
-        )}
-        <div className="mt-5 flex justify-end gap-2 border-t border-[#30282e] pt-4">
-          <Button type="button" variant="outline" onClick={onClose} disabled={saving}>
-            Cancel
-          </Button>
-          <Button type="button" onClick={handleSave} disabled={saving}>
-            {saving ? "Saving…" : "Save assignments"}
-          </Button>
-        </div>
-      </section>
-    </div>
-  );
+function ShootsView(props: React.ComponentProps<typeof ShootsManagementView>) {
+  return <ShootsManagementView {...props} />;
 }
 
 function CalendarView({

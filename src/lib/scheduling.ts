@@ -38,6 +38,8 @@ export interface WorkerCrewConflict {
         date: string;
         startTime: string;
         endTime?: string | null | undefined;
+        formattedTiming?: string;
+        formattedDate?: string;
       }
     | undefined;
   leaveRequest?:
@@ -49,6 +51,80 @@ export interface WorkerCrewConflict {
         reason?: string | null | undefined;
       }
     | undefined;
+}
+
+export interface WorkerScheduleStatus {
+  workerId: string;
+  workerName: string;
+  isAvailable: boolean;
+  hasOverlapConflict: boolean;
+  overlapConflict?: WorkerCrewConflict | undefined;
+  sameDayAssignments: Array<{
+    shootId: string;
+    project: string;
+    eventType: string;
+    date: string;
+    startTime: string;
+    endTime?: string | null | undefined;
+    timing: string;
+  }>;
+  statusBadge: "available" | "unavailable" | "on_leave" | "inactive";
+  statusText: string;
+}
+
+/**
+ * Formats HH:mm(:ss) time into readable 12-hour AM/PM string.
+ * e.g. "09:00:00" -> "9:00 AM", "15:30" -> "3:30 PM"
+ */
+export function formatTime12Hour(timeStr?: string | null): string {
+  if (!timeStr) return "";
+  const parts = timeStr.trim().split(":");
+  if (parts.length < 2) return timeStr;
+  let hours = parseInt(parts[0], 10);
+  const minutes = parts[1].padStart(2, "0");
+  if (isNaN(hours)) return timeStr;
+  const ampm = hours >= 12 ? "PM" : "AM";
+  hours = hours % 12;
+  hours = hours ? hours : 12;
+  return `${hours}:${minutes} ${ampm}`;
+}
+
+/**
+ * Formats a YYYY-MM-DD date string nicely, e.g. "10 November 2026"
+ */
+export function formatScheduleDate(dateStr?: string | null): string {
+  if (!dateStr) return "";
+  const parts = dateStr.split("-");
+  if (parts.length < 3) return dateStr;
+  const [year, month, day] = parts;
+  const months = [
+    "January",
+    "February",
+    "March",
+    "April",
+    "May",
+    "June",
+    "July",
+    "August",
+    "September",
+    "October",
+    "November",
+    "December",
+  ];
+  const monthIdx = parseInt(month, 10) - 1;
+  const monthName = months[monthIdx] || month;
+  const dayNum = parseInt(day, 10);
+  return `${dayNum} ${monthName} ${year}`;
+}
+
+/**
+ * Formats start and end times into interval string, e.g. "11:00 AM – 3:00 PM"
+ */
+export function formatTimingInterval(startTime: string, endTime?: string | null): string {
+  const startFmt = formatTime12Hour(startTime);
+  if (!endTime) return `from ${startFmt}`;
+  const endFmt = formatTime12Hour(endTime);
+  return `${startFmt} – ${endFmt}`;
 }
 
 /**
@@ -81,6 +157,7 @@ export function doesCrossMidnight(startTime: string, endTime?: string | null): b
  * Checks if two events on the same or crossing date overlap in time.
  * Handles missing end times (defaults to 3 hours or end of day)
  * and events crossing midnight (where endTime < startTime).
+ * An assignment ending exactly when another begins is non-overlapping.
  */
 export function doEventsOverlap(eventA: TimeInterval, eventB: TimeInterval): boolean {
   const startA = parseTimeToMinutes(eventA.startTime);
@@ -95,21 +172,22 @@ export function doEventsOverlap(eventA: TimeInterval, eventB: TimeInterval): boo
     endB = Math.min(startB + 180, 23 * 60 + 59);
   }
 
+  if (startA === -1 || startB === -1) {
+    return false;
+  }
+
   const crossesA = endA < startA;
   const crossesB = endB < startB;
 
   // Case 1: Same date
   if (eventA.date === eventB.date) {
-    // If eventA crosses midnight: it runs on this date from startA to 24*60
     const effEndA = crossesA ? 24 * 60 : endA;
-    // If eventB crosses midnight: it runs on this date from startB to 24*60
     const effEndB = crossesB ? 24 * 60 : endB;
 
     return startA < effEndB && startB < effEndA;
   }
 
   // Case 2: Adjacent dates and one crosses midnight into the next day
-  // Check if eventA is on Day 1, crosses midnight, and eventB is on Day 2 (Day 1 + 1 day)
   const dateADate = new Date(`${eventA.date}T00:00:00Z`);
   const dateBDate = new Date(`${eventB.date}T00:00:00Z`);
   const diffDays = Math.round((dateBDate.getTime() - dateADate.getTime()) / (1000 * 60 * 60 * 24));
@@ -136,7 +214,7 @@ export function doEventsOverlap(eventA: TimeInterval, eventB: TimeInterval): boo
 /**
  * Checks if a worker has any scheduling conflicts for a target shoot.
  * Checks for:
- * 1. Overlapping assignments with other active shoots
+ * 1. Overlapping assignments with other active shoots (Severity: error)
  * 2. Approved leave or unavailability requests
  * 3. Worker active / leave status
  */
@@ -242,15 +320,18 @@ export function findWorkerConflicts({
     );
 
     if (overlap) {
+      const formattedTiming = formatTimingInterval(otherShoot.start_time, otherShoot.end_time);
+      const formattedDate = formatScheduleDate(otherShoot.event_date);
       const timeStr = otherShoot.end_time
         ? `${otherShoot.start_time.slice(0, 5)} – ${otherShoot.end_time.slice(0, 5)}`
         : `from ${otherShoot.start_time.slice(0, 5)}`;
+
       conflicts.push({
         workerId,
         workerName,
         type: "shoot_overlap",
-        severity: "warning",
-        message: `${workerName} is already assigned to "${otherShoot.couple_name}" (${otherShoot.event_type}) on ${otherShoot.event_date} (${timeStr}).`,
+        severity: "error",
+        message: `${workerName} is already assigned to "${otherShoot.couple_name}" (${otherShoot.event_type}) on ${formattedDate} (${formattedTiming}). The selected shoot overlaps with this assignment.`,
         conflictingShoot: {
           id: otherShoot.id,
           coupleName: otherShoot.couple_name,
@@ -258,6 +339,8 @@ export function findWorkerConflicts({
           date: otherShoot.event_date,
           startTime: otherShoot.start_time,
           endTime: otherShoot.end_time,
+          formattedTiming,
+          formattedDate,
         },
       });
     }
@@ -274,7 +357,6 @@ export function findWorkerConflicts({
   for (const req of relevantLeaveRequests) {
     // Check if shoot date falls within leave date range
     if (shoot.event_date >= req.start_date && shoot.event_date <= req.end_date) {
-      // If time window is specified on the leave request, verify overlap
       if (req.start_time && req.end_time) {
         const overlap = doEventsOverlap(
           {
@@ -378,6 +460,178 @@ export function findAllShootConflicts({
 }
 
 /**
+ * Evaluates detailed schedule status for a worker for a specific event time window.
+ * Distinguishes between:
+ * - Overlapping assignments (Unavailable / Conflict)
+ * - Same-day NON-overlapping assignments (Available with same-day notice)
+ * - Approved leave
+ * - Fully available
+ */
+export function getWorkerScheduleStatus({
+  shoot,
+  workerId,
+  team,
+  shoots,
+  assignments,
+  availabilityRequests = [],
+}: {
+  shoot: {
+    id?: string | undefined;
+    event_date: string;
+    start_time: string;
+    end_time?: string | null | undefined;
+  };
+  workerId: string;
+  team: {
+    id: string;
+    full_name: string;
+    role: string;
+    status?: string;
+    available?: boolean;
+    user_id?: string | null;
+  }[];
+  shoots: {
+    id: string;
+    couple_name: string;
+    event_type: string;
+    event_date: string;
+    start_time: string;
+    end_time?: string | null;
+    status: string;
+  }[];
+  assignments: {
+    shoot_id: string;
+    team_member_id: string;
+    assignment_type: string;
+  }[];
+  availabilityRequests?: {
+    id: string;
+    worker_id?: string | null;
+    user_id?: string | null;
+    request_type: string;
+    start_date: string;
+    end_date: string;
+    start_time?: string | null;
+    end_time?: string | null;
+    status: string;
+    reason?: string | null;
+  }[];
+}): WorkerScheduleStatus {
+  const member = team.find((m) => m.id === workerId);
+  const workerName = member?.full_name || "Crew member";
+
+  if (!member || member.status === "inactive") {
+    return {
+      workerId,
+      workerName,
+      isAvailable: false,
+      hasOverlapConflict: true,
+      statusBadge: "inactive",
+      statusText: "Inactive in team registry",
+      sameDayAssignments: [],
+    };
+  }
+
+  if (member.status === "on_leave") {
+    return {
+      workerId,
+      workerName,
+      isAvailable: false,
+      hasOverlapConflict: false,
+      statusBadge: "on_leave",
+      statusText: "On leave",
+      sameDayAssignments: [],
+    };
+  }
+
+  const conflicts = findWorkerConflicts({
+    shoot,
+    workerId,
+    team,
+    shoots,
+    assignments,
+    availabilityRequests,
+  });
+
+  const overlapConflict = conflicts.find((c) => c.type === "shoot_overlap");
+  if (overlapConflict) {
+    return {
+      workerId,
+      workerName,
+      isAvailable: false,
+      hasOverlapConflict: true,
+      overlapConflict,
+      statusBadge: "unavailable",
+      statusText: overlapConflict.message,
+      sameDayAssignments: [],
+    };
+  }
+
+  const leaveConflict = conflicts.find((c) => c.type === "approved_leave");
+  if (leaveConflict) {
+    return {
+      workerId,
+      workerName,
+      isAvailable: false,
+      hasOverlapConflict: false,
+      statusBadge: "on_leave",
+      statusText: leaveConflict.message,
+      sameDayAssignments: [],
+    };
+  }
+
+  // Find other shoots on the SAME date that do not overlap
+  const sameDayAssignments: WorkerScheduleStatus["sameDayAssignments"] = [];
+  const workerShootAssignments = assignments.filter(
+    (a) => a.team_member_id === workerId && (!shoot?.id || a.shoot_id !== shoot.id),
+  );
+
+  for (const assign of workerShootAssignments) {
+    const otherShoot = shoots.find(
+      (s) =>
+        s.id === assign.shoot_id && s.event_date === shoot.event_date && s.status !== "Cancelled",
+    );
+    if (otherShoot) {
+      const timing = formatTimingInterval(otherShoot.start_time, otherShoot.end_time);
+      sameDayAssignments.push({
+        shootId: otherShoot.id,
+        project: otherShoot.couple_name,
+        eventType: otherShoot.event_type,
+        date: otherShoot.event_date,
+        startTime: otherShoot.start_time,
+        endTime: otherShoot.end_time,
+        timing,
+      });
+    }
+  }
+
+  if (sameDayAssignments.length > 0) {
+    const listSummary = sameDayAssignments
+      .map((s) => `${s.project} (${s.eventType}) ${s.timing}`)
+      .join(", ");
+    return {
+      workerId,
+      workerName,
+      isAvailable: true,
+      hasOverlapConflict: false,
+      sameDayAssignments,
+      statusBadge: "available",
+      statusText: `Available · Working on ${listSummary}`,
+    };
+  }
+
+  return {
+    workerId,
+    workerName,
+    isAvailable: true,
+    hasOverlapConflict: false,
+    sameDayAssignments: [],
+    statusBadge: "available",
+    statusText: "Available",
+  };
+}
+
+/**
  * Automatically calculates staffing metrics for a shoot.
  * Enforces the maximum 20 on-site crew members.
  * Only on-site assignments count towards the on-site crew capacity.
@@ -386,7 +640,6 @@ export function calculateStaffingMetrics(
   plannedTeamSize: number,
   assignments: { team_member_id: string; assignment_type: string }[],
 ) {
-  // Count unique on-site workers and post-production workers
   const onSiteAssignments = assignments.filter((a) => a.assignment_type === "on_site");
   const postProdAssignments = assignments.filter((a) => a.assignment_type === "post_production");
   const uniqueOnSiteWorkers = new Set(onSiteAssignments.map((a) => a.team_member_id)).size;
@@ -394,7 +647,6 @@ export function calculateStaffingMetrics(
   const uniqueTotalWorkers = new Set(assignments.map((a) => a.team_member_id)).size;
 
   const maxOnSiteLimit = 20;
-  // Assigned crew count equals unique on-site crew
   const assignedCrew = uniqueOnSiteWorkers;
   const additionalCrewRequired = Math.max(0, plannedTeamSize - assignedCrew);
   const remainingCapacity = Math.max(0, maxOnSiteLimit - assignedCrew);
