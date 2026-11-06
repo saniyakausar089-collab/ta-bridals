@@ -348,12 +348,24 @@ function Index() {
           const match = s.notes.match(/\[Event Type:\s*([^\]]+)\]/);
           if (match && match[1]) eventType = match[1].trim();
         }
+        let plannedCrew = s.planned_team_size;
+        if (s.notes) {
+          const matchCrew = s.notes.match(/\[Planned Crew:\s*(\d+)\]/);
+          if (matchCrew && matchCrew[1]) plannedCrew = parseInt(matchCrew[1], 10);
+        }
+        let endTime = s.end_time;
+        if (!endTime && s.notes) {
+          const matchTime = s.notes.match(/\[End Time:\s*([^\]]+)\]/);
+          if (matchTime && matchTime[1]) endTime = matchTime[1].trim();
+        }
         const title = coupleName || "Untitled Shoot";
         return {
           ...s,
           couple_name: title,
           "shoot name": title,
           event_type: eventType || "Wedding",
+          planned_team_size: plannedCrew,
+          end_time: endTime,
         };
       });
 
@@ -484,6 +496,54 @@ function Index() {
             `Failed to save shoot: ${result.error.message || result.error.details || "Database error"}`,
           );
         }
+      } else if (
+        result.error.message?.includes("shoots_check") ||
+        (result.error as any).details?.includes("shoots_check") ||
+        result.error.message?.includes("shoots_planned_team_size_check") ||
+        (result.error as any).details?.includes("shoots_planned_team_size_check")
+      ) {
+        // Fallback: if database has legacy check constraints (e.g. planned_team_size BETWEEN 7 AND 20,
+        // or table-level CHECK (end_time IS NULL OR end_time > start_time) which rejects overnight shoots):
+        const tags: string[] = [];
+        const fallbackPayload: any = { ...payload };
+
+        if (payload.planned_team_size !== undefined && payload.planned_team_size < 7) {
+          fallbackPayload.planned_team_size = 7;
+          tags.push(`[Planned Crew: ${payload.planned_team_size}]`);
+        }
+
+        if (payload.end_time && payload.start_time && payload.end_time <= payload.start_time) {
+          fallbackPayload.end_time = null;
+          tags.push(`[End Time: ${payload.end_time}]`);
+        }
+
+        if (tags.length === 0) {
+          // If neither matched specifically, try resetting end_time to null and bumping planned_team_size to 7
+          if (payload.end_time) {
+            tags.push(`[End Time: ${payload.end_time}]`);
+            fallbackPayload.end_time = null;
+          }
+          if (payload.planned_team_size && payload.planned_team_size < 7) {
+            tags.push(`[Planned Crew: ${payload.planned_team_size}]`);
+            fallbackPayload.planned_team_size = 7;
+          }
+        }
+
+        const currentNotes = (payload.notes || "").trim();
+        const fallbackNotes = [currentNotes, ...tags].filter(Boolean).join(" ");
+        fallbackPayload.notes = fallbackNotes || null;
+
+        const fallbackResult = shootId
+          ? await supabase.from("shoots").update(fallbackPayload).eq("id", shootId).select().single()
+          : await supabase.from("shoots").insert(fallbackPayload).select().single();
+
+        if (!fallbackResult.error && fallbackResult.data) {
+          result = fallbackResult;
+        } else {
+          throw new Error(
+            `Failed to save shoot: ${result.error.message || result.error.details || "Database error"}`,
+          );
+        }
       } else {
         throw new Error(
           `Failed to save shoot: ${result.error.message || result.error.details || "Database error"}`,
@@ -498,6 +558,8 @@ function Index() {
       couple_name: savedTitle,
       "shoot name": savedTitle,
       event_type: values.event_type || result.data.event_type,
+      planned_team_size: values.planned_team_size || result.data.planned_team_size,
+      end_time: values.end_time !== undefined ? values.end_time : result.data.end_time,
     };
 
     if (crewAssignments !== undefined) {
