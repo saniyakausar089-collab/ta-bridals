@@ -33,6 +33,7 @@ import {
   formatTimingInterval,
   getWorkerScheduleStatus,
 } from "@/lib/scheduling";
+import { getAllRoles } from "@/lib/roles";
 
 type Shoot = Tables<"shoots">;
 type TeamMember = Tables<"team_members">;
@@ -282,6 +283,19 @@ export function ShootsManagementView({
     );
   }, [clientProjects, selectedProjectName]);
 
+  const activeProjectEventIds = useMemo(
+    () => new Set(activeProject?.events.map((e) => e.id) ?? []),
+    [activeProject?.events],
+  );
+  const activeProjectTeamCount = useMemo(() => {
+    const matching = assignments.filter((a) => activeProjectEventIds.has(a.shoot_id));
+    return new Set(matching.map((a) => a.team_member_id)).size;
+  }, [activeProjectEventIds, assignments]);
+  const activeProjectHasMissingVenue = useMemo(
+    () => activeProject?.events.some((e) => !e.venue || !e.venue.trim()) ?? false,
+    [activeProject?.events],
+  );
+
   // Filter projects inside selected month (or all projects if query is typed)
   const displayedProjects = useMemo(() => {
     const normQ = query.trim().toLowerCase();
@@ -351,22 +365,22 @@ export function ShootsManagementView({
 
   return (
     <>
-      <section className="overflow-hidden rounded-2xl border border-[#e9e7df] bg-white shadow-xs">
+      <section className="overflow-hidden rounded-2xl border border-[#30282e] bg-[#151317] shadow-xl">
         {/* TOP HEADER & BREADCRUMBS */}
-        <div className="border-b border-[#efeee9] bg-[#faf9f5] px-5 py-4 sm:px-6">
+        <div className="border-b border-[#30282e] bg-[#100d10] px-5 py-4 sm:px-6">
           <div className="flex flex-wrap items-center justify-between gap-3">
             {/* Breadcrumb Navigation */}
-            <nav className="flex items-center gap-2 text-xs text-[#82767d]" aria-label="Breadcrumb">
+            <nav className="flex items-center gap-2 text-xs text-[#b8adb2]" aria-label="Breadcrumb">
               <button
                 type="button"
                 onClick={() => {
                   setSelectedProjectName(null);
                   setSelectedMonth(null);
                 }}
-                className={`transition-colors hover:text-[#344234] ${
+                className={`transition-colors hover:text-[#e7a0ad] ${
                   !selectedMonth && !selectedProjectName
-                    ? "font-semibold text-[#344234]"
-                    : "text-[#82767d]"
+                    ? "font-semibold text-[#e7a0ad]"
+                    : "text-[#b8adb2]"
                 }`}
               >
                 All Shoots
@@ -374,12 +388,12 @@ export function ShootsManagementView({
 
               {selectedMonth && (
                 <>
-                  <span className="text-[#c5c2b8]">/</span>
+                  <span className="text-[#82767d]">/</span>
                   <button
                     type="button"
                     onClick={() => setSelectedProjectName(null)}
-                    className={`transition-colors hover:text-[#344234] ${
-                      !selectedProjectName ? "font-semibold text-[#344234]" : "text-[#82767d]"
+                    className={`transition-colors hover:text-[#e7a0ad] ${
+                      !selectedProjectName ? "font-semibold text-[#e7a0ad]" : "text-[#b8adb2]"
                     }`}
                   >
                     {selectedMonthObj?.label || selectedMonth}
@@ -389,8 +403,8 @@ export function ShootsManagementView({
 
               {selectedProjectName && (
                 <>
-                  <span className="text-[#c5c2b8]">/</span>
-                  <span className="font-semibold text-[#344234]">{selectedProjectName}</span>
+                  <span className="text-[#82767d]">/</span>
+                  <span className="font-semibold text-[#e7a0ad]">{selectedProjectName}</span>
                 </>
               )}
             </nav>
@@ -399,7 +413,7 @@ export function ShootsManagementView({
             <div className="flex items-center gap-2">
               {editable && (
                 <Button
-                  className="h-9 gap-1.5 rounded-lg bg-[#344234] text-xs font-medium text-white hover:bg-[#283328]"
+                  className="studio-glow-button h-9 gap-1.5 rounded-lg bg-[#762d40] text-xs font-medium text-white hover:bg-[#c56c7d] border border-[#c56c7d]/40 shadow-[0_0_12px_rgba(197,108,125,0.25)]"
                   onClick={() => {
                     setDefaultProjectNameForNewEvent(
                       selectedProjectName || (activeProject ? activeProject.name : undefined),
@@ -416,11 +430,11 @@ export function ShootsManagementView({
         </div>
 
         {/* SEARCH & FILTERS BAR */}
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#efeee9] px-5 py-3.5 sm:px-6">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#30282e] bg-[#151317] px-5 py-3.5 sm:px-6">
           <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
             <label className="relative block min-w-[200px] flex-1 sm:max-w-[280px]">
               <Search
-                className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[#a09d93]"
+                className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[#82767d]"
                 aria-hidden="true"
               />
               <Input
@@ -434,12 +448,12 @@ export function ShootsManagementView({
                       : "Search client projects, events, venues…"
                 }
                 aria-label="Search shoots"
-                className="h-9 border-[#e6e4dd] pl-9 text-xs"
+                className="h-9 border-[#30282e] bg-[#1b181d] text-[#f7f0ee] placeholder:text-[#82767d] pl-9 text-xs focus:border-[#c56c7d]"
               />
             </label>
 
             <select
-              className="h-9 rounded-md border border-[#e6e4dd] bg-white px-3 text-xs text-[#3e453d]"
+              className="h-9 rounded-md border border-[#30282e] bg-[#1b181d] px-3 text-xs text-[#f7f0ee] focus:border-[#c56c7d]"
               aria-label="Filter by shoot status"
               value={statusFilter}
               onChange={(event) => setStatusFilter(event.target.value)}
@@ -452,20 +466,20 @@ export function ShootsManagementView({
             </select>
           </div>
 
-          <div className="text-xs text-[#82767d]">
+          <div className="text-xs text-[#b8adb2]">
             {selectedProjectName ? (
               <span>
-                Viewing events for <strong>{selectedProjectName}</strong>
+                Viewing events for <strong className="text-[#f7f0ee]">{selectedProjectName}</strong>
               </span>
             ) : selectedMonth ? (
               <span>
-                <strong>{displayedProjects.length}</strong> client projects in{" "}
-                {selectedMonthObj?.label}
+                <strong className="text-[#f7f0ee]">{displayedProjects.length}</strong> client projects in{" "}
+                <span className="text-[#e7a0ad]">{selectedMonthObj?.label}</span>
               </span>
             ) : (
               <span>
-                <strong>{clientProjects.length}</strong> client projects across{" "}
-                <strong>{monthsList.length}</strong> months
+                <strong className="text-[#f7f0ee]">{clientProjects.length}</strong> client projects across{" "}
+                <strong className="text-[#f7f0ee]">{monthsList.length}</strong> months
               </span>
             )}
           </div>
@@ -483,18 +497,18 @@ export function ShootsManagementView({
         {selectedProjectName && activeProject ? (
           <div className="p-5 sm:p-6 space-y-6">
             {/* Back Button & Project Header Banner */}
-            <div className="flex flex-wrap items-start justify-between gap-4 rounded-xl border border-[#ece9e2] bg-[#fbfaf8] p-4 sm:p-5">
+            <div className="flex flex-wrap items-start justify-between gap-4 rounded-xl border border-[#30282e] bg-[#1b181d] p-4 sm:p-5 shadow-sm">
               <div className="space-y-1">
                 <button
                   type="button"
                   onClick={() => setSelectedProjectName(null)}
-                  className="inline-flex items-center gap-1.5 text-xs font-medium text-[#586651] hover:text-[#344234] mb-2"
+                  className="inline-flex items-center gap-1.5 text-xs font-medium text-[#e7a0ad] hover:text-white mb-2 transition-colors"
                 >
                   <ArrowLeft className="size-3.5" />
                   Back to {selectedMonthObj ? selectedMonthObj.label : "Projects"}
                 </button>
                 <div className="flex items-center gap-3">
-                  <h1 className="font-serif text-2xl font-normal text-[#2b312b]">
+                  <h1 className="font-serif text-2xl font-normal text-[#f7f0ee]">
                     {activeProject.name}
                   </h1>
                   {editable && onRenameProject && (
@@ -507,7 +521,7 @@ export function ShootsManagementView({
                         })
                       }
                       title="Rename client project"
-                      className="text-[#999488] hover:text-[#344234]"
+                      className="text-[#82767d] hover:text-[#e7a0ad] transition-colors"
                     >
                       <Edit2 className="size-3.5" />
                     </button>
@@ -515,39 +529,54 @@ export function ShootsManagementView({
                   <span
                     className={`rounded-full px-2.5 py-0.5 text-[10px] font-medium border ${
                       activeProject.status === "Completed"
-                        ? "border-emerald-300 bg-emerald-50 text-emerald-800"
+                        ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-300"
                         : activeProject.status === "In Progress"
-                          ? "border-blue-300 bg-blue-50 text-blue-800"
+                          ? "border-blue-500/30 bg-blue-500/10 text-blue-300"
                           : activeProject.status === "Cancelled"
-                            ? "border-gray-300 bg-gray-50 text-gray-700"
-                            : "border-amber-300 bg-amber-50 text-amber-800"
+                            ? "border-gray-500/30 bg-gray-500/10 text-gray-300"
+                            : "border-amber-500/30 bg-amber-500/10 text-amber-300"
                     }`}
                   >
                     {activeProject.status}
                   </span>
                 </div>
-                <p className="text-xs text-[#82767d]">
-                  Wedding celebration project · {activeProject.events.length}{" "}
-                  {activeProject.events.length === 1 ? "event" : "events"} linked
+                <div className="flex flex-wrap items-center gap-2 pt-1 text-xs text-[#b8adb2]">
+                  <span>
+                    Wedding celebration project · {activeProject.events.length}{" "}
+                    {activeProject.events.length === 1 ? "event" : "events"} linked
+                  </span>
+                  <span>·</span>
+                  <span className="inline-flex items-center gap-1 font-medium text-[#f7f0ee]">
+                    <Users className="size-3 text-[#e7a0ad]" />
+                    {activeProjectTeamCount} {activeProjectTeamCount === 1 ? "team member" : "team members"} assigned
+                  </span>
+                  {activeProjectHasMissingVenue && (
+                    <span className="inline-flex items-center gap-1 rounded border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-[10px] font-semibold text-amber-300">
+                      <MapPin className="size-3 text-amber-400" />
+                      Venue Not Added
+                    </span>
+                  )}
                   {activeProject.earliestDate && (
                     <>
-                      {" "}
-                      · Dates:{" "}
-                      <strong className="text-[#3e453d]">
-                        {formatScheduleDate(activeProject.earliestDate)}
-                        {activeProject.latestDate &&
-                          activeProject.latestDate !== activeProject.earliestDate &&
-                          ` – ${formatScheduleDate(activeProject.latestDate)}`}
-                      </strong>
+                      <span>·</span>
+                      <span>
+                        Dates:{" "}
+                        <strong className="text-[#f7f0ee]">
+                          {formatScheduleDate(activeProject.earliestDate)}
+                          {activeProject.latestDate &&
+                            activeProject.latestDate !== activeProject.earliestDate &&
+                            ` – ${formatScheduleDate(activeProject.latestDate)}`}
+                        </strong>
+                      </span>
                     </>
                   )}
-                </p>
+                </div>
               </div>
 
               <div className="flex flex-wrap items-center gap-2">
                 {editable && (
                   <Button
-                    className="h-8 gap-1 rounded-lg bg-[#344234] text-xs text-white hover:bg-[#283328]"
+                    className="studio-glow-button h-8 gap-1 rounded-lg bg-[#762d40] text-xs text-white hover:bg-[#c56c7d] border border-[#c56c7d]/40 shadow-[0_0_10px_rgba(197,108,125,0.25)]"
                     onClick={() => {
                       setDefaultProjectNameForNewEvent(activeProject.name);
                       setEditingShoot(null);
@@ -562,20 +591,20 @@ export function ShootsManagementView({
             {/* Events List */}
             <div className="space-y-3">
               <div className="flex items-center justify-between">
-                <h3 className="font-serif text-lg text-[#3e453d]">
+                <h3 className="font-serif text-lg text-[#f7f0ee]">
                   Associated Events ({activeProject.events.length})
                 </h3>
-                <span className="text-xs text-[#929086]">
+                <span className="text-xs text-[#b8adb2]">
                   Each event independently maintains its own schedule, crew, and shoot status.
                 </span>
               </div>
 
               {activeProject.events.length === 0 ? (
-                <div className="rounded-xl border border-dashed border-[#e6e4dd] p-8 text-center text-xs text-[#929086]">
+                <div className="rounded-xl border border-dashed border-[#30282e] bg-[#151317] p-8 text-center text-xs text-[#82767d]">
                   No events added to this project yet. Click "Add Event to Project" above.
                 </div>
               ) : (
-                <div className="divide-y divide-[#f0efe9] rounded-xl border border-[#ece9e2] bg-white">
+                <div className="divide-y divide-[#30282e] rounded-xl border border-[#30282e] bg-[#151317]">
                   {activeProject.events.map((eventItem) => {
                     const eventAssignments = assignments.filter((a) => a.shoot_id === eventItem.id);
                     const assignedMembers = eventAssignments.map((a) => {
@@ -598,13 +627,13 @@ export function ShootsManagementView({
                         className="flex flex-wrap items-center gap-4 px-5 py-4 transition-colors hover:bg-[#fcfbf9]"
                       >
                         {/* Event Date Block */}
-                        <div className="grid size-12 shrink-0 place-items-center rounded-xl bg-[#f1f2ed] text-center text-[#59654f]">
+                        <div className="grid size-12 shrink-0 place-items-center rounded-xl border border-[#30282e] bg-[#1b181d] text-center text-[#e7a0ad]">
                           <span className="text-[9px] font-semibold uppercase leading-none">
                             {eventItem.event_date
                               ? format(parseISO(eventItem.event_date), "MMM")
                               : "—"}
                           </span>
-                          <span className="font-serif text-lg leading-none font-medium">
+                          <span className="font-serif text-lg leading-none font-medium text-[#f7f0ee]">
                             {eventItem.event_date
                               ? format(parseISO(eventItem.event_date), "d")
                               : "—"}
@@ -614,58 +643,67 @@ export function ShootsManagementView({
                         {/* Event Name & Timing */}
                         <div className="min-w-[160px] flex-1">
                           <div className="flex items-center gap-2">
-                            <h4 className="text-sm font-semibold text-[#344234]">
+                            <h4 className="text-sm font-semibold text-[#f7f0ee]">
                               {eventItem.event_type}
                             </h4>
-                            <span className="text-xs text-[#999488]">·</span>
-                            <span className="text-xs text-[#717368]">
+                            <span className="text-xs text-[#82767d]">·</span>
+                            <span className="text-xs text-[#b8adb2]">
                               {eventItem.event_date
                                 ? format(parseISO(eventItem.event_date), "EEEE, MMMM d, yyyy")
                                 : "Date TBA"}
                             </span>
                           </div>
 
-                          <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-[#8d8b81]">
+                          <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-[#b8adb2]">
                             <span className="inline-flex items-center gap-1">
-                              <Clock3 className="size-3 text-[#a09d93]" />
+                              <Clock3 className="size-3 text-[#82767d]" />
                               {formatTimingInterval(eventItem.start_time, eventItem.end_time)}
                             </span>
                             <span>·</span>
-                            <span className="font-medium text-[#42483f]">
+                            <span className="font-medium text-[#f7f0ee]">
                               {staffingMetrics.assignedCrew}/{eventItem.planned_team_size} crew
                             </span>
                             {staffingMetrics.additionalCrewRequired > 0 && (
-                              <span className="rounded border border-amber-200 bg-amber-50 px-1.5 py-0.2 text-[10px] font-semibold text-amber-800">
+                              <span className="rounded border border-amber-500/30 bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-amber-300">
                                 Needs {staffingMetrics.additionalCrewRequired} more
                               </span>
                             )}
                             {staffingMetrics.staffingStatus === "Fully Staffed" && (
-                              <span className="rounded border border-emerald-200 bg-emerald-50 px-1.5 py-0.2 text-[10px] font-semibold text-emerald-800">
+                              <span className="rounded border border-emerald-500/30 bg-emerald-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-300">
                                 Fully staffed
                               </span>
                             )}
                           </div>
                         </div>
 
-                        {/* Location / Venue */}
-                        <div className="hidden min-w-[140px] items-center gap-1.5 text-xs text-[#77786f] md:flex">
-                          <MapPin className="size-3.5 shrink-0 text-[#a19e93]" />
-                          <span className="truncate max-w-[180px]">
-                            {eventItem.venue || eventItem.location || "Venue TBA"}
-                          </span>
-                        </div>
+                        {/* Location / Venue Reminder */}
+                        {!eventItem.venue || !eventItem.venue.trim() ? (
+                          <div className="flex min-w-[140px] items-center">
+                            <span className="inline-flex items-center gap-1 rounded border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-[10px] font-semibold text-amber-300">
+                              <MapPin className="size-3 text-amber-400" />
+                              Venue Not Added
+                            </span>
+                          </div>
+                        ) : (
+                          <div className="hidden min-w-[140px] items-center gap-1.5 text-xs text-[#b8adb2] md:flex">
+                            <MapPin className="size-3.5 shrink-0 text-[#e7a0ad]" />
+                            <span className="truncate max-w-[180px] text-[#f7f0ee]">
+                              {eventItem.venue}
+                            </span>
+                          </div>
+                        )}
 
                         {/* Status Badge */}
                         <div className="shrink-0">
                           <span
                             className={`inline-block rounded-full px-2.5 py-0.5 text-[11px] font-medium border ${
                               eventItem.status === "Completed"
-                                ? "border-emerald-300 bg-emerald-50 text-emerald-800"
+                                ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-300"
                                 : eventItem.status === "In Progress"
-                                  ? "border-blue-300 bg-blue-50 text-blue-800"
+                                  ? "border-blue-500/30 bg-blue-500/10 text-blue-300"
                                   : eventItem.status === "Cancelled"
-                                    ? "border-gray-300 bg-gray-50 text-gray-700"
-                                    : "border-amber-300 bg-amber-50 text-amber-800"
+                                    ? "border-gray-500/30 bg-gray-500/10 text-gray-300"
+                                    : "border-amber-500/30 bg-amber-500/10 text-amber-300"
                             }`}
                           >
                             {eventItem.status}
@@ -678,7 +716,7 @@ export function ShootsManagementView({
                             <Button
                               variant="outline"
                               size="sm"
-                              className="h-8 gap-1 border-[#e9e7df] text-xs text-[#586651] hover:bg-[#f3f2ee]"
+                              className="h-8 gap-1 border-[#30282e] bg-[#1b181d] text-xs text-[#b8adb2] hover:bg-[#242026] hover:text-[#f7f0ee] hover:border-[#c56c7d]/40 transition-colors"
                               onClick={() => setAssigningShoot(eventItem)}
                             >
                               <Users className="size-3.5" /> Assign Crew
@@ -686,7 +724,7 @@ export function ShootsManagementView({
                             <Button
                               variant="outline"
                               size="sm"
-                              className="h-8 px-2.5 text-xs text-[#586651] hover:bg-[#f3f2ee]"
+                              className="h-8 px-2.5 text-xs border-[#30282e] bg-[#1b181d] text-[#b8adb2] hover:bg-[#242026] hover:text-[#f7f0ee] hover:border-[#c56c7d]/40 transition-colors"
                               onClick={() => {
                                 setDefaultProjectNameForNewEvent(activeProject.name);
                                 setEditingShoot(eventItem);
@@ -698,7 +736,7 @@ export function ShootsManagementView({
                             <Button
                               variant="outline"
                               size="sm"
-                              className="h-8 px-2.5 text-xs text-[#96615b] hover:bg-red-50 hover:border-red-200"
+                              className="h-8 px-2.5 text-xs border-[#30282e] bg-[#1b181d] text-rose-300 hover:bg-rose-500/10 hover:border-rose-500/30 transition-colors"
                               onClick={() => void confirmDeleteEvent(eventItem)}
                               aria-label={`Delete ${eventItem.event_type}`}
                             >
@@ -709,19 +747,19 @@ export function ShootsManagementView({
 
                         {/* Assigned Crew Members preview */}
                         {assignedMembers.length > 0 && (
-                          <div className="mt-1 flex w-full flex-wrap items-center gap-1.5 border-t border-[#f4f3ee] pt-2 text-xs">
-                            <span className="text-[10px] font-semibold uppercase tracking-wider text-[#99968c]">
+                          <div className="mt-1 flex w-full flex-wrap items-center gap-1.5 border-t border-[#30282e] pt-2 text-xs">
+                            <span className="text-[10px] font-semibold uppercase tracking-wider text-[#82767d]">
                               Crew ({assignedMembers.length}):
                             </span>
                             {assignedMembers.map((m) => (
                               <span
                                 key={m.id + m.type}
-                                className="inline-flex items-center gap-1 rounded-md border border-[#e9e7df] bg-[#f8f7f4] px-2 py-0.5 text-[11px] text-[#42483f]"
+                                className="inline-flex items-center gap-1 rounded-md border border-[#30282e] bg-[#1b181d] px-2 py-0.5 text-[11px] text-[#f7f0ee]"
                               >
                                 <span className="font-medium">{m.name}</span>
-                                <span className="text-[#8d8b81]">({m.role})</span>
+                                <span className="text-[#82767d]">({m.role})</span>
                                 {m.type === "post_production" && (
-                                  <span className="rounded bg-[#dedad2] px-1 text-[9px] text-[#555]">
+                                  <span className="rounded bg-[#762d40]/40 px-1 text-[9px] text-[#e7a0ad]">
                                     Post
                                   </span>
                                 )}
@@ -742,21 +780,21 @@ export function ShootsManagementView({
           /* ========================================================================= */
           <div className="p-5 sm:p-6 space-y-5">
             {/* Back button and Month Switcher */}
-            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#efeee9] pb-4">
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#30282e] pb-4">
               <div className="flex items-center gap-3">
                 <button
                   type="button"
                   onClick={() => setSelectedMonth(null)}
-                  className="inline-flex items-center gap-1.5 text-xs font-medium text-[#586651] hover:text-[#344234]"
+                  className="inline-flex items-center gap-1.5 text-xs font-medium text-[#e7a0ad] hover:text-white transition-colors"
                 >
                   <ArrowLeft className="size-3.5" />
                   All Months
                 </button>
-                <span className="text-[#c5c2b8]">|</span>
-                <h2 className="font-serif text-xl font-normal text-[#2b312b]">
+                <span className="text-[#82767d]">|</span>
+                <h2 className="font-serif text-xl font-normal text-[#f7f0ee]">
                   {selectedMonthObj?.label || selectedMonth}
                 </h2>
-                <span className="rounded-full bg-[#f1f0eb] px-2.5 py-0.5 text-xs text-[#6e7269]">
+                <span className="rounded-full border border-[#30282e] bg-[#1b181d] px-2.5 py-0.5 text-xs text-[#b8adb2]">
                   {displayedProjects.length}{" "}
                   {displayedProjects.length === 1 ? "Client Project" : "Client Projects"}
                 </span>
@@ -769,10 +807,10 @@ export function ShootsManagementView({
                     key={m.monthKey}
                     type="button"
                     onClick={() => setSelectedMonth(m.monthKey)}
-                    className={`rounded-lg px-2.5 py-1 text-xs font-medium transition-colors ${
+                    className={`rounded-lg px-2.5 py-1 text-xs font-medium transition-all ${
                       m.monthKey === selectedMonth
-                        ? "bg-[#344234] text-white"
-                        : "bg-[#f4f3ef] text-[#696e65] hover:bg-[#e9e7e1]"
+                        ? "bg-[#762d40] text-white border border-[#c56c7d]/40 shadow-[0_0_10px_rgba(197,108,125,0.25)]"
+                        : "border border-[#30282e] bg-[#1b181d] text-[#b8adb2] hover:bg-[#242026] hover:text-[#f7f0ee]"
                     }`}
                   >
                     {m.shortLabel} '{m.year.slice(2)}
@@ -783,7 +821,7 @@ export function ShootsManagementView({
 
             {/* Client Projects Listing */}
             {displayedProjects.length === 0 ? (
-              <div className="py-12 text-center text-xs text-[#929086]">
+              <div className="py-12 text-center text-xs text-[#82767d]">
                 No client projects found in {selectedMonthObj?.label || selectedMonth}.
               </div>
             ) : (
@@ -792,54 +830,71 @@ export function ShootsManagementView({
                   const eventsInThisMonth = project.events.filter((e) =>
                     e.event_date?.startsWith(selectedMonth),
                   );
+                  const projectEventIds = new Set(project.events.map((e) => e.id));
+                  const projectAssignments = assignments.filter((a) => projectEventIds.has(a.shoot_id));
+                  const uniqueTeamMemberIds = new Set(projectAssignments.map((a) => a.team_member_id));
+                  const projectTeamCount = uniqueTeamMemberIds.size;
+                  const isVenueMissing = project.events.some((e) => !e.venue || !e.venue.trim());
 
                   return (
                     <div
                       key={project.id}
                       onClick={() => setSelectedProjectName(project.name)}
-                      className="group cursor-pointer rounded-xl border border-[#e9e7df] bg-white p-4 transition-all hover:border-[#344234]/40 hover:shadow-md flex flex-col justify-between"
+                      className="studio-glow-card group cursor-pointer rounded-xl border border-[#30282e] bg-[#1b181d] p-4 transition-all duration-200 hover:border-[#c56c7d]/50 hover:bg-[#242026] hover:shadow-[0_0_20px_rgba(197,108,125,0.15)] flex flex-col justify-between"
                     >
                       <div className="space-y-2">
                         <div className="flex items-start justify-between gap-2">
-                          {/* ONLY CLIENT / PROJECT NAME IS DISPLAYED (per Rule 2.C) */}
-                          <h3 className="font-serif text-lg font-medium text-[#2b312b] group-hover:text-[#344234] transition-colors">
+                          <h3 className="font-serif text-lg font-medium text-[#f7f0ee] group-hover:text-[#e7a0ad] transition-colors">
                             {project.name}
                           </h3>
                           <span
                             className={`rounded-full px-2 py-0.5 text-[10px] font-medium border shrink-0 ${
                               project.status === "Completed"
-                                ? "border-emerald-300 bg-emerald-50 text-emerald-800"
+                                ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-300"
                                 : project.status === "In Progress"
-                                  ? "border-blue-300 bg-blue-50 text-blue-800"
-                                  : "border-amber-300 bg-amber-50 text-amber-800"
+                                  ? "border-blue-500/30 bg-blue-500/10 text-blue-300"
+                                  : "border-amber-500/30 bg-amber-500/10 text-amber-300"
                             }`}
                           >
                             {project.status}
                           </span>
                         </div>
 
-                        <p className="text-xs text-[#82767d] flex items-center gap-1">
-                          <MapPin className="size-3 text-[#a19e93] shrink-0" />
+                        <div className="flex items-center gap-1.5 text-xs text-[#b8adb2]">
+                          <MapPin className="size-3 text-[#e7a0ad] shrink-0" />
                           <span className="truncate">{project.primaryLocation}</span>
-                        </p>
+                          {isVenueMissing && (
+                            <span className="ml-auto inline-flex items-center gap-1 rounded border border-amber-500/30 bg-amber-500/10 px-1.5 py-0.2 text-[10px] font-semibold text-amber-300">
+                              Venue Not Added
+                            </span>
+                          )}
+                        </div>
 
-                        <div className="rounded-lg bg-[#f9f8f5] p-2.5 text-xs text-[#59654f] space-y-1">
+                        <div className="rounded-lg border border-[#30282e] bg-[#151317] p-2.5 text-xs text-[#b8adb2] space-y-1.5">
                           <div className="flex justify-between font-medium">
                             <span>Events:</span>
-                            <span className="text-[#344234]">
+                            <span className="text-[#f7f0ee]">
                               {project.events.length}{" "}
                               {project.events.length === 1 ? "event" : "events"}
                               {project.months.length > 1 && (
-                                <span className="font-normal text-[#8d8b81] ml-1">
+                                <span className="font-normal text-[#82767d] ml-1">
                                   ({eventsInThisMonth.length} in this month)
                                 </span>
                               )}
                             </span>
                           </div>
+                          {/* Project-wise team member count across all events */}
+                          <div className="flex justify-between font-medium">
+                            <span>Project Team:</span>
+                            <span className="text-[#e7a0ad] font-semibold flex items-center gap-1">
+                              <Users className="size-3 text-[#e7a0ad]" />
+                              {projectTeamCount} {projectTeamCount === 1 ? "member" : "members"}
+                            </span>
+                          </div>
                           {project.earliestDate && (
                             <div className="flex justify-between text-[11px] text-[#82767d]">
                               <span>Dates:</span>
-                              <span>
+                              <span className="text-[#b8adb2]">
                                 {format(parseISO(project.earliestDate), "MMM d")}
                                 {project.latestDate &&
                                   project.latestDate !== project.earliestDate &&
@@ -850,8 +905,8 @@ export function ShootsManagementView({
                         </div>
                       </div>
 
-                      <div className="mt-4 flex items-center justify-between border-t border-[#f4f3ee] pt-3 text-xs">
-                        <span className="font-medium text-[#586651] group-hover:underline">
+                      <div className="mt-4 flex items-center justify-between border-t border-[#30282e] pt-3 text-xs">
+                        <span className="font-medium text-[#e7a0ad] group-hover:underline">
                           View Events ({project.events.length}) →
                         </span>
                         {editable && (
@@ -862,7 +917,7 @@ export function ShootsManagementView({
                               setDefaultProjectNameForNewEvent(project.name);
                               setEditingShoot(null);
                             }}
-                            className="rounded px-2 py-0.5 text-[11px] text-[#717368] hover:bg-[#efede7]"
+                            className="rounded border border-[#30282e] bg-[#151317] px-2 py-0.5 text-[11px] text-[#b8adb2] hover:bg-[#242026] hover:text-[#f7f0ee] transition-colors"
                           >
                             + Add Event
                           </button>
@@ -880,8 +935,8 @@ export function ShootsManagementView({
           /* ========================================================================= */
           <div className="p-5 sm:p-6 space-y-6">
             <div>
-              <h2 className="font-serif text-xl text-[#3e453d]">Celebrations by Month</h2>
-              <p className="mt-1 text-xs text-[#929086]">
+              <h2 className="font-serif text-xl text-[#f7f0ee]">Celebrations by Month</h2>
+              <p className="mt-1 text-xs text-[#b8adb2]">
                 Select a month to view its scheduled client wedding projects.
               </p>
             </div>
@@ -896,38 +951,38 @@ export function ShootsManagementView({
                   <div
                     key={m.monthKey}
                     onClick={() => setSelectedMonth(m.monthKey)}
-                    className={`group cursor-pointer rounded-xl border p-4 transition-all hover:shadow-md ${
+                    className={`studio-glow-card group cursor-pointer rounded-xl border p-4 transition-all duration-200 hover:border-[#c56c7d]/50 hover:bg-[#242026] hover:shadow-[0_0_20px_rgba(197,108,125,0.15)] ${
                       isCurrent
-                        ? "border-[#344234]/50 bg-[#faf9f5]"
-                        : "border-[#e9e7df] bg-white hover:border-[#344234]/30"
+                        ? "border-[#c56c7d]/60 bg-[#24171e] shadow-[0_0_15px_rgba(197,108,125,0.2)]"
+                        : "border-[#30282e] bg-[#1b181d]"
                     }`}
                   >
                     <div className="flex items-center justify-between">
-                      <div className="grid size-10 place-items-center rounded-lg bg-[#f1f2ed] text-[#344234] font-serif font-medium">
+                      <div className="grid size-10 place-items-center rounded-lg border border-[#30282e] bg-[#151317] text-[#e7a0ad] font-serif font-medium">
                         {m.shortLabel}
                       </div>
                       {isCurrent && (
-                        <span className="rounded-full bg-[#344234] px-2 py-0.5 text-[10px] font-medium text-white">
+                        <span className="rounded-full bg-[#762d40] border border-[#c56c7d]/40 px-2 py-0.5 text-[10px] font-medium text-white shadow-[0_0_10px_rgba(197,108,125,0.3)]">
                           Current Month
                         </span>
                       )}
                     </div>
 
-                    <h3 className="mt-3 font-serif text-base font-medium text-[#2b312b] group-hover:text-[#344234] transition-colors">
+                    <h3 className="mt-3 font-serif text-base font-medium text-[#f7f0ee] group-hover:text-[#e7a0ad] transition-colors">
                       {m.label}
                     </h3>
 
-                    <div className="mt-2 flex items-center justify-between text-xs text-[#82767d]">
+                    <div className="mt-2 flex items-center justify-between text-xs text-[#b8adb2]">
                       <span>
-                        <strong className="text-[#344234]">{m.projectCount}</strong> projects
+                        <strong className="text-[#e7a0ad] font-semibold">{m.projectCount}</strong> projects
                       </span>
                       <span>·</span>
                       <span>
-                        <strong className="text-[#344234]">{m.eventCount}</strong> events
+                        <strong className="text-[#e7a0ad] font-semibold">{m.eventCount}</strong> events
                       </span>
                     </div>
 
-                    <div className="mt-3 border-t border-[#f4f3ee] pt-2.5 text-[11px] font-medium text-[#586651] group-hover:underline">
+                    <div className="mt-3 border-t border-[#30282e] pt-2.5 text-[11px] font-medium text-[#e7a0ad] group-hover:underline">
                       Explore month →
                     </div>
                   </div>
@@ -936,11 +991,11 @@ export function ShootsManagementView({
             </div>
 
             {/* ALL CLIENT PROJECTS LISTING BELOW */}
-            <div className="pt-4 border-t border-[#efeee9] space-y-3">
+            <div className="pt-4 border-t border-[#30282e] space-y-3">
               <div className="flex items-center justify-between">
                 <div>
-                  <h3 className="font-serif text-lg text-[#3e453d]">All Client Projects</h3>
-                  <p className="text-xs text-[#929086]">
+                  <h3 className="font-serif text-lg text-[#f7f0ee]">All Client Projects</h3>
+                  <p className="text-xs text-[#b8adb2]">
                     Every wedding project registered in TA Bridals. Click any project to manage its
                     events.
                   </p>
@@ -948,7 +1003,7 @@ export function ShootsManagementView({
                 {editable && (
                   <Button
                     size="sm"
-                    className="h-8 gap-1.5 rounded-lg bg-[#344234] text-xs text-white"
+                    className="studio-glow-button h-8 gap-1.5 rounded-lg bg-[#762d40] text-xs text-white hover:bg-[#c56c7d] border border-[#c56c7d]/40 shadow-[0_0_10px_rgba(197,108,125,0.25)]"
                     onClick={() => {
                       setDefaultProjectNameForNewEvent(undefined);
                       setEditingShoot(null);
@@ -960,59 +1015,81 @@ export function ShootsManagementView({
               </div>
 
               {clientProjects.length === 0 ? (
-                <div className="rounded-xl border border-dashed border-[#e6e4dd] p-8 text-center text-xs text-[#929086]">
+                <div className="rounded-xl border border-dashed border-[#30282e] bg-[#151317] p-8 text-center text-xs text-[#82767d]">
                   No client projects found. Click "New Client Project" to add your first.
                 </div>
               ) : (
-                <div className="divide-y divide-[#f0efe9] rounded-xl border border-[#ece9e2] bg-white">
-                  {clientProjects.map((project) => (
-                    <article
-                      key={project.id}
-                      onClick={() => setSelectedProjectName(project.name)}
-                      className="group cursor-pointer flex flex-wrap items-center justify-between gap-3 px-5 py-3.5 transition-colors hover:bg-[#faf9f5]"
-                    >
-                      <div className="flex items-center gap-3">
-                        <div className="grid size-9 shrink-0 place-items-center rounded-lg bg-[#f1f2ed] text-[#59654f]">
-                          <Camera className="size-4" />
-                        </div>
-                        <div>
-                          <h4 className="text-sm font-semibold text-[#2b312b] group-hover:text-[#344234]">
-                            {project.name}
-                          </h4>
-                          <p className="text-xs text-[#82767d]">
-                            {project.events.length}{" "}
-                            {project.events.length === 1 ? "event" : "events"}
-                            {project.earliestDate && (
-                              <>
-                                {" "}
-                                · {formatScheduleDate(project.earliestDate)}
-                                {project.latestDate &&
-                                  project.latestDate !== project.earliestDate &&
-                                  ` – ${formatScheduleDate(project.latestDate)}`}
-                              </>
-                            )}
-                          </p>
-                        </div>
-                      </div>
+                <div className="divide-y divide-[#30282e] rounded-xl border border-[#30282e] bg-[#151317]">
+                  {clientProjects.map((project) => {
+                    const projectEventIds = new Set(project.events.map((e) => e.id));
+                    const projectAssignments = assignments.filter((a) => projectEventIds.has(a.shoot_id));
+                    const uniqueTeamMemberIds = new Set(projectAssignments.map((a) => a.team_member_id));
+                    const projectTeamCount = uniqueTeamMemberIds.size;
+                    const isVenueMissing = project.events.some((e) => !e.venue || !e.venue.trim());
 
-                      <div className="flex items-center gap-3">
-                        <span
-                          className={`rounded-full px-2.5 py-0.5 text-[10px] font-medium border ${
-                            project.status === "Completed"
-                              ? "border-emerald-300 bg-emerald-50 text-emerald-800"
-                              : project.status === "In Progress"
-                                ? "border-blue-300 bg-blue-50 text-blue-800"
-                                : "border-amber-300 bg-amber-50 text-amber-800"
-                          }`}
-                        >
-                          {project.status}
-                        </span>
-                        <span className="text-xs font-medium text-[#586651] group-hover:underline">
-                          View Events →
-                        </span>
-                      </div>
-                    </article>
-                  ))}
+                    return (
+                      <article
+                        key={project.id}
+                        onClick={() => setSelectedProjectName(project.name)}
+                        className="group cursor-pointer flex flex-wrap items-center justify-between gap-3 px-5 py-3.5 transition-colors hover:bg-[#1b181d]"
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="grid size-9 shrink-0 place-items-center rounded-lg border border-[#30282e] bg-[#1b181d] text-[#e7a0ad]">
+                            <Camera className="size-4" />
+                          </div>
+                          <div>
+                            <h4 className="text-sm font-semibold text-[#f7f0ee] group-hover:text-[#e7a0ad] transition-colors">
+                              {project.name}
+                            </h4>
+                            <div className="flex flex-wrap items-center gap-2 text-xs text-[#b8adb2]">
+                              <span>
+                                {project.events.length} {project.events.length === 1 ? "event" : "events"}
+                              </span>
+                              <span>·</span>
+                              <span className="inline-flex items-center gap-1 font-medium text-[#f7f0ee]">
+                                <Users className="size-3 text-[#e7a0ad]" />
+                                {projectTeamCount} {projectTeamCount === 1 ? "team member" : "team members"}
+                              </span>
+                              {project.earliestDate && (
+                                <>
+                                  <span>·</span>
+                                  <span>
+                                    {formatScheduleDate(project.earliestDate)}
+                                    {project.latestDate &&
+                                      project.latestDate !== project.earliestDate &&
+                                      ` – ${formatScheduleDate(project.latestDate)}`}
+                                  </span>
+                                </>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-3">
+                          {isVenueMissing && (
+                            <span className="inline-flex items-center gap-1 rounded border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-[10px] font-semibold text-amber-300">
+                              <MapPin className="size-3 text-amber-400" />
+                              Venue Not Added
+                            </span>
+                          )}
+                          <span
+                            className={`rounded-full px-2.5 py-0.5 text-[10px] font-medium border ${
+                              project.status === "Completed"
+                                ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-300"
+                                : project.status === "In Progress"
+                                  ? "border-blue-500/30 bg-blue-500/10 text-blue-300"
+                                  : "border-amber-500/30 bg-amber-500/10 text-amber-300"
+                            }`}
+                          >
+                            {project.status}
+                          </span>
+                          <span className="text-xs font-medium text-[#e7a0ad] group-hover:underline">
+                            View Events →
+                          </span>
+                        </div>
+                      </article>
+                    );
+                  })}
                 </div>
               )}
             </div>
@@ -1149,6 +1226,10 @@ function ShootEditor({
 
   const [workerSearch, setWorkerSearch] = useState("");
   const [roleFilter, setRoleFilter] = useState("All roles");
+  const availableStudioRoles = useMemo(
+    () => ["All roles", ...getAllRoles(team.map((m) => m.role))],
+    [team],
+  );
 
   const [selectedCrew, setSelectedCrew] = useState<AssignmentInput[]>(() => {
     if (!shoot) return [];
@@ -1524,8 +1605,16 @@ function ShootEditor({
             </label>
 
             <label className="studio-field">
-              Venue <span className="font-normal text-[#82767d]">· optional</span>
-              <Input name="venue" defaultValue={shoot?.venue ?? ""} maxLength={160} />
+              <div className="flex items-center justify-between">
+                <span>Venue</span>
+                <span className="font-normal text-[#82767d]">optional</span>
+              </div>
+              <Input
+                name="venue"
+                defaultValue={shoot?.venue ?? ""}
+                placeholder="e.g. Taj Falaknuma Palace (optional - can add later)"
+                maxLength={160}
+              />
             </label>
 
             <label className="studio-field">
@@ -1700,7 +1789,7 @@ function ShootEditor({
                 onChange={(e) => setRoleFilter(e.target.value)}
                 className="h-9 rounded-md border border-[#30282e] bg-[#120f12] px-3 text-xs text-[#f7f0ee]"
               >
-                {ALL_STUDIO_ROLES.map((role) => (
+                {availableStudioRoles.map((role) => (
                   <option key={role} value={role}>
                     {role}
                   </option>

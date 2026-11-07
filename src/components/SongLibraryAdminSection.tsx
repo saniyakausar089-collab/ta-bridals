@@ -829,16 +829,16 @@ export function SongLibraryAdminSection() {
       {/* Main Header with Navigation Tabs */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h2 className="text-xl font-semibold tracking-tight text-[#343a33]">
+          <h2 className="text-xl font-semibold tracking-tight text-[#f7f0ee]">
             Song Library & Client Approvals
           </h2>
-          <p className="mt-0.5 text-xs text-[#76776f]">
+          <p className="mt-0.5 text-xs text-[#b8adb2]">
             Approve wedding clients, organize custom song libraries, and assign playlists.
           </p>
         </div>
 
         {/* Tab Controls */}
-        <div className="flex items-center gap-2 rounded-xl bg-stone-100 p-1 text-xs">
+        <div className="flex items-center gap-2 rounded-xl bg-[#1b181d] border border-[#30282e] p-1 text-xs">
           <button
             type="button"
             onClick={() => {
@@ -847,8 +847,8 @@ export function SongLibraryAdminSection() {
             }}
             className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 font-medium transition-all ${
               activeTab === "clients"
-                ? "bg-white text-[#343a33] shadow-xs font-semibold"
-                : "text-[#76776f] hover:text-[#343a33]"
+                ? "bg-[#762d40] text-white shadow-[0_0_10px_rgba(197,108,125,0.25)] border border-[#c56c7d]/40 font-semibold"
+                : "text-[#b8adb2] hover:text-[#f7f0ee]"
             }`}
           >
             <Users className="size-3.5" />
@@ -864,8 +864,8 @@ export function SongLibraryAdminSection() {
             onClick={() => setActiveTab("libraries")}
             className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 font-medium transition-all ${
               activeTab === "libraries"
-                ? "bg-white text-[#343a33] shadow-xs font-semibold"
-                : "text-[#76776f] hover:text-[#343a33]"
+                ? "bg-[#762d40] text-white shadow-[0_0_10px_rgba(197,108,125,0.25)] border border-[#c56c7d]/40 font-semibold"
+                : "text-[#b8adb2] hover:text-[#f7f0ee]"
             }`}
           >
             <Library className="size-3.5" />
@@ -909,14 +909,14 @@ export function SongLibraryAdminSection() {
       {activeTab === "clients" && (
         <div className="space-y-4">
           {/* Filter Bar */}
-          <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[#e9e7df] bg-white p-3 shadow-2xs">
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[#30282e] bg-[#151317] p-3 shadow-2xs">
             <div className="relative flex-1 min-w-[220px]">
               <Search className="absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-[#a09d93]" />
               <Input
                 placeholder="Search clients by name, partner, email, or library..."
                 value={clientSearchQuery}
                 onChange={(e) => setClientSearchQuery(e.target.value)}
-                className="h-8 pl-8 text-xs border-[#e6e4dd]"
+                className="h-8 pl-8 text-xs border-[#30282e] bg-[#1b181d] text-[#f7f0ee] placeholder:text-[#82767d] focus:border-[#c56c7d]"
               />
             </div>
 
@@ -929,8 +929,8 @@ export function SongLibraryAdminSection() {
                   onClick={() => setClientStatusFilter(status)}
                   className={`capitalize rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${
                     clientStatusFilter === status
-                      ? "bg-[#344234] text-white"
-                      : "bg-[#f8f7f4] text-[#76776f] hover:bg-[#edeae2]"
+                      ? "bg-[#762d40] text-white border border-[#c56c7d]/40 shadow-[0_0_10px_rgba(197,108,125,0.25)]"
+                      : "bg-[#1b181d] text-[#b8adb2] hover:bg-[#edeae2]"
                   }`}
                 >
                   {status}
@@ -941,7 +941,7 @@ export function SongLibraryAdminSection() {
                 size="sm"
                 onClick={loadData}
                 disabled={loading}
-                className="h-7 text-xs text-[#76776f] hover:text-[#343a33]"
+                className="h-7 text-xs text-[#b8adb2] hover:text-[#f7f0ee]"
               >
                 <RefreshCw className={`size-3 mr-1 ${loading ? "animate-spin" : ""}`} />
                 Refresh
@@ -970,7 +970,7 @@ export function SongLibraryAdminSection() {
                   size="sm"
                   variant="ghost"
                   onClick={() => setRejectingClientId(null)}
-                  className="h-7 text-xs text-stone-600"
+                  className="h-7 text-xs text-[#b8adb2]"
                 >
                   Cancel
                 </Button>
@@ -986,10 +986,10 @@ export function SongLibraryAdminSection() {
           )}
 
           {/* Clients Table */}
-          <div className="rounded-2xl border border-[#e9e7df] bg-white shadow-2xs overflow-hidden">
+          <div className="rounded-2xl border border-[#30282e] bg-[#151317] shadow-2xs overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs">
-                <thead className="border-b border-[#e9e7df] bg-[#f8f7f4] font-medium text-[#76776f]">
+                <thead className="border-b border-[#30282e] bg-[#100d10] font-medium text-[#b8adb2]">
                   <tr>
                     <th className="px-4 py-3">Couple / Client</th>
                     <th className="px-4 py-3">Contact</th>
@@ -999,7 +999,7 @@ export function SongLibraryAdminSection() {
                     <th className="px-4 py-3 text-right">Actions</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-[#f1eee6]">
+                <tbody className="divide-y divide-[#30282e]">
                   {filteredClients.length === 0 ? (
                     <tr>
                       <td colSpan={6} className="px-4 py-8 text-center text-[#89887e]">
@@ -1015,24 +1015,24 @@ export function SongLibraryAdminSection() {
                       const isRejected = client.approvalStatus === "rejected";
 
                       return (
-                        <tr key={client.id} className="hover:bg-[#faf9f6] transition-colors">
+                        <tr key={client.id} className="hover:bg-[#1b181d] transition-colors">
                           <td className="px-4 py-3.5">
-                            <div className="font-semibold text-[#343a33]">{client.fullName}</div>
+                            <div className="font-semibold text-[#f7f0ee]">{client.fullName}</div>
                             {client.partnerName && (
-                              <div className="text-[11px] text-[#76776f]">
+                              <div className="text-[11px] text-[#b8adb2]">
                                 &amp; {client.partnerName}
                               </div>
                             )}
                           </td>
 
-                          <td className="px-4 py-3.5 text-[#555951]">
+                          <td className="px-4 py-3.5 text-[#b8adb2]">
                             <div>{client.email}</div>
                             {client.phone && (
                               <div className="text-[11px] text-[#89887e]">{client.phone}</div>
                             )}
                           </td>
 
-                          <td className="px-4 py-3.5 text-[#555951]">
+                          <td className="px-4 py-3.5 text-[#b8adb2]">
                             {client.weddingDate ? (
                               <div className="flex items-center gap-1">
                                 <Calendar className="size-3 text-[#99968c]" />
@@ -1083,7 +1083,7 @@ export function SongLibraryAdminSection() {
                                       return (
                                         <span
                                           key={libId}
-                                          className="inline-flex items-center gap-1 rounded-md bg-[#f4f1ea] border border-[#dedbd2] px-2 py-0.5 text-xs text-[#343a33]"
+                                          className="inline-flex items-center gap-1 rounded-md bg-[#f4f1ea] border border-[#dedbd2] px-2 py-0.5 text-xs text-[#f7f0ee]"
                                         >
                                           <span className="font-medium truncate max-w-[130px]" title={libName}>
                                             {libName}
@@ -1114,7 +1114,7 @@ export function SongLibraryAdminSection() {
                                         void handleAddLibraryToClient(client.id, e.target.value);
                                       }
                                     }}
-                                    className="h-7 w-full max-w-[190px] rounded border border-dashed border-[#c5c1b6] bg-white px-2 py-0.5 text-[11px] text-[#555a50] hover:border-[#344234] focus:outline-hidden"
+                                    className="h-7 w-full max-w-[190px] rounded border border-dashed border-[#30282e] bg-[#1b181d] text-[#b8adb2] px-2 py-0.5 text-[11px] text-[#b8adb2] hover:border-[#344234] focus:outline-hidden"
                                   >
                                     <option value="" disabled>
                                       + Assign library...
@@ -1161,7 +1161,7 @@ export function SongLibraryAdminSection() {
                                 <Button
                                   size="sm"
                                   onClick={() => handleApprove(client.id)}
-                                  className="h-7 bg-[#344234] hover:bg-[#283528] text-white text-xs px-2.5 rounded-lg"
+                                  className="h-7 studio-glow-button bg-[#762d40] hover:bg-[#c56c7d] text-white border border-[#c56c7d]/40 shadow-[0_0_10px_rgba(197,108,125,0.25)] text-xs px-2.5 rounded-lg"
                                 >
                                   <CheckCircle2 className="size-3 mr-1" />
                                   Approve
@@ -1196,7 +1196,7 @@ export function SongLibraryAdminSection() {
                                   size="sm"
                                   variant="outline"
                                   onClick={() => void handleInspectClientSelections(client)}
-                                  className="h-7 border-[#dedbd2] bg-[#f8f7f4] text-[#344234] hover:bg-[#edeae2] text-xs px-2.5 rounded-lg shadow-2xs"
+                                  className="h-7 border-[#dedbd2] bg-[#1b181d] text-[#344234] hover:bg-[#edeae2] text-xs px-2.5 rounded-lg shadow-2xs"
                                 >
                                   <ListMusic className="size-3 mr-1 text-[#526052]" />
                                   View Songs
@@ -1246,21 +1246,21 @@ export function SongLibraryAdminSection() {
                       setIsAddingSong(false);
                       setEditingSongId(null);
                     }}
-                    className="h-8 border-[#dedbd2] text-xs text-[#343a33]"
+                    className="h-8 border-[#dedbd2] text-xs text-[#f7f0ee]"
                   >
                     <ArrowLeft className="size-3.5 mr-1" />
                     Back to Libraries
                   </Button>
                   <div>
-                    <h3 className="text-base font-semibold text-[#343a33] flex items-center gap-2">
+                    <h3 className="text-base font-semibold text-[#f7f0ee] flex items-center gap-2">
                       <span>{selectedLibraryForSongs.name}</span>
                       {selectedLibraryForSongs.isArchived && (
-                        <span className="rounded-full bg-stone-200 px-2 py-0.5 text-[10px] font-medium text-stone-700">
+                        <span className="rounded-full bg-stone-200 px-2 py-0.5 text-[10px] font-medium text-[#b8adb2]">
                           Archived
                         </span>
                       )}
                     </h3>
-                    <p className="text-xs text-[#76776f]">{selectedLibraryForSongs.description}</p>
+                    <p className="text-xs text-[#b8adb2]">{selectedLibraryForSongs.description}</p>
                   </div>
                 </div>
 
@@ -1308,18 +1308,18 @@ export function SongLibraryAdminSection() {
                       <p className="text-[11px] text-stone-500">
                         Search official music videos, preview playback, pick wedding category, and
                         add directly to{" "}
-                        <strong className="text-stone-700">{selectedLibraryForSongs.name}</strong>.
+                        <strong className="text-[#b8adb2]">{selectedLibraryForSongs.name}</strong>.
                       </p>
                     </div>
 
                     <div className="flex items-center gap-2">
-                      <span className="text-xs text-stone-600 font-medium whitespace-nowrap">
+                      <span className="text-xs text-[#b8adb2] font-medium whitespace-nowrap">
                         Assign Category:
                       </span>
                       <select
                         value={ytSelectedCategory}
                         onChange={(e) => setYtSelectedCategory(e.target.value as WeddingEventGroup)}
-                        className="h-8 rounded-lg border border-stone-200 bg-white px-2 py-1 text-xs text-stone-800 font-medium focus:border-red-600 focus:outline-hidden"
+                        className="h-8 rounded-lg border border-[#30282e] bg-[#1b181d] text-[#f7f0ee] placeholder:text-[#82767d] focus:border-[#c56c7d] px-2 py-1 text-xs text-[#f7f0ee] font-medium focus:border-red-600 focus:outline-hidden"
                       >
                         {WEDDING_EVENT_GROUPS.map((event) => (
                           <option key={event} value={event}>
@@ -1338,7 +1338,7 @@ export function SongLibraryAdminSection() {
                       className={`text-xs px-3 py-1.5 rounded-lg font-medium transition-colors ${
                         ytActiveTab === "direct"
                           ? "bg-red-700 text-white shadow-2xs font-semibold"
-                          : "text-stone-600 hover:text-red-700 hover:bg-red-50"
+                          : "text-[#b8adb2] hover:text-red-700 hover:bg-red-50"
                       }`}
                     >
                       Paste YouTube URL
@@ -1349,7 +1349,7 @@ export function SongLibraryAdminSection() {
                       className={`text-xs px-3 py-1.5 rounded-lg font-medium transition-colors ${
                         ytActiveTab === "search"
                           ? "bg-red-700 text-white shadow-2xs font-semibold"
-                          : "text-stone-600 hover:text-red-700 hover:bg-red-50"
+                          : "text-[#b8adb2] hover:text-red-700 hover:bg-red-50"
                       }`}
                     >
                       Search YouTube Catalog
@@ -1361,7 +1361,7 @@ export function SongLibraryAdminSection() {
                     <form onSubmit={handleAddDirectYouTubeSong} className="space-y-3">
                       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                         <div className="sm:col-span-1">
-                          <label className="block text-[11px] font-medium text-stone-700">
+                          <label className="block text-[11px] font-medium text-[#b8adb2]">
                             YouTube URL or Video ID *
                           </label>
                           <Input
@@ -1369,7 +1369,7 @@ export function SongLibraryAdminSection() {
                             placeholder="https://www.youtube.com/watch?v=... or youtu.be/..."
                             value={directYtUrl}
                             onChange={(e) => setDirectYtUrl(e.target.value)}
-                            className="h-9 mt-1 text-xs border-stone-200 bg-white"
+                            className="h-9 mt-1 text-xs border-[#30282e] bg-[#1b181d] text-[#f7f0ee] placeholder:text-[#82767d] focus:border-[#c56c7d]"
                           />
                           {directYtUrl && extractYouTubeVideoId(directYtUrl) && (
                             <span className="text-[10px] text-emerald-600 mt-0.5 block truncate">
@@ -1378,25 +1378,25 @@ export function SongLibraryAdminSection() {
                           )}
                         </div>
                         <div>
-                          <label className="block text-[11px] font-medium text-stone-700">
+                          <label className="block text-[11px] font-medium text-[#b8adb2]">
                             Song Title (Optional)
                           </label>
                           <Input
                             placeholder="e.g. Din Shagna Da"
                             value={directYtTitle}
                             onChange={(e) => setDirectYtTitle(e.target.value)}
-                            className="h-9 mt-1 text-xs border-stone-200 bg-white"
+                            className="h-9 mt-1 text-xs border-[#30282e] bg-[#1b181d] text-[#f7f0ee] placeholder:text-[#82767d] focus:border-[#c56c7d]"
                           />
                         </div>
                         <div>
-                          <label className="block text-[11px] font-medium text-stone-700">
+                          <label className="block text-[11px] font-medium text-[#b8adb2]">
                             Artist / Channel Name (Optional)
                           </label>
                           <Input
                             placeholder="e.g. Jasleen Royal"
                             value={directYtArtist}
                             onChange={(e) => setDirectYtArtist(e.target.value)}
-                            className="h-9 mt-1 text-xs border-stone-200 bg-white"
+                            className="h-9 mt-1 text-xs border-[#30282e] bg-[#1b181d] text-[#f7f0ee] placeholder:text-[#82767d] focus:border-[#c56c7d]"
                           />
                         </div>
                       </div>
@@ -1431,7 +1431,7 @@ export function SongLibraryAdminSection() {
                           placeholder="Search song title, artist, or wedding soundtrack (e.g. Din Shagna Da, Kesariya, Kudmayi)..."
                           value={ytSearchQuery}
                           onChange={(e) => setYtSearchQuery(e.target.value)}
-                          className="h-9 pl-9 text-xs border-stone-200 bg-white"
+                          className="h-9 pl-9 text-xs border-[#30282e] bg-[#1b181d] text-[#f7f0ee] placeholder:text-[#82767d] focus:border-[#c56c7d]"
                         />
                       </div>
                       <Button
@@ -1490,7 +1490,7 @@ export function SongLibraryAdminSection() {
                         return (
                           <div
                             key={video.videoId}
-                            className={`rounded-xl border overflow-hidden bg-white shadow-2xs flex flex-col justify-between transition-all ${
+                            className={`rounded-xl border overflow-hidden bg-[#151317] shadow-sm flex flex-col justify-between transition-all ${
                               isAlreadyInLibrary
                                 ? "border-emerald-200 bg-emerald-50/20"
                                 : "border-stone-200 hover:border-red-200"
@@ -1546,7 +1546,7 @@ export function SongLibraryAdminSection() {
                                     size="sm"
                                     disabled={ytAddingVideoId === video.videoId}
                                     onClick={() => handleAddYouTubeSongToLibrary(video)}
-                                    className="h-7 text-xs bg-[#2d3a2e] hover:bg-[#1f2820] text-white px-2.5"
+                                    className="h-7 text-xs studio-glow-button bg-[#762d40] hover:bg-[#c56c7d] text-white border border-[#c56c7d]/40 shadow-[0_0_10px_rgba(197,108,125,0.25)] px-2.5"
                                   >
                                     {ytAddingVideoId === video.videoId ? (
                                       <>
@@ -1575,7 +1575,7 @@ export function SongLibraryAdminSection() {
               {(isAddingSong || editingSongId) && (
                 <form
                   onSubmit={handleSaveSong}
-                  className="rounded-2xl border border-[#dedbd2] bg-white p-5 shadow-xs space-y-3"
+                  className="rounded-2xl border border-[#30282e] bg-[#151317] p-5 shadow-xs space-y-3"
                 >
                   <h4 className="text-xs font-semibold uppercase tracking-wider text-[#586651]">
                     {editingSongId ? "Edit Song Details" : "Add Song to Library"}
@@ -1612,7 +1612,7 @@ export function SongLibraryAdminSection() {
                       <select
                         value={songEventGroup}
                         onChange={(e) => setSongEventGroup(e.target.value as WeddingEventGroup)}
-                        className="mt-1 h-9 w-full rounded-lg border border-[#dedbd2] bg-white px-2 py-1 text-xs text-[#343a33] focus:border-[#344234] focus:outline-hidden"
+                        className="mt-1 h-9 w-full rounded-lg border border-[#30282e] bg-[#151317] px-2 py-1 text-xs text-[#f7f0ee] focus:border-[#344234] focus:outline-hidden"
                       >
                         {WEDDING_EVENT_GROUPS.map((event) => (
                           <option key={event} value={event}>
@@ -1670,7 +1670,7 @@ export function SongLibraryAdminSection() {
                         setIsAddingSong(false);
                         setEditingSongId(null);
                       }}
-                      className="h-8 text-xs text-[#76776f]"
+                      className="h-8 text-xs text-[#b8adb2]"
                     >
                       Cancel
                     </Button>
@@ -1678,7 +1678,7 @@ export function SongLibraryAdminSection() {
                       type="submit"
                       disabled={submittingSong}
                       size="sm"
-                      className="h-8 bg-[#344234] hover:bg-[#283528] text-white text-xs px-4"
+                      className="h-8 studio-glow-button bg-[#762d40] hover:bg-[#c56c7d] text-white border border-[#c56c7d]/40 shadow-[0_0_10px_rgba(197,108,125,0.25)] text-xs px-4"
                     >
                       {submittingSong ? "Saving..." : editingSongId ? "Update Song" : "Add Song"}
                     </Button>
@@ -1705,11 +1705,11 @@ export function SongLibraryAdminSection() {
                     return (
                       <div
                         key={eventGroup}
-                        className="rounded-2xl border border-[#e9e7df] bg-white overflow-hidden shadow-2xs"
+                        className="rounded-2xl border border-[#30282e] bg-[#151317] overflow-hidden shadow-2xs"
                       >
-                        <div className="border-b border-[#e9e7df] bg-[#f8f7f4] px-4 py-2.5 flex items-center justify-between">
+                        <div className="border-b border-[#30282e] bg-[#100d10] px-4 py-2.5 flex items-center justify-between">
                           <div className="flex items-center gap-2">
-                            <span className="font-semibold text-xs text-[#343a33]">
+                            <span className="font-semibold text-xs text-[#f7f0ee]">
                               {eventGroup}
                             </span>
                             <span className="rounded-full bg-[#e8e6dc] px-2 py-0.5 text-[10px] font-medium text-[#52574e]">
@@ -1718,11 +1718,11 @@ export function SongLibraryAdminSection() {
                           </div>
                         </div>
 
-                        <div className="divide-y divide-[#f1eee6]">
+                        <div className="divide-y divide-[#30282e]">
                           {eventSongs.map((song) => (
                             <div
                               key={song.id}
-                              className="px-4 py-3 flex items-center justify-between hover:bg-[#faf9f6] transition-colors gap-3"
+                              className="px-4 py-3 flex items-center justify-between hover:bg-[#1b181d] transition-colors gap-3"
                             >
                               <div className="flex items-center gap-3 min-w-0">
                                 {song.youtubeVideoId ? (
@@ -1753,7 +1753,7 @@ export function SongLibraryAdminSection() {
                                     onClick={() => handleTogglePlay(song.id, song.audioFileName)}
                                     className={`flex size-8 shrink-0 items-center justify-center rounded-full transition-colors ${
                                       playingSongId === song.id
-                                        ? "bg-[#344234] text-white"
+                                        ? "bg-[#762d40] text-white border border-[#c56c7d]/40 shadow-[0_0_10px_rgba(197,108,125,0.25)]"
                                         : "bg-[#f1eee6] text-[#444941] hover:bg-[#e4e1d7]"
                                     }`}
                                     title="Play audio preview"
@@ -1768,7 +1768,7 @@ export function SongLibraryAdminSection() {
 
                                 <div className="min-w-0">
                                   <div className="flex items-center gap-1.5 flex-wrap">
-                                    <p className="text-xs font-semibold text-[#343a33] truncate">
+                                    <p className="text-xs font-semibold text-[#f7f0ee] truncate">
                                       {song.title}
                                     </p>
                                     {song.youtubeVideoId && (
@@ -1778,7 +1778,7 @@ export function SongLibraryAdminSection() {
                                       </span>
                                     )}
                                   </div>
-                                  <p className="text-[11px] text-[#76776f] truncate">
+                                  <p className="text-[11px] text-[#b8adb2] truncate">
                                     {song.artist || song.channelName} ·{" "}
                                     <span className="text-[#a09d93]">{song.durationFormatted}</span>
                                     {song.audioFileName && (
@@ -1806,7 +1806,7 @@ export function SongLibraryAdminSection() {
                                   variant="ghost"
                                   size="sm"
                                   onClick={() => handleStartEditSong(song)}
-                                  className="h-7 w-7 p-0 text-[#76776f] hover:text-[#343a33]"
+                                  className="h-7 w-7 p-0 text-[#b8adb2] hover:text-[#f7f0ee]"
                                   title="Edit song"
                                 >
                                   <Edit2 className="size-3.5" />
@@ -1815,7 +1815,7 @@ export function SongLibraryAdminSection() {
                                   variant="ghost"
                                   size="sm"
                                   onClick={() => handleDeleteSong(song.id, song.title)}
-                                  className="h-7 w-7 p-0 text-[#76776f] hover:text-rose-600"
+                                  className="h-7 w-7 p-0 text-[#b8adb2] hover:text-rose-600"
                                   title="Delete song"
                                 >
                                   <Trash2 className="size-3.5" />
@@ -1835,11 +1835,11 @@ export function SongLibraryAdminSection() {
             <div className="space-y-4">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div className="flex items-center gap-2">
-                  <p className="text-xs text-[#76776f]">
+                  <p className="text-xs text-[#b8adb2]">
                     Libraries group wedding soundtracks for clients. Create custom collections for
                     different wedding styles.
                   </p>
-                  <label className="flex items-center gap-1.5 text-xs text-[#76776f] cursor-pointer ml-3">
+                  <label className="flex items-center gap-1.5 text-xs text-[#b8adb2] cursor-pointer ml-3">
                     <input
                       type="checkbox"
                       checked={showArchivedLibraries}
@@ -1858,7 +1858,7 @@ export function SongLibraryAdminSection() {
                     setLibFormName("");
                     setLibFormDesc("");
                   }}
-                  className="h-8 bg-[#344234] hover:bg-[#283528] text-white text-xs px-3 rounded-lg"
+                  className="h-8 studio-glow-button bg-[#762d40] hover:bg-[#c56c7d] text-white border border-[#c56c7d]/40 shadow-[0_0_10px_rgba(197,108,125,0.25)] text-xs px-3 rounded-lg"
                 >
                   <Plus className="size-3.5 mr-1" />
                   {isCreatingLibrary ? "Cancel" : "Create New Library"}
@@ -1869,9 +1869,9 @@ export function SongLibraryAdminSection() {
               {(isCreatingLibrary || editingLibraryId) && (
                 <form
                   onSubmit={handleSaveLibrary}
-                  className="rounded-2xl border border-[#dedbd2] bg-white p-5 shadow-xs space-y-3"
+                  className="rounded-2xl border border-[#30282e] bg-[#151317] p-5 shadow-xs space-y-3"
                 >
-                  <h3 className="text-sm font-semibold text-[#343a33] flex items-center gap-1.5">
+                  <h3 className="text-sm font-semibold text-[#f7f0ee] flex items-center gap-1.5">
                     <FolderPlus className="size-4 text-[#586651]" />
                     {editingLibraryId ? "Edit Song Library" : "Create New Wedding Song Library"}
                   </h3>
@@ -1909,7 +1909,7 @@ export function SongLibraryAdminSection() {
                         setIsCreatingLibrary(false);
                         setEditingLibraryId(null);
                       }}
-                      className="h-8 text-xs text-[#76776f]"
+                      className="h-8 text-xs text-[#b8adb2]"
                     >
                       Cancel
                     </Button>
@@ -1917,7 +1917,7 @@ export function SongLibraryAdminSection() {
                       type="submit"
                       disabled={submittingLibrary}
                       size="sm"
-                      className="h-8 bg-[#344234] hover:bg-[#283528] text-white text-xs px-4"
+                      className="h-8 studio-glow-button bg-[#762d40] hover:bg-[#c56c7d] text-white border border-[#c56c7d]/40 shadow-[0_0_10px_rgba(197,108,125,0.25)] text-xs px-4"
                     >
                       {submittingLibrary
                         ? "Saving..."
@@ -1937,7 +1937,7 @@ export function SongLibraryAdminSection() {
                     className={`flex flex-col justify-between rounded-2xl border p-5 shadow-2xs transition-all ${
                       lib.isArchived
                         ? "border-stone-200 bg-stone-50/70 opacity-75"
-                        : "border-[#e9e7df] bg-white hover:shadow-xs"
+                        : "border-[#30282e] bg-[#151317] hover:shadow-xs"
                     }`}
                   >
                     <div>
@@ -1949,7 +1949,7 @@ export function SongLibraryAdminSection() {
                           <button
                             type="button"
                             onClick={() => handleStartEditLibrary(lib)}
-                            className="text-[#99968c] hover:text-[#343a33] p-1 transition-colors"
+                            className="text-[#99968c] hover:text-[#f7f0ee] p-1 transition-colors"
                             title="Edit library name/description"
                           >
                             <Edit2 className="size-3.5" />
@@ -1957,7 +1957,7 @@ export function SongLibraryAdminSection() {
                           <button
                             type="button"
                             onClick={() => handleArchiveLibrary(lib)}
-                            className="text-[#99968c] hover:text-[#343a33] p-1 transition-colors"
+                            className="text-[#99968c] hover:text-[#f7f0ee] p-1 transition-colors"
                             title={lib.isArchived ? "Unarchive library" : "Archive library"}
                           >
                             {lib.isArchived ? (
@@ -1977,15 +1977,15 @@ export function SongLibraryAdminSection() {
                         </div>
                       </div>
 
-                      <h4 className="mt-3 text-sm font-semibold text-[#343a33] flex items-center gap-2">
+                      <h4 className="mt-3 text-sm font-semibold text-[#f7f0ee] flex items-center gap-2">
                         <span>{lib.name}</span>
                         {lib.isArchived && (
-                          <span className="rounded-full bg-stone-200 px-2 py-0.2 text-[10px] font-medium text-stone-700">
+                          <span className="rounded-full bg-stone-200 px-2 py-0.2 text-[10px] font-medium text-[#b8adb2]">
                             Archived
                           </span>
                         )}
                       </h4>
-                      <p className="mt-1 text-xs text-[#76776f] line-clamp-2 leading-relaxed">
+                      <p className="mt-1 text-xs text-[#b8adb2] line-clamp-2 leading-relaxed">
                         {lib.description}
                       </p>
                     </div>
@@ -2006,7 +2006,7 @@ export function SongLibraryAdminSection() {
                         size="sm"
                         variant="outline"
                         onClick={() => setSelectedLibraryForSongs(lib)}
-                        className="h-7 border-[#dedbd2] hover:bg-[#f1eee6] text-xs px-2.5 text-[#343a33]"
+                        className="h-7 border-[#dedbd2] hover:bg-[#f1eee6] text-xs px-2.5 text-[#f7f0ee]"
                       >
                         Manage Songs
                         <ChevronRight className="size-3 ml-1" />
@@ -2022,9 +2022,9 @@ export function SongLibraryAdminSection() {
       {/* Client Song Selections Details Modal */}
       {inspectingClient && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-xs">
-          <div className="w-full max-w-2xl max-h-[85vh] flex flex-col rounded-2xl bg-white shadow-xl overflow-hidden border border-stone-200">
+          <div className="w-full max-w-2xl max-h-[85vh] flex flex-col rounded-2xl bg-[#151317] shadow-2xl overflow-hidden border border-stone-200">
             {/* Modal Header */}
-            <div className="flex items-center justify-between border-b border-stone-200 px-6 py-4 bg-[#fbfaf7]">
+            <div className="flex items-center justify-between border-b border-stone-200 px-6 py-4 bg-[#100d10]">
               <div>
                 <div className="flex items-center gap-2">
                   <span className="flex size-2 rounded-full bg-emerald-600" />
@@ -2036,7 +2036,7 @@ export function SongLibraryAdminSection() {
                   {inspectingClient.fullName}
                   {inspectingClient.partnerName ? ` & ${inspectingClient.partnerName}` : ""}
                   {" · "}
-                  <span className="font-medium text-stone-700">
+                  <span className="font-medium text-[#b8adb2]">
                     {inspectingClient.assignedLibraryNames && inspectingClient.assignedLibraryNames.length > 0 ? inspectingClient.assignedLibraryNames.join(", ") : inspectingClient.assignedLibraryName || "Assigned Library"}
                   </span>
                 </p>
@@ -2047,7 +2047,7 @@ export function SongLibraryAdminSection() {
                   setInspectingClient(null);
                   setInspectingSelections(null);
                 }}
-                className="rounded-lg p-1.5 text-stone-400 hover:bg-stone-100 hover:text-stone-700 transition-colors"
+                className="rounded-lg p-1.5 text-stone-400 hover:bg-stone-100 hover:text-[#b8adb2] transition-colors"
                 title="Close"
               >
                 <X className="size-5" />
@@ -2107,7 +2107,7 @@ export function SongLibraryAdminSection() {
                                   </p>
                                 )}
                                 {req.notes && (
-                                  <p className="text-[11px] italic text-stone-600 mt-0.5">
+                                  <p className="text-[11px] italic text-[#b8adb2] mt-0.5">
                                     Note: &quot;{req.notes}&quot;
                                   </p>
                                 )}
@@ -2132,7 +2132,7 @@ export function SongLibraryAdminSection() {
 
                   {/* Selected Songs from Library */}
                   <div>
-                    <h4 className="text-xs font-semibold uppercase tracking-wider text-stone-700 mb-2 flex items-center gap-1.5">
+                    <h4 className="text-xs font-semibold uppercase tracking-wider text-[#b8adb2] mb-2 flex items-center gap-1.5">
                       <Music2 className="size-3.5 text-emerald-700" />
                       <span>
                         Catalog Songs Picked ({inspectingSelections?.selectedSongs.length || 0})
@@ -2145,7 +2145,7 @@ export function SongLibraryAdminSection() {
                         The client has not picked any catalog tracks yet.
                       </div>
                     ) : (
-                      <div className="rounded-xl border border-stone-200 overflow-hidden divide-y divide-stone-100 bg-white">
+                      <div className="rounded-xl border border-stone-200 overflow-hidden divide-y divide-[#30282e] bg-white">
                         {inspectingSelections.selectedSongs.map((song) => (
                           <div
                             key={song.id}
@@ -2156,7 +2156,7 @@ export function SongLibraryAdminSection() {
                                 <span className="font-semibold text-xs text-stone-900 truncate">
                                   {song.title}
                                 </span>
-                                <span className="rounded-full bg-stone-100 px-2 py-0.5 text-[10px] text-stone-700">
+                                <span className="rounded-full bg-stone-100 px-2 py-0.5 text-[10px] text-[#b8adb2]">
                                   {song.eventGroup}
                                 </span>
                               </div>
@@ -2192,7 +2192,7 @@ export function SongLibraryAdminSection() {
             </div>
 
             {/* Modal Footer */}
-            <div className="border-t border-stone-200 px-6 py-3 bg-[#fbfaf7] flex items-center justify-between">
+            <div className="border-t border-stone-200 px-6 py-3 bg-[#100d10] flex items-center justify-between">
               <span className="text-[11px] text-stone-500">
                 Total Selections:{" "}
                 <strong>

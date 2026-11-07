@@ -412,7 +412,7 @@ function ClientRouteComponent() {
 
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-[#fbfaf7] text-stone-600">
+      <div className="studio-app flex min-h-screen items-center justify-center bg-[#0b0a0c] text-[#b8adb2]">
         <div className="flex items-center gap-2 text-sm">
           <RefreshCw className="size-4 animate-spin text-stone-400" />
           <span>Verifying client access...</span>
@@ -424,20 +424,20 @@ function ClientRouteComponent() {
   // SCREEN 1: Client is logged in and status is PENDING
   if (session && session.approvalStatus === "pending") {
     return (
-      <div className="min-h-screen bg-[#fbfaf7] text-stone-800 flex flex-col">
+      <div className="studio-app min-h-screen bg-[#0b0a0c] text-[#f7f0ee] flex flex-col">
         <DemoDataBanner />
         <main className="flex-1 flex items-center justify-center px-4 py-12">
-          <div className="w-full max-w-lg rounded-2xl border border-stone-200/80 bg-white p-8 shadow-sm">
-            <div className="flex items-center justify-between border-b border-stone-100 pb-5">
+          <div className="w-full max-w-lg rounded-2xl border border-[#30282e] bg-[#151317] p-8 shadow-xl">
+            <div className="flex items-center justify-between border-b border-[#30282e] pb-5">
               <div className="flex items-center gap-2">
                 <div className="flex size-9 items-center justify-center rounded-xl bg-amber-100 text-amber-800">
                   <Music2 className="size-5" />
                 </div>
                 <div>
-                  <h2 className="text-sm font-semibold tracking-wide text-stone-900 uppercase">
+                  <h2 className="text-sm font-semibold tracking-wide text-[#f7f0ee] uppercase">
                     TA Bridals
                   </h2>
-                  <p className="text-[11px] text-stone-500">Client Song Library</p>
+                  <p className="text-[11px] text-[#82767d]">Client Song Library</p>
                 </div>
               </div>
               <span className="inline-flex items-center gap-1 rounded-full border border-amber-200 bg-amber-50 px-2.5 py-0.5 text-xs font-medium text-amber-800">
@@ -447,38 +447,38 @@ function ClientRouteComponent() {
             </div>
 
             <div className="mt-6 text-center sm:text-left">
-              <h1 className="font-serif text-2xl font-normal text-stone-900">
+              <h1 className="font-serif text-2xl font-normal text-[#f7f0ee]">
                 Welcome, {session.fullName}
               </h1>
-              <p className="mt-2 text-sm text-stone-600 leading-relaxed">
+              <p className="mt-2 text-sm text-[#b8adb2] leading-relaxed">
                 Your wedding music registration has been submitted. The studio owner reviews all
                 client accounts before granting access to your assigned wedding song library.
               </p>
             </div>
 
-            <div className="mt-6 rounded-xl border border-stone-100 bg-stone-50/70 p-4 space-y-2 text-xs text-stone-600">
-              <div className="flex justify-between py-1 border-b border-stone-200/50">
-                <span className="text-stone-500">Client Account:</span>
-                <span className="font-medium text-stone-800">{session.fullName}</span>
+            <div className="mt-6 rounded-xl border border-[#30282e] bg-[#1b181d] p-4 space-y-2 text-xs text-[#b8adb2]">
+              <div className="flex justify-between py-1 border-b border-[#30282e]">
+                <span className="text-[#82767d]">Client Account:</span>
+                <span className="font-medium text-[#f7f0ee]">{session.fullName}</span>
               </div>
               {session.partnerName && (
-                <div className="flex justify-between py-1 border-b border-stone-200/50">
-                  <span className="text-stone-500">Partner:</span>
-                  <span className="font-medium text-stone-800">{session.partnerName}</span>
+                <div className="flex justify-between py-1 border-b border-[#30282e]">
+                  <span className="text-[#82767d]">Partner:</span>
+                  <span className="font-medium text-[#f7f0ee]">{session.partnerName}</span>
                 </div>
               )}
-              <div className="flex justify-between py-1 border-b border-stone-200/50">
-                <span className="text-stone-500">Email:</span>
-                <span className="font-medium text-stone-800">{session.email}</span>
+              <div className="flex justify-between py-1 border-b border-[#30282e]">
+                <span className="text-[#82767d]">Email:</span>
+                <span className="font-medium text-[#f7f0ee]">{session.email}</span>
               </div>
               {session.weddingDate && (
-                <div className="flex justify-between py-1 border-b border-stone-200/50">
-                  <span className="text-stone-500">Wedding Date:</span>
-                  <span className="font-medium text-stone-800">{session.weddingDate}</span>
+                <div className="flex justify-between py-1 border-b border-[#30282e]">
+                  <span className="text-[#82767d]">Wedding Date:</span>
+                  <span className="font-medium text-[#f7f0ee]">{session.weddingDate}</span>
                 </div>
               )}
               <div className="flex justify-between py-1">
-                <span className="text-stone-500">Status:</span>
+                <span className="text-[#82767d]">Status:</span>
                 <span className="font-semibold text-amber-700">Awaiting Admin Review</span>
               </div>
             </div>
@@ -488,7 +488,7 @@ function ClientRouteComponent() {
                 variant="outline"
                 onClick={handleRefreshStatus}
                 disabled={checkingStatus}
-                className="flex-1 border-stone-200 hover:bg-stone-50 text-stone-700"
+                className="flex-1 border-[#30282e] hover:bg-stone-50 text-[#b8adb2]"
               >
                 <RefreshCw className={`size-3.5 mr-1.5 ${checkingStatus ? "animate-spin" : ""}`} />
                 Check Status
@@ -496,7 +496,7 @@ function ClientRouteComponent() {
               <Button
                 variant="ghost"
                 onClick={handleSignOut}
-                className="text-stone-600 hover:text-stone-900"
+                className="text-[#b8adb2] hover:text-[#f7f0ee]"
               >
                 <LogOut className="size-3.5 mr-1.5" />
                 Sign Out
@@ -511,20 +511,20 @@ function ClientRouteComponent() {
   // SCREEN 2: Client is logged in and status is REJECTED
   if (session && session.approvalStatus === "rejected") {
     return (
-      <div className="min-h-screen bg-[#fbfaf7] text-stone-800 flex flex-col">
+      <div className="studio-app min-h-screen bg-[#0b0a0c] text-[#f7f0ee] flex flex-col">
         <DemoDataBanner />
         <main className="flex-1 flex items-center justify-center px-4 py-12">
-          <div className="w-full max-w-lg rounded-2xl border border-rose-200 bg-white p-8 shadow-sm">
-            <div className="flex items-center justify-between border-b border-stone-100 pb-5">
+          <div className="w-full max-w-lg rounded-2xl border border-rose-500/30 bg-[#151317] p-8 shadow-xl">
+            <div className="flex items-center justify-between border-b border-[#30282e] pb-5">
               <div className="flex items-center gap-2">
                 <div className="flex size-9 items-center justify-center rounded-xl bg-rose-100 text-rose-800">
                   <Music2 className="size-5" />
                 </div>
                 <div>
-                  <h2 className="text-sm font-semibold tracking-wide text-stone-900 uppercase">
+                  <h2 className="text-sm font-semibold tracking-wide text-[#f7f0ee] uppercase">
                     TA Bridals
                   </h2>
-                  <p className="text-[11px] text-stone-500">Client Song Library</p>
+                  <p className="text-[11px] text-[#82767d]">Client Song Library</p>
                 </div>
               </div>
               <span className="inline-flex items-center gap-1 rounded-full border border-rose-200 bg-rose-50 px-2.5 py-0.5 text-xs font-medium text-rose-800">
@@ -534,10 +534,10 @@ function ClientRouteComponent() {
             </div>
 
             <div className="mt-6 text-center sm:text-left">
-              <h1 className="font-serif text-2xl font-normal text-stone-900">
+              <h1 className="font-serif text-2xl font-normal text-[#f7f0ee]">
                 Access Not Available
               </h1>
-              <p className="mt-2 text-sm text-stone-600 leading-relaxed">
+              <p className="mt-2 text-sm text-[#b8adb2] leading-relaxed">
                 Your client registration could not be approved at this time. If you believe this is
                 an error or if you have booked a shoot with TA Bridals under a different email,
                 please contact your studio manager directly.
@@ -560,7 +560,7 @@ function ClientRouteComponent() {
               <Button
                 variant="outline"
                 onClick={handleSignOut}
-                className="border-stone-200 text-stone-700"
+                className="border-[#30282e] text-[#b8adb2]"
               >
                 <LogOut className="size-3.5 mr-1.5" />
                 Sign Out to Client Login
@@ -575,19 +575,19 @@ function ClientRouteComponent() {
   // SCREEN 3: Client is APPROVED (Ready for Step 5 Full Library)
   if (session && session.approvalStatus === "approved") {
     return (
-      <div className="min-h-screen bg-[#fbfaf7] text-stone-800 flex flex-col">
+      <div className="studio-app min-h-screen bg-[#0b0a0c] text-[#f7f0ee] flex flex-col">
         <DemoDataBanner />
-        <header className="border-b border-stone-200/80 bg-white px-6 py-4">
+        <header className="border-b border-[#30282e] bg-[#100d10] px-6 py-4">
           <div className="mx-auto flex max-w-6xl items-center justify-between">
             <div className="flex items-center gap-3">
               <div className="flex size-10 items-center justify-center rounded-xl bg-[#2d3a2e] text-white">
                 <Music2 className="size-5" />
               </div>
               <div>
-                <h1 className="text-base font-semibold text-stone-900 tracking-tight">
+                <h1 className="text-base font-semibold text-[#f7f0ee] tracking-tight">
                   TA Bridals Song Library
                 </h1>
-                <p className="text-xs text-stone-500">
+                <p className="text-xs text-[#82767d]">
                   Welcome, {session.fullName}
                   {session.partnerName ? ` & ${session.partnerName}` : ""}
                 </p>
@@ -603,16 +603,16 @@ function ClientRouteComponent() {
                 variant="outline"
                 size="sm"
                 onClick={() => setIsSettingsOpen(true)}
-                className="border-stone-200 text-xs text-stone-700 hover:bg-stone-100"
+                className="border-[#30282e] text-xs text-[#b8adb2] hover:bg-stone-100"
               >
-                <Settings className="size-3.5 mr-1 text-stone-600" />
+                <Settings className="size-3.5 mr-1 text-[#b8adb2]" />
                 Settings
               </Button>
               <Button
                 variant="outline"
                 size="sm"
                 onClick={handleSignOut}
-                className="border-stone-200 text-xs text-stone-700"
+                className="border-[#30282e] text-xs text-[#b8adb2]"
               >
                 <LogOut className="size-3.5 mr-1" />
                 Sign Out
@@ -634,14 +634,14 @@ function ClientRouteComponent() {
         />
 
         <main className="flex-1 mx-auto w-full max-w-6xl px-4 py-8">
-          <div className="rounded-2xl border border-stone-200 bg-white p-8 text-center shadow-xs">
+          <div className="rounded-2xl border border-[#30282e] bg-[#151317] p-8 text-center shadow-xl">
             <div className="mx-auto flex size-12 items-center justify-center rounded-2xl bg-emerald-100 text-emerald-800">
               <CheckCircle2 className="size-6" />
             </div>
-            <h2 className="mt-4 font-serif text-2xl font-normal text-stone-900">
+            <h2 className="mt-4 font-serif text-2xl font-normal text-[#f7f0ee]">
               Account Approved & Verified
             </h2>
-            <p className="mt-2 text-sm text-stone-600 max-w-lg mx-auto">
+            <p className="mt-2 text-sm text-[#b8adb2] max-w-lg mx-auto">
               Your client profile is active!
               {session.assignedLibraryNames && session.assignedLibraryNames.length > 0 ? (
                 <span>
@@ -658,14 +658,14 @@ function ClientRouteComponent() {
               )}
             </p>
 
-            <div className="mt-6 rounded-xl border border-stone-100 bg-stone-50 p-4 max-w-md mx-auto text-left text-xs space-y-1.5">
+            <div className="mt-6 rounded-xl border border-[#30282e] bg-[#1b181d] p-4 max-w-md mx-auto text-left text-xs space-y-1.5">
               <div className="flex justify-between">
-                <span className="text-stone-500">Client ID:</span>
-                <span className="font-mono text-stone-700">{session.id}</span>
+                <span className="text-[#82767d]">Client ID:</span>
+                <span className="font-mono text-[#b8adb2]">{session.id}</span>
               </div>
               <div className="flex justify-between items-start gap-3">
-                <span className="text-stone-500 whitespace-nowrap">Assigned Libraries:</span>
-                <span className="font-semibold text-stone-800 text-right">
+                <span className="text-[#82767d] whitespace-nowrap">Assigned Libraries:</span>
+                <span className="font-semibold text-[#f7f0ee] text-right">
                   {session.assignedLibraryNames && session.assignedLibraryNames.length > 0
                     ? session.assignedLibraryNames.join(", ")
                     : session.assignedLibraryName || "Pending Admin Library Assignment"}
@@ -673,21 +673,21 @@ function ClientRouteComponent() {
               </div>
               {session.weddingDate && (
                 <div className="flex justify-between">
-                  <span className="text-stone-500">Wedding Date:</span>
-                  <span className="font-semibold text-stone-800">{session.weddingDate}</span>
+                  <span className="text-[#82767d]">Wedding Date:</span>
+                  <span className="font-semibold text-[#f7f0ee]">{session.weddingDate}</span>
                 </div>
               )}
             </div>
 
             {session.assignedLibraryId ||
             (session.assignedLibraryIds && session.assignedLibraryIds.length > 0) ? (
-              <div className="mt-8 border-t border-stone-100 pt-6 text-left">
+              <div className="mt-8 border-t border-[#30282e] pt-6 text-left">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
                   <div>
-                    <h3 className="font-serif text-lg font-normal text-stone-900">
+                    <h3 className="font-serif text-lg font-normal text-[#f7f0ee]">
                       Curated Wedding Soundtrack
                     </h3>
-                    <p className="text-xs text-stone-500">
+                    <p className="text-xs text-[#82767d]">
                       Listen to previews, pick your favorite songs for each event, and save your
                       selections.
                     </p>
@@ -705,7 +705,7 @@ function ClientRouteComponent() {
                     <Button
                       onClick={handleSaveAllSelections}
                       disabled={savingSelections}
-                      className="bg-[#2d3a2e] hover:bg-[#1f2820] text-white text-xs px-4"
+                      className="studio-glow-button bg-[#762d40] hover:bg-[#c56c7d] text-white text-xs px-4 border border-[#c56c7d]/40 shadow-[0_0_10px_rgba(197,108,125,0.2)]"
                     >
                       {savingSelections
                         ? "Saving..."
@@ -727,41 +727,41 @@ function ClientRouteComponent() {
                       <button
                         type="button"
                         onClick={() => setIsAddingCustomSong(false)}
-                        className="text-stone-400 hover:text-stone-700 text-xs p-1"
+                        className="text-stone-400 hover:text-[#b8adb2] text-xs p-1"
                       >
                         Cancel
                       </button>
                     </div>
-                    <p className="text-xs text-stone-600 mb-4">
+                    <p className="text-xs text-[#b8adb2] mb-4">
                       Type the song title, artist/movie, and which event you want it played for. Our
                       editing and audio team will review and include it in your wedding edit!
                     </p>
 
                     <div className="grid gap-3 sm:grid-cols-2">
                       <div>
-                        <label className="block text-[11px] font-semibold text-stone-700 mb-1">
+                        <label className="block text-[11px] font-semibold text-[#b8adb2] mb-1">
                           Song Title / Name *
                         </label>
                         <Input
                           value={customSongTitle}
                           onChange={(e) => setCustomSongTitle(e.target.value)}
                           placeholder="e.g. Afreen Afreen, Tum Hi Ho..."
-                          className="h-8.5 text-xs bg-white border-stone-300"
+                          className="h-8.5 text-xs bg-[#1b181d] border-[#30282e] text-[#f7f0ee] placeholder:text-[#82767d] focus:border-[#c56c7d]"
                         />
                       </div>
                       <div>
-                        <label className="block text-[11px] font-semibold text-stone-700 mb-1">
+                        <label className="block text-[11px] font-semibold text-[#b8adb2] mb-1">
                           Artist / Film / Version (Optional)
                         </label>
                         <Input
                           value={customSongArtist}
                           onChange={(e) => setCustomSongArtist(e.target.value)}
                           placeholder="e.g. Rahat Fateh Ali Khan / Coke Studio"
-                          className="h-8.5 text-xs bg-white border-stone-300"
+                          className="h-8.5 text-xs bg-[#1b181d] border-[#30282e] text-[#f7f0ee] placeholder:text-[#82767d] focus:border-[#c56c7d]"
                         />
                       </div>
                       <div>
-                        <label className="block text-[11px] font-semibold text-stone-700 mb-1">
+                        <label className="block text-[11px] font-semibold text-[#b8adb2] mb-1">
                           Wedding Event Group *
                         </label>
                         <select
@@ -769,7 +769,7 @@ function ClientRouteComponent() {
                           onChange={(e) =>
                             setCustomSongEventGroup(e.target.value as WeddingEventGroup)
                           }
-                          className="w-full h-8.5 rounded-md border border-stone-300 bg-white px-2.5 text-xs text-stone-900 focus:outline-hidden"
+                          className="w-full h-8.5 rounded-md border border-stone-300 bg-white px-2.5 text-xs text-[#f7f0ee] focus:outline-hidden"
                         >
                           {WEDDING_EVENT_GROUPS.map((grp) => (
                             <option key={grp} value={grp}>
@@ -779,25 +779,25 @@ function ClientRouteComponent() {
                         </select>
                       </div>
                       <div>
-                        <label className="block text-[11px] font-semibold text-stone-700 mb-1">
+                        <label className="block text-[11px] font-semibold text-[#b8adb2] mb-1">
                           YouTube Link or Audio URL (Optional)
                         </label>
                         <Input
                           value={customSongYoutubeUrl}
                           onChange={(e) => setCustomSongYoutubeUrl(e.target.value)}
                           placeholder="https://www.youtube.com/watch?v=..."
-                          className="h-8.5 text-xs bg-white border-stone-300"
+                          className="h-8.5 text-xs bg-[#1b181d] border-[#30282e] text-[#f7f0ee] placeholder:text-[#82767d] focus:border-[#c56c7d]"
                         />
                       </div>
                       <div className="sm:col-span-2">
-                        <label className="block text-[11px] font-semibold text-stone-700 mb-1">
+                        <label className="block text-[11px] font-semibold text-[#b8adb2] mb-1">
                           Special Timing or Note (Optional)
                         </label>
                         <Input
                           value={customSongNotes}
                           onChange={(e) => setCustomSongNotes(e.target.value)}
                           placeholder="e.g. Please play starting from 01:20 when bride walks in"
-                          className="h-8.5 text-xs bg-white border-stone-300"
+                          className="h-8.5 text-xs bg-[#1b181d] border-[#30282e] text-[#f7f0ee] placeholder:text-[#82767d] focus:border-[#c56c7d]"
                         />
                       </div>
                     </div>
@@ -850,12 +850,12 @@ function ClientRouteComponent() {
                               </span>
                             </div>
                             {req.artistOrDetails && (
-                              <p className="text-[11px] text-stone-600 mt-0.5">
+                              <p className="text-[11px] text-[#b8adb2] mt-0.5">
                                 Artist / Version: {req.artistOrDetails}
                               </p>
                             )}
                             {req.notes && (
-                              <p className="text-[11px] italic text-stone-500 mt-0.5">
+                              <p className="text-[11px] italic text-[#82767d] mt-0.5">
                                 Note: &quot;{req.notes}&quot;
                               </p>
                             )}
@@ -879,18 +879,18 @@ function ClientRouteComponent() {
                 )}
 
                 {/* Client Overall Notes Input */}
-                <div className="mb-6 rounded-2xl border border-stone-200 bg-[#fbfaf7] p-4">
-                  <label className="block text-xs font-semibold text-stone-800 mb-1 flex items-center gap-1.5">
-                    <FileText className="size-3.5 text-stone-600" />
+                <div className="mb-6 rounded-2xl border border-[#30282e] bg-[#151317] p-4">
+                  <label className="block text-xs font-semibold text-[#f7f0ee] mb-1 flex items-center gap-1.5">
+                    <FileText className="size-3.5 text-[#b8adb2]" />
                     <span>Special Instructions / Music Notes for the Studio (Optional)</span>
                   </label>
                   <Input
                     value={clientSelectionNotes}
                     onChange={(e) => setClientSelectionNotes(e.target.value)}
                     placeholder="e.g. We prefer acoustic and soft instruments for dinner, high energy for Sangeet!"
-                    className="h-9 text-xs bg-white border-stone-300"
+                    className="h-9 text-xs bg-[#1b181d] border-[#30282e] text-[#f7f0ee] placeholder:text-[#82767d] focus:border-[#c56c7d]"
                   />
-                  <p className="text-[10px] text-stone-500 mt-1">
+                  <p className="text-[10px] text-[#82767d] mt-1">
                     These notes and your selected tracks are automatically shared with your assigned
                     video editors and lead photographers.
                   </p>
@@ -905,7 +905,7 @@ function ClientRouteComponent() {
 
                 {/* YouTube Video Player Modal for Client */}
                 {activeYouTubeVideoId && (
-                  <div className="mb-6 rounded-2xl border border-stone-200 bg-black/95 p-4 text-white shadow-lg">
+                  <div className="mb-6 rounded-2xl border border-[#30282e] bg-black/95 p-4 text-white shadow-lg">
                     <div className="flex items-center justify-between mb-3 px-1">
                       <div className="flex items-center gap-2">
                         <Youtube className="size-4 text-red-500" />
@@ -949,14 +949,14 @@ function ClientRouteComponent() {
 
                 {/* Library Filter Pills when assigned multiple libraries */}
                 {session.assignedLibraryIds && session.assignedLibraryIds.length > 1 && (
-                  <div className="mb-6 flex flex-wrap items-center gap-1.5 p-1 rounded-xl bg-stone-100 border border-stone-200/80">
+                  <div className="mb-6 flex flex-wrap items-center gap-1.5 p-1 rounded-xl bg-stone-100 border border-[#30282e]/80">
                     <button
                       type="button"
                       onClick={() => setSelectedLibraryFilter("all")}
                       className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${
                         selectedLibraryFilter === "all"
-                          ? "bg-white text-stone-900 shadow-2xs font-semibold"
-                          : "text-stone-600 hover:text-stone-900 hover:bg-stone-50"
+                          ? "bg-white text-[#f7f0ee] shadow-2xs font-semibold"
+                          : "text-[#b8adb2] hover:text-[#f7f0ee] hover:bg-stone-50"
                       }`}
                     >
                       All Assigned Libraries ({songs.length})
@@ -971,8 +971,8 @@ function ClientRouteComponent() {
                           onClick={() => setSelectedLibraryFilter(libId)}
                           className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${
                             selectedLibraryFilter === libId
-                              ? "bg-white text-stone-900 shadow-2xs font-semibold"
-                              : "text-stone-600 hover:text-stone-900 hover:bg-stone-50"
+                              ? "bg-white text-[#f7f0ee] shadow-2xs font-semibold"
+                              : "text-[#b8adb2] hover:text-[#f7f0ee] hover:bg-stone-50"
                           }`}
                         >
                           {libName} ({count})
@@ -983,11 +983,11 @@ function ClientRouteComponent() {
                 )}
 
                 {loadingSongs ? (
-                  <div className="py-12 text-center text-xs text-stone-500">
+                  <div className="py-12 text-center text-xs text-[#82767d]">
                     Loading your assigned soundtrack library...
                   </div>
                 ) : songs.length === 0 ? (
-                  <div className="rounded-xl border border-dashed border-stone-200 p-8 text-center text-xs text-stone-500">
+                  <div className="rounded-xl border border-dashed border-[#30282e] p-8 text-center text-xs text-[#82767d]">
                     No songs have been added to your library yet. Your studio manager will curate
                     songs for you shortly!
                   </div>
@@ -1004,13 +1004,13 @@ function ClientRouteComponent() {
                       return (
                         <div
                           key={eventGroup}
-                          className="rounded-xl border border-stone-200 overflow-hidden bg-white shadow-2xs"
+                          className="rounded-xl border border-[#30282e] overflow-hidden bg-[#151317] shadow-md"
                         >
-                          <div className="border-b border-stone-100 bg-[#fbfaf7] px-4 py-2.5 flex items-center justify-between">
-                            <span className="font-semibold text-xs text-stone-900">
+                          <div className="border-b border-[#30282e] bg-[#100d10] px-4 py-2.5 flex items-center justify-between">
+                            <span className="font-semibold text-xs text-[#f7f0ee]">
                               {eventGroup}
                             </span>
-                            <span className="text-[11px] text-stone-500">
+                            <span className="text-[11px] text-[#82767d]">
                               {groupSongs.length} tracks
                             </span>
                           </div>
@@ -1033,7 +1033,7 @@ function ClientRouteComponent() {
                                           setPlayingSongId(null);
                                           setActiveYouTubeVideoId(song.youtubeVideoId!);
                                         }}
-                                        className="relative flex size-10 shrink-0 overflow-hidden rounded-lg border border-stone-200 group"
+                                        className="relative flex size-10 shrink-0 overflow-hidden rounded-lg border border-[#30282e] group"
                                         title="Play YouTube video"
                                       >
                                         {song.thumbnailUrl ? (
@@ -1058,7 +1058,7 @@ function ClientRouteComponent() {
                                         className={`flex size-8 shrink-0 items-center justify-center rounded-full transition-colors ${
                                           playingSongId === song.id
                                             ? "bg-[#2d3a2e] text-white"
-                                            : "bg-stone-100 text-stone-700 hover:bg-stone-200"
+                                            : "bg-stone-100 text-[#b8adb2] hover:bg-stone-200"
                                         }`}
                                         title="Play audio preview"
                                       >
@@ -1068,7 +1068,7 @@ function ClientRouteComponent() {
 
                                     <div className="min-w-0">
                                       <div className="flex items-center gap-1.5 flex-wrap">
-                                        <p className="text-xs font-semibold text-stone-900 truncate">
+                                        <p className="text-xs font-semibold text-[#f7f0ee] truncate">
                                           {song.title}
                                         </p>
                                         {song.youtubeVideoId && (
@@ -1078,7 +1078,7 @@ function ClientRouteComponent() {
                                           </span>
                                         )}
                                       </div>
-                                      <p className="text-[11px] text-stone-500 truncate">
+                                      <p className="text-[11px] text-[#82767d] truncate">
                                         {song.artist || song.channelName} ·{" "}
                                         <span className="text-stone-400">
                                           {song.durationFormatted}
@@ -1107,7 +1107,7 @@ function ClientRouteComponent() {
                                       className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-medium transition-all ${
                                         isSelected
                                           ? "bg-emerald-600 text-white shadow-2xs"
-                                          : "border border-stone-200 text-stone-600 hover:border-stone-300 hover:bg-stone-50"
+                                          : "border border-[#30282e] text-[#b8adb2] hover:border-stone-300 hover:bg-stone-50"
                                       }`}
                                     >
                                       {isSelected ? (
@@ -1131,7 +1131,7 @@ function ClientRouteComponent() {
                 )}
               </div>
             ) : (
-              <div className="mt-8 border-t border-stone-100 pt-6">
+              <div className="mt-8 border-t border-[#30282e] pt-6">
                 <p className="text-xs text-stone-400">
                   Your registration is verified. Your assigned song library will appear here once
                   linked by studio admin.
@@ -1146,20 +1146,20 @@ function ClientRouteComponent() {
 
   // SCREEN 4: Client Login / Signup screen (when signed out)
   return (
-    <div className="min-h-screen bg-[#fbfaf7] text-stone-800 flex flex-col">
+    <div className="studio-app min-h-screen bg-[#0b0a0c] text-[#f7f0ee] flex flex-col">
       <DemoDataBanner />
 
       <main className="flex-1 flex items-center justify-center px-4 py-12">
-        <div className="w-full max-w-md rounded-2xl border border-stone-200/90 bg-white p-8 shadow-sm">
+        <div className="w-full max-w-md rounded-2xl border border-[#30282e] bg-[#151317] p-8 shadow-xl">
           {/* Brand header */}
           <div className="text-center">
             <div className="mx-auto flex size-12 items-center justify-center rounded-2xl bg-[#2d3a2e] text-white shadow-xs">
               <Music2 className="size-6" />
             </div>
-            <h1 className="mt-4 font-serif text-2xl font-normal text-stone-900">
+            <h1 className="mt-4 font-serif text-2xl font-normal text-[#f7f0ee]">
               TA Bridals Client Portal
             </h1>
-            <p className="mt-1 text-xs text-stone-500">
+            <p className="mt-1 text-xs text-[#82767d]">
               {mode === "login"
                 ? "Sign in to listen, select, and finalize your wedding songs"
                 : "Create your couple account to access your curated song library"}
@@ -1167,7 +1167,7 @@ function ClientRouteComponent() {
           </div>
 
           {/* Mode Switcher Tabs */}
-          <div className="mt-6 grid grid-cols-2 rounded-xl bg-stone-100 p-1 text-xs font-medium">
+          <div className="mt-6 grid grid-cols-2 rounded-xl bg-[#1b181d] border border-[#30282e] p-1 text-xs font-medium">
             <button
               type="button"
               onClick={() => {
@@ -1177,8 +1177,8 @@ function ClientRouteComponent() {
               }}
               className={`rounded-lg py-2 transition-all ${
                 mode === "login"
-                  ? "bg-white text-stone-900 shadow-2xs font-semibold"
-                  : "text-stone-600 hover:text-stone-900"
+                  ? "bg-white text-[#f7f0ee] shadow-2xs font-semibold"
+                  : "text-[#b8adb2] hover:text-[#f7f0ee]"
               }`}
             >
               Client Login
@@ -1192,8 +1192,8 @@ function ClientRouteComponent() {
               }}
               className={`rounded-lg py-2 transition-all ${
                 mode === "signup"
-                  ? "bg-white text-stone-900 shadow-2xs font-semibold"
-                  : "text-stone-600 hover:text-stone-900"
+                  ? "bg-white text-[#f7f0ee] shadow-2xs font-semibold"
+                  : "text-[#b8adb2] hover:text-[#f7f0ee]"
               }`}
             >
               New Client Signup
@@ -1219,7 +1219,7 @@ function ClientRouteComponent() {
           {mode === "login" ? (
             <form onSubmit={handleLoginSubmit} className="mt-6 space-y-4">
               <div>
-                <label className="block text-xs font-medium text-stone-700">Mobile Number</label>
+                <label className="block text-xs font-medium text-[#b8adb2]">Mobile Number</label>
                 <div className="relative mt-1">
                   <Phone className="absolute left-3 top-2.5 size-4 text-stone-400" />
                   <Input
@@ -1241,7 +1241,7 @@ function ClientRouteComponent() {
 
               <div>
                 <div className="flex items-center justify-between">
-                  <label className="block text-xs font-medium text-stone-700">Password</label>
+                  <label className="block text-xs font-medium text-[#b8adb2]">Password</label>
                   <span className="text-[11px] text-stone-400">Min 6 characters</span>
                 </div>
                 <div className="relative mt-1">
@@ -1260,7 +1260,7 @@ function ClientRouteComponent() {
               <Button
                 type="submit"
                 disabled={loading}
-                className="w-full bg-[#2d3a2e] hover:bg-[#202b21] text-white text-xs py-2.5 font-medium rounded-xl"
+                className="w-full studio-glow-button bg-[#762d40] hover:bg-[#c56c7d] text-white text-xs py-2.5 font-medium rounded-xl border border-[#c56c7d]/40 shadow-[0_0_12px_rgba(197,108,125,0.25)]"
               >
                 Sign In to Song Library
                 <ArrowRight className="size-3.5 ml-1.5" />
@@ -1271,7 +1271,7 @@ function ClientRouteComponent() {
             <form onSubmit={handleSignUpSubmit} className="mt-5 space-y-3">
               <div className="grid grid-cols-2 gap-2.5">
                 <div>
-                  <label className="block text-[11px] font-medium text-stone-700">
+                  <label className="block text-[11px] font-medium text-[#b8adb2]">
                     Your Full Name *
                   </label>
                   <Input
@@ -1283,7 +1283,7 @@ function ClientRouteComponent() {
                   />
                 </div>
                 <div>
-                  <label className="block text-[11px] font-medium text-stone-700">
+                  <label className="block text-[11px] font-medium text-[#b8adb2]">
                     Partner Name
                   </label>
                   <Input
@@ -1296,7 +1296,7 @@ function ClientRouteComponent() {
               </div>
 
               <div>
-                <label className="block text-[11px] font-medium text-stone-700">Email *</label>
+                <label className="block text-[11px] font-medium text-[#b8adb2]">Email *</label>
                 <Input
                   type="email"
                   required
@@ -1309,7 +1309,7 @@ function ClientRouteComponent() {
 
               <div className="grid grid-cols-2 gap-2.5">
                 <div>
-                  <label className="block text-[11px] font-medium text-stone-700">
+                  <label className="block text-[11px] font-medium text-[#b8adb2]">
                     Mobile Number *
                   </label>
                   <Input
@@ -1324,7 +1324,7 @@ function ClientRouteComponent() {
                   />
                 </div>
                 <div>
-                  <label className="block text-[11px] font-medium text-stone-700">
+                  <label className="block text-[11px] font-medium text-[#b8adb2]">
                     Wedding Date
                   </label>
                   <Input
@@ -1338,7 +1338,7 @@ function ClientRouteComponent() {
 
               <div className="grid grid-cols-2 gap-2.5">
                 <div>
-                  <label className="block text-[11px] font-medium text-stone-700">Password *</label>
+                  <label className="block text-[11px] font-medium text-[#b8adb2]">Password *</label>
                   <Input
                     type="password"
                     required
@@ -1349,7 +1349,7 @@ function ClientRouteComponent() {
                   />
                 </div>
                 <div>
-                  <label className="block text-[11px] font-medium text-stone-700">Confirm *</label>
+                  <label className="block text-[11px] font-medium text-[#b8adb2]">Confirm *</label>
                   <Input
                     type="password"
                     required
@@ -1361,7 +1361,7 @@ function ClientRouteComponent() {
                 </div>
               </div>
 
-              <div className="rounded-lg bg-stone-50 border border-stone-200/60 p-2.5 text-[11px] text-stone-500">
+              <div className="rounded-lg bg-stone-50 border border-[#30282e]/60 p-2.5 text-[11px] text-[#82767d]">
                 <strong>Studio Approval Policy:</strong> Client accounts are reviewed by the TA
                 Bridals admin before song library access is granted. Signups always start as
                 &quot;pending&quot;.
@@ -1370,7 +1370,7 @@ function ClientRouteComponent() {
               <Button
                 type="submit"
                 disabled={loading}
-                className="w-full bg-[#2d3a2e] hover:bg-[#202b21] text-white text-xs py-2.5 font-medium rounded-xl"
+                className="w-full studio-glow-button bg-[#762d40] hover:bg-[#c56c7d] text-white text-xs py-2.5 font-medium rounded-xl border border-[#c56c7d]/40 shadow-[0_0_12px_rgba(197,108,125,0.25)]"
               >
                 Register Client Account
                 <ArrowRight className="size-3.5 ml-1.5" />
@@ -1379,10 +1379,10 @@ function ClientRouteComponent() {
           )}
 
           {/* Link back to Studio Management login for Team/Owner */}
-          <div className="mt-6 border-t border-stone-100 pt-4 text-center">
+          <div className="mt-6 border-t border-[#30282e] pt-4 text-center">
             <Link
               to="/"
-              className="text-xs text-stone-500 hover:text-stone-800 transition-colors inline-flex items-center gap-1"
+              className="text-xs text-[#82767d] hover:text-[#f7f0ee] transition-colors inline-flex items-center gap-1"
             >
               <span>Are you a Studio team member or Owner?</span>
               <span className="font-medium underline">Studio Portal</span>

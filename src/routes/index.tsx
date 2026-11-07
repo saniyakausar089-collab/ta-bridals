@@ -96,6 +96,7 @@ import {
   type ApprovalStatus,
   type ProfileRecord,
 } from "@/lib/auth";
+import { DEFAULT_TEAM_ROLES, getCustomRoles, saveCustomRole, getAllRoles } from "@/lib/roles";
 
 export const Route = createFileRoute("/")({
   component: Index,
@@ -474,7 +475,12 @@ function Index() {
           notes: fallbackNotes,
         };
         const fallbackResult = shootId
-          ? await supabase.from("shoots").update(fallbackPayload).eq("id", shootId).select().single()
+          ? await supabase
+              .from("shoots")
+              .update(fallbackPayload)
+              .eq("id", shootId)
+              .select()
+              .single()
           : await supabase.from("shoots").insert(fallbackPayload).select().single();
 
         if (!fallbackResult.error && fallbackResult.data) {
@@ -3725,15 +3731,41 @@ function TeamView({
 
 function TeamMemberEditor({
   member,
+  existingRoles = [],
   onClose,
   onSave,
 }: {
   member: TeamMember | null;
+  existingRoles?: string[];
   onClose: () => void;
   onSave: (values: TeamMemberInput, memberId?: string) => Promise<void>;
 }) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [selectedRole, setSelectedRole] = useState(member?.role ?? "Photographer");
+  const [isAddingCustomRole, setIsAddingCustomRole] = useState(false);
+  const [newRoleInput, setNewRoleInput] = useState("");
+  const [roleError, setRoleError] = useState("");
+  const [availableRoles, setAvailableRoles] = useState<string[]>(() =>
+    getAllRoles([...existingRoles, member?.role]),
+  );
+
+  function handleSaveNewRole() {
+    setRoleError("");
+    const res = saveCustomRole(newRoleInput);
+    if (!res.success) {
+      setRoleError(res.error || "Could not save role");
+      if (res.savedRole) {
+        setSelectedRole(res.savedRole);
+      }
+      return;
+    }
+    const saved = res.savedRole || newRoleInput.trim();
+    setAvailableRoles(getAllRoles([...existingRoles, saved]));
+    setSelectedRole(saved);
+    setIsAddingCustomRole(false);
+    setNewRoleInput("");
+  }
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -3754,9 +3786,15 @@ function TeamMemberEditor({
           .filter(Boolean)
       : [];
 
+    let finalRole = selectedRole;
+    if (isAddingCustomRole && newRoleInput.trim()) {
+      const res = saveCustomRole(newRoleInput.trim());
+      finalRole = res.savedRole || newRoleInput.trim();
+    }
+
     const values: TeamMemberInput = {
       full_name: String(form.get("full_name") ?? "").trim(),
-      role: String(form.get("role") ?? "Photographer"),
+      role: finalRole || "Photographer",
       email: email || null,
       phone: phone || null,
       available: form.get("available") === "on",
@@ -3809,22 +3847,97 @@ function TeamMemberEditor({
                 autoFocus
               />
             </label>
-            <label className="studio-field">
-              Primary Role
-              <select name="role" defaultValue={member?.role ?? "Photographer"} required>
-                <option>Photographer</option>
-                <option>Videographer</option>
-                <option>Photo Editor</option>
-                <option>Video Editor</option>
-                <option>Album Designer</option>
-                <option>Cinematographer / Creative Director</option>
-                <option>Drone Operator</option>
-                <option>Assistant Photographer</option>
-                <option>Assistant Videographer</option>
-                <option>Lighting Assistant</option>
-                <option>Data Manager / Footage Backup Assistant</option>
-              </select>
-            </label>
+            <div className="studio-field">
+              <div className="flex items-center justify-between">
+                <span>Primary Role</span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsAddingCustomRole((prev) => !prev);
+                    setRoleError("");
+                    if (!isAddingCustomRole) {
+                      setNewRoleInput("");
+                    }
+                  }}
+                  className="flex items-center gap-1 text-[11px] font-medium text-[#d9b98c] hover:text-[#e7a0ad] transition-colors"
+                >
+                  {isAddingCustomRole ? (
+                    "← Choose from list"
+                  ) : (
+                    <>
+                      <Plus className="size-3" /> Add custom role
+                    </>
+                  )}
+                </button>
+              </div>
+
+              {isAddingCustomRole ? (
+                <div className="space-y-1.5">
+                  <div className="flex gap-2">
+                    <Input
+                      value={newRoleInput}
+                      onChange={(e) => {
+                        setNewRoleInput(e.target.value);
+                        setRoleError("");
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          handleSaveNewRole();
+                        }
+                      }}
+                      placeholder="Type custom role name…"
+                      className="text-xs bg-[#1b181d] border-[#30282e] text-[#f7f0ee]"
+                      autoFocus
+                    />
+                    <Button
+                      type="button"
+                      size="sm"
+                      onClick={handleSaveNewRole}
+                      className="studio-glow-button shrink-0 text-xs bg-[#762d40] text-white hover:bg-[#c56c7d] border border-[#c56c7d]/40 shadow-[0_0_10px_rgba(197,108,125,0.2)]"
+                    >
+                      Add & Save Role
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setIsAddingCustomRole(false);
+                        setRoleError("");
+                      }}
+                      className="shrink-0 text-xs border-[#30282e] bg-[#1b181d] text-[#b8adb2]"
+                    >
+                      Cancel
+                    </Button>
+                  </div>
+                  {roleError && <p className="text-[11px] text-amber-300">{roleError}</p>}
+                </div>
+              ) : (
+                <select
+                  name="role"
+                  value={selectedRole}
+                  onChange={(e) => {
+                    if (e.target.value === "__custom__") {
+                      setIsAddingCustomRole(true);
+                      setNewRoleInput("");
+                      setRoleError("");
+                    } else {
+                      setSelectedRole(e.target.value);
+                    }
+                  }}
+                  required
+                  className="border-[#30282e] bg-[#1b181d] text-[#f7f0ee]"
+                >
+                  {availableRoles.map((role) => (
+                    <option key={role} value={role}>
+                      {role}
+                    </option>
+                  ))}
+                  <option value="__custom__">+ Add new custom role…</option>
+                </select>
+              )}
+            </div>
             <label className="studio-field">
               Membership Status
               <select name="status" defaultValue={member?.status ?? "active"} required>

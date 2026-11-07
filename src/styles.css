@@ -583,3 +583,202 @@
   --chat--color-dark: #30382f;
   --chat--border-radius: 14px;
 }
+
+
+/* ==========================================================================
+   DARK, PREMIUM & FLASHY UI ENHANCEMENTS (TA BRIDALS)
+   ========================================================================== */
+
+/* Glowing highlight classes */
+.studio-glow-card {
+  position: relative;
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.studio-glow-card:hover {
+  border-color: rgba(197, 108, 125, 0.45) !important;
+  box-shadow: 0 0 25px rgba(197, 108, 125, 0.16), 0 8px 32px rgba(0, 0, 0, 0.45) !important;
+  transform: translateY(-1.5px);
+}
+
+.studio-glow-button {
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.studio-glow-button:hover {
+  border-color: rgba(231, 160, 173, 0.6) !important;
+  box-shadow: 0 0 16px rgba(197, 108, 125, 0.35) !important;
+  transform: translateY(-1px);
+}
+
+.studio-glow-badge {
+  box-shadow: 0 0 10px rgba(197, 108, 125, 0.15);
+}
+
+/* Dark mode overrides for common components and light utility classes */
+.dark,
+.studio-app {
+  color-scheme: dark;
+}
+
+/* Ensure all nested cards and containers follow dark styling */
+.dark .bg-white,
+.dark .bg-\[\#f8f7f4\],
+.dark .bg-\[\#fbfaf7\],
+.dark .bg-\[\#faf9f5\],
+.dark .bg-\[\#faf9f6\],
+.dark .bg-\[\#f9f8f5\],
+.dark .bg-stone-50,
+.dark .bg-stone-100,
+.studio-app .bg-white,
+.studio-app .bg-\[\#f8f7f4\],
+.studio-app .bg-\[\#fbfaf7\],
+.studio-app .bg-\[\#faf9f5\],
+.studio-app .bg-\[\#faf9f6\],
+.studio-app .bg-\[\#f9f8f5\] {
+  background-color: var(--studio-surface, #151317) !important;
+}
+
+.dark .bg-\[\#f7f6f2\],
+.dark .bg-\[\#f5f4f0\],
+.dark .bg-\[\#fbfaf8\],
+.dark .bg-\[\#f0efe9\],
+.dark .bg-\[\#f1f2ed\],
+.dark .bg-\[\#f4f3ef\],
+.dark .bg-\[\#f4f2ec\],
+.dark .bg-\[\#edeae2\],
+.dark .bg-\[\#f4f1ea\],
+.studio-app .bg-\[\#f7f6f2\],
+.studio-app .bg-\[\#f5f4f0\],
+.studio-app .bg-\[\#fbfaf8\],
+.studio-app .bg-\[\#f0efe9\],
+.studio-app .bg-\[\#f1f2ed\],
+.studio-app .bg-\[\#f4f3ef\],
+.studio-app .bg-\[\#f4f2ec\] {
+  background-color: var(--studio-raised, #1b181d) !important;
+}
+
+/* Borders */
+.dark .border-\[\#e9e7df\],
+.dark .border-\[\#efeee9\],
+.dark .border-\[\#f0efe9\],
+.dark .border-\[\#e6e4dd\],
+.dark .border-\[\#ece9e2\],
+.dark .border-\[\#dedbd2\],
+.dark .border-\[\#dedad2\],
+.dark .border-\[\#c5c1b6\],
+.dark .border-\[\#f2efe8\],
+.dark .border-\[\#f4f3ee\],
+.dark .border-stone-200,
+.dark .border-stone-300,
+.studio-app .border-\[\#e9e7df\],
+.studio-app .border-\[\#efeee9\],
+.studio-app .border-\[\#f0efe9\],
+.studio-app .border-\[\#e6e4dd\],
+.studio-app .border-\[\#ece9e2\],
+.studio-app .border-\[\#dedbd2\],
+.studio-app .border-\[\#dedad2\],
+.studio-app .border-\[\#c5c1b6\],
+.studio-app .border-\[\#f2efe8\],
+.studio-app .border-\[\#f4f3ee\] {
+  border-color: var(--studio-border, #30282e) !important;
+}
+
+/* Typography Contrast in Dark Mode */
+.dark .text-stone-900,
+.dark .text-stone-800,
+.dark .text-\[\#343a33\],
+.dark .text-\[\#3e453d\],
+.dark .text-\[\#2b312b\],
+.dark .text-\[\#394238\],
+.dark .text-\[\#444941\],
+.dark .text-\[\#42483f\],
+.studio-app .text-\[\#343a33\],
+.studio-app .text-\[\#3e453d\],
+.studio-app .text-\[\#2b312b\],
+.studio-app .text-\[\#394238\],
+.studio-app .text-\[\#444941\],
+.studio-app .text-\[\#42483f\] {
+  color: var(--studio-text, #f7f0ee) !important;
+}
+
+.dark .text-stone-600,
+.dark .text-stone-500,
+.dark .text-\[\#74766e\],
+.dark .text-\[\#76776f\],
+.dark .text-\[\#818177\],
+.dark .text-\[\#82767d\],
+.dark .text-\[\#87867d\],
+.dark .text-\[\#929086\],
+.dark .text-\[\#99968c\],
+.studio-app .text-\[\#74766e\],
+.studio-app .text-\[\#76776f\],
+.studio-app .text-\[\#818177\],
+.studio-app .text-\[\#82767d\],
+.studio-app .text-\[\#87867d\],
+.studio-app .text-\[\#929086\],
+.studio-app .text-\[\#99968c\] {
+  color: var(--studio-secondary, #b8adb2) !important;
+}
+
+/* Links & Accents */
+.dark .text-\[\#344234\],
+.dark .text-\[\#586651\],
+.dark .text-\[\#59654f\],
+.dark .text-\[\#75806c\],
+.studio-app .text-\[\#344234\],
+.studio-app .text-\[\#586651\],
+.studio-app .text-\[\#59654f\],
+.studio-app .text-\[\#75806c\] {
+  color: var(--studio-blush, #e7a0ad) !important;
+}
+
+/* Primary Dark Buttons */
+.dark .bg-\[\#344234\],
+.dark .bg-\[\#2d3a2e\],
+.studio-app .bg-\[\#344234\],
+.studio-app .bg-\[\#2d3a2e\] {
+  background-color: var(--studio-burgundy, #762d40) !important;
+  color: #ffffff !important;
+  border: 1px solid rgba(197, 108, 125, 0.4) !important;
+  box-shadow: 0 0 12px rgba(197, 108, 125, 0.2);
+  transition: all 0.2s ease;
+}
+
+.dark .bg-\[\#344234\]:hover,
+.dark .bg-\[\#2d3a2e\]:hover,
+.studio-app .bg-\[\#344234\]:hover,
+.studio-app .bg-\[\#2d3a2e\]:hover {
+  background-color: var(--studio-rose, #c56c7d) !important;
+  box-shadow: 0 0 20px rgba(197, 108, 125, 0.35);
+}
+
+/* Inputs and Selects inside dark theme */
+.dark input:not([type="checkbox"]):not([type="radio"]),
+.dark select,
+.dark textarea {
+  border-color: #30282e !important;
+  background-color: #1b181d !important;
+  color: #f7f0ee !important;
+}
+
+.dark input:focus,
+.dark select:focus,
+.dark textarea:focus {
+  border-color: #c56c7d !important;
+  box-shadow: 0 0 0 2px rgba(197, 108, 125, 0.25) !important;
+}
+
+/* Modals */
+.dark .studio-modal,
+.studio-modal {
+  border: 1px solid #40323a !important;
+  background: #151317 !important;
+  color: #f7f0ee !important;
+  box-shadow: 0 24px 90px rgba(0, 0, 0, 0.75), 0 0 40px rgba(197, 108, 125, 0.1) !important;
+}
+
+/* Calendar Cells in Dark Theme */
+.dark .border-r.border-b.border-\[\#f0efe9\] {
+  border-color: #30282e !important;
+}

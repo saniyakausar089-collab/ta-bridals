@@ -235,7 +235,7 @@ export function AdminNotificationCenter({
         onClick={() => setIsOpen((prev) => !prev)}
         aria-label={`Studio notifications, ${totalCount} pending review`}
         aria-expanded={isOpen}
-        className="relative grid size-9 place-items-center rounded-xl border border-[#dedbd2] bg-[#fbfaf7] text-[#555a52] transition-colors hover:bg-[#edebe2] hover:text-[#2d382d]"
+        className="relative grid size-9 place-items-center rounded-xl border border-[#30282e] bg-[#151317] text-[#b8adb2] transition-all hover:bg-[#1b181d] hover:text-[#f7f0ee] hover:border-[#c56c7d]/40"
       >
         <Bell className="size-4" />
         {totalCount > 0 && (
