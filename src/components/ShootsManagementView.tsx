@@ -391,7 +391,10 @@ export function ShootsManagementView({
                   <span className="text-[#82767d]">/</span>
                   <button
                     type="button"
-                    onClick={() => setSelectedProjectName(null)}
+                    onClick={() => {
+                      setSelectedProjectName(null);
+                      setSelectedEventId(null);
+                    }}
                     className={`transition-colors hover:text-[#e7a0ad] ${
                       !selectedProjectName ? "font-semibold text-[#e7a0ad]" : "text-[#b8adb2]"
                     }`}
@@ -473,13 +476,13 @@ export function ShootsManagementView({
               </span>
             ) : selectedMonth ? (
               <span>
-                <strong className="text-[#f7f0ee]">{displayedProjects.length}</strong> client projects in{" "}
-                <span className="text-[#e7a0ad]">{selectedMonthObj?.label}</span>
+                <strong className="text-[#f7f0ee]">{displayedProjects.length}</strong> client
+                projects in <span className="text-[#e7a0ad]">{selectedMonthObj?.label}</span>
               </span>
             ) : (
               <span>
-                <strong className="text-[#f7f0ee]">{clientProjects.length}</strong> client projects across{" "}
-                <strong className="text-[#f7f0ee]">{monthsList.length}</strong> months
+                <strong className="text-[#f7f0ee]">{clientProjects.length}</strong> client projects
+                across <strong className="text-[#f7f0ee]">{monthsList.length}</strong> months
               </span>
             )}
           </div>
@@ -548,7 +551,8 @@ export function ShootsManagementView({
                   <span>·</span>
                   <span className="inline-flex items-center gap-1 font-medium text-[#f7f0ee]">
                     <Users className="size-3 text-[#e7a0ad]" />
-                    {activeProjectTeamCount} {activeProjectTeamCount === 1 ? "team member" : "team members"} assigned
+                    {activeProjectTeamCount}{" "}
+                    {activeProjectTeamCount === 1 ? "team member" : "team members"} assigned
                   </span>
                   {activeProjectHasMissingVenue && (
                     <span className="inline-flex items-center gap-1 rounded border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-[10px] font-semibold text-amber-300">
@@ -624,7 +628,10 @@ export function ShootsManagementView({
                     return (
                       <article
                         key={eventItem.id}
-                        className="flex flex-wrap items-center gap-4 px-5 py-4 transition-colors hover:bg-[#fcfbf9]"
+                        onClick={() =>
+                          setSelectedEventId(selectedEventId === eventItem.id ? null : eventItem.id)
+                        }
+                        className={`studio-glow-card cursor-pointer flex flex-wrap items-center gap-4 px-5 py-4 transition-all duration-200 rounded-xl border ${selectedEventId === eventItem.id ? "studio-active-card border-[#c56c7d] bg-[#1f161c] shadow-[0_0_28px_rgba(197,108,125,0.45),0_0_10px_rgba(217,185,140,0.4)]" : "border-[#30282e]/80 bg-[#151317] hover:border-[#c56c7d]/60 hover:bg-[#1b181d]"}`}
                       >
                         {/* Event Date Block */}
                         <div className="grid size-12 shrink-0 place-items-center rounded-xl border border-[#30282e] bg-[#1b181d] text-center text-[#e7a0ad]">
@@ -831,8 +838,12 @@ export function ShootsManagementView({
                     e.event_date?.startsWith(selectedMonth),
                   );
                   const projectEventIds = new Set(project.events.map((e) => e.id));
-                  const projectAssignments = assignments.filter((a) => projectEventIds.has(a.shoot_id));
-                  const uniqueTeamMemberIds = new Set(projectAssignments.map((a) => a.team_member_id));
+                  const projectAssignments = assignments.filter((a) =>
+                    projectEventIds.has(a.shoot_id),
+                  );
+                  const uniqueTeamMemberIds = new Set(
+                    projectAssignments.map((a) => a.team_member_id),
+                  );
                   const projectTeamCount = uniqueTeamMemberIds.size;
                   const isVenueMissing = project.events.some((e) => !e.venue || !e.venue.trim());
 
@@ -974,11 +985,13 @@ export function ShootsManagementView({
 
                     <div className="mt-2 flex items-center justify-between text-xs text-[#b8adb2]">
                       <span>
-                        <strong className="text-[#e7a0ad] font-semibold">{m.projectCount}</strong> projects
+                        <strong className="text-[#e7a0ad] font-semibold">{m.projectCount}</strong>{" "}
+                        projects
                       </span>
                       <span>·</span>
                       <span>
-                        <strong className="text-[#e7a0ad] font-semibold">{m.eventCount}</strong> events
+                        <strong className="text-[#e7a0ad] font-semibold">{m.eventCount}</strong>{" "}
+                        events
                       </span>
                     </div>
 
@@ -1022,8 +1035,12 @@ export function ShootsManagementView({
                 <div className="divide-y divide-[#30282e] rounded-xl border border-[#30282e] bg-[#151317]">
                   {clientProjects.map((project) => {
                     const projectEventIds = new Set(project.events.map((e) => e.id));
-                    const projectAssignments = assignments.filter((a) => projectEventIds.has(a.shoot_id));
-                    const uniqueTeamMemberIds = new Set(projectAssignments.map((a) => a.team_member_id));
+                    const projectAssignments = assignments.filter((a) =>
+                      projectEventIds.has(a.shoot_id),
+                    );
+                    const uniqueTeamMemberIds = new Set(
+                      projectAssignments.map((a) => a.team_member_id),
+                    );
                     const projectTeamCount = uniqueTeamMemberIds.size;
                     const isVenueMissing = project.events.some((e) => !e.venue || !e.venue.trim());
 
@@ -1031,7 +1048,7 @@ export function ShootsManagementView({
                       <article
                         key={project.id}
                         onClick={() => setSelectedProjectName(project.name)}
-                        className="group cursor-pointer flex flex-wrap items-center justify-between gap-3 px-5 py-3.5 transition-colors hover:bg-[#1b181d]"
+                        className="studio-glow-card group cursor-pointer flex flex-wrap items-center justify-between gap-3 px-5 py-3.5 rounded-xl border border-[#30282e]/80 bg-[#151317] transition-all duration-200 hover:border-[#c56c7d]/60 hover:bg-[#1b181d]"
                       >
                         <div className="flex items-center gap-3">
                           <div className="grid size-9 shrink-0 place-items-center rounded-lg border border-[#30282e] bg-[#1b181d] text-[#e7a0ad]">
@@ -1043,12 +1060,14 @@ export function ShootsManagementView({
                             </h4>
                             <div className="flex flex-wrap items-center gap-2 text-xs text-[#b8adb2]">
                               <span>
-                                {project.events.length} {project.events.length === 1 ? "event" : "events"}
+                                {project.events.length}{" "}
+                                {project.events.length === 1 ? "event" : "events"}
                               </span>
                               <span>·</span>
                               <span className="inline-flex items-center gap-1 font-medium text-[#f7f0ee]">
                                 <Users className="size-3 text-[#e7a0ad]" />
-                                {projectTeamCount} {projectTeamCount === 1 ? "team member" : "team members"}
+                                {projectTeamCount}{" "}
+                                {projectTeamCount === 1 ? "team member" : "team members"}
                               </span>
                               {project.earliestDate && (
                                 <>

@@ -1732,7 +1732,7 @@ export function SongLibraryAdminSection() {
                             <span className="font-semibold text-xs text-[#f7f0ee]">
                               {eventGroup}
                             </span>
-                            <span className="rounded-full bg-[#e8e6dc] px-2 py-0.5 text-[10px] font-medium text-[#52574e]">
+                            <span className="rounded-full border border-[#30282e] bg-[#1b181d] px-2 py-0.5 text-[10px] font-medium text-[#e7a0ad]">
                               {eventSongs.length} {eventSongs.length === 1 ? "song" : "songs"}
                             </span>
                           </div>
@@ -1742,7 +1742,7 @@ export function SongLibraryAdminSection() {
                           {eventSongs.map((song) => (
                             <div
                               key={song.id}
-                              className="px-4 py-3 flex items-center justify-between hover:bg-[#1b181d] transition-colors gap-3"
+                              className="studio-glow-card px-4 py-3 flex items-center justify-between rounded-lg border border-transparent hover:border-[#c56c7d]/50 hover:bg-[#1b181d] transition-all duration-200 gap-3 cursor-pointer"
                             >
                               <div className="flex items-center gap-3 min-w-0">
                                 {song.youtubeVideoId ? (

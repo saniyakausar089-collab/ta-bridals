@@ -2578,7 +2578,7 @@ function RegistrationsView({
               return (
                 <article
                   key={reg.user_id}
-                  className="flex flex-col gap-4 p-5 transition-colors hover:bg-[#1b181d]/70 sm:flex-row sm:items-center sm:justify-between"
+                  className="studio-glow-card flex flex-col gap-4 p-5 transition-all duration-200 hover:bg-[#1b181d] sm:flex-row sm:items-center sm:justify-between"
                 >
                   <div className="flex items-start gap-3 min-w-0">
                     <Avatar name={reg.display_name || "Team Member"} />
@@ -3382,7 +3382,7 @@ function CalendarView({
                             key={shoot.id}
                             type="button"
                             onClick={() => setSelectedShoot(shoot)}
-                            className="w-full truncate rounded bg-[#762d40]/40 border border-[#c56c7d]/30 px-1.5 py-1 text-left text-[10px] text-[#f7f0ee] hover:bg-[#762d40]/70 transition-colors"
+                            className="studio-glow-button w-full truncate rounded-lg bg-[#762d40]/40 border border-[#c56c7d]/40 px-1.5 py-1 text-left text-[10px] text-[#f7f0ee] hover:bg-[#762d40]/80 hover:border-[#c56c7d] hover:shadow-[0_0_14px_rgba(197,108,125,0.4)] transition-all"
                             title={`${shoot.couple_name} · ${shoot.event_type}`}
                             aria-label={`View ${shoot.event_type} for ${shoot.couple_name}`}
                           >
@@ -3720,7 +3720,10 @@ function TeamView({
         ) : (
           <div className="grid gap-px bg-[#30282e] sm:grid-cols-2 xl:grid-cols-3">
             {filteredTeam.map((member) => (
-              <article key={member.id} className="flex min-w-0 items-start gap-3 bg-[#151317] p-5">
+              <article
+                key={member.id}
+                className="studio-glow-card flex min-w-0 items-start gap-3 rounded-xl border border-[#30282e]/80 bg-[#151317] p-5 hover:border-[#c56c7d]/60"
+              >
                 <Avatar name={member.full_name} />
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center justify-between gap-2">

@@ -588,32 +588,106 @@
    DARK, PREMIUM & FLASHY UI ENHANCEMENTS (TA BRIDALS)
    ========================================================================== */
 
+/* ==========================================================================
+   GLOBAL FLASHY CLICK & GLOWING INTERACTION SUITE (TA BRIDALS)
+   ========================================================================== */
+
+@keyframes studio-pulse-glow {
+  0% {
+    transform: scale(0.99);
+    box-shadow: 0 0 0 rgba(197, 108, 125, 0);
+  }
+  50% {
+    transform: scale(1.008);
+    box-shadow:
+      0 0 35px rgba(197, 108, 125, 0.65),
+      0 0 12px rgba(217, 185, 140, 0.55),
+      inset 0 0 12px rgba(197, 108, 125, 0.25);
+  }
+  100% {
+    transform: scale(1);
+    box-shadow:
+      0 0 26px rgba(197, 108, 125, 0.45),
+      0 0 6px rgba(217, 185, 140, 0.35);
+  }
+}
+
 /* Glowing highlight classes */
 .studio-glow-card {
   position: relative;
-  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1) !important;
 }
 
 .studio-glow-card:hover {
-  border-color: rgba(197, 108, 125, 0.45) !important;
+  border-color: rgba(197, 108, 125, 0.7) !important;
   box-shadow:
-    0 0 25px rgba(197, 108, 125, 0.16),
-    0 8px 32px rgba(0, 0, 0, 0.45) !important;
-  transform: translateY(-1.5px);
+    0 0 28px rgba(197, 108, 125, 0.35),
+    0 0 8px rgba(217, 185, 140, 0.35),
+    0 10px 32px rgba(0, 0, 0, 0.6) !important;
+  transform: translateY(-2px);
+}
+
+.studio-glow-card:active,
+.studio-glow-card.active,
+.studio-glow-card.selected,
+.studio-glow-card[data-active="true"],
+.studio-glow-card[data-selected="true"],
+.studio-glow-card[aria-selected="true"],
+.studio-active-card {
+  border-color: #c56c7d !important;
+  background: linear-gradient(
+    135deg,
+    rgba(118, 45, 64, 0.3) 0%,
+    rgba(27, 24, 29, 0.98) 100%
+  ) !important;
+  box-shadow:
+    0 0 34px rgba(197, 108, 125, 0.55),
+    0 0 12px rgba(217, 185, 140, 0.5),
+    inset 0 0 16px rgba(197, 108, 125, 0.2),
+    0 12px 36px rgba(0, 0, 0, 0.75) !important;
+  animation: studio-pulse-glow 0.35s ease-out;
 }
 
 .studio-glow-button {
-  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1) !important;
 }
 
 .studio-glow-button:hover {
-  border-color: rgba(231, 160, 173, 0.6) !important;
-  box-shadow: 0 0 16px rgba(197, 108, 125, 0.35) !important;
+  border-color: rgba(231, 160, 173, 0.75) !important;
+  box-shadow:
+    0 0 20px rgba(197, 108, 125, 0.45),
+    0 0 6px rgba(217, 185, 140, 0.35) !important;
   transform: translateY(-1px);
 }
 
+.studio-glow-button:active {
+  border-color: #c56c7d !important;
+  box-shadow:
+    0 0 26px rgba(197, 108, 125, 0.65),
+    0 0 10px rgba(217, 185, 140, 0.5) !important;
+  transform: scale(0.98);
+}
+
 .studio-glow-badge {
-  box-shadow: 0 0 10px rgba(197, 108, 125, 0.15);
+  box-shadow: 0 0 12px rgba(197, 108, 125, 0.25);
+}
+
+/* Interactive click feedback on all buttons and clickable elements */
+button:not(:disabled):active,
+[role="button"]:not([aria-disabled="true"]):active,
+.cursor-pointer:active {
+  box-shadow:
+    0 0 24px rgba(197, 108, 125, 0.5),
+    0 0 8px rgba(217, 185, 140, 0.35) !important;
+  border-color: rgba(197, 108, 125, 0.85) !important;
+}
+
+/* Guard: NEVER solid white background on active, selected, or hover elements */
+[class*="hover:bg-[#fcfbf9]"],
+[class*="hover:bg-[#faf9f5]"],
+[class*="hover:bg-[#f8f7f4]"],
+[class*="hover:bg-[#fbfaf7]"] {
+  background-color: transparent !important;
 }
 
 /* Dark mode overrides for common components and light utility classes */
