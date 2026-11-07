@@ -1378,6 +1378,12 @@ function ShootEditor({
       return;
     }
 
+    if (endTime && startTime && endTime.slice(0, 5) === startTime.slice(0, 5)) {
+      setError("Start time and end time cannot be identical.");
+      setSaving(false);
+      return;
+    }
+
     if (hasOverlapConflict) {
       setError(
         "Cannot save shoot: One or more assigned crew members have overlapping assignments. Please resolve the schedule conflict first.",
@@ -1584,7 +1590,13 @@ function ShootEditor({
 
             <label className="studio-field">
               End time{" "}
-              <span className="font-normal text-[#82767d]">· required for overlap check</span>
+              <span className="font-normal text-[#82767d]">
+                {endTime && startTime && endTime < startTime ? (
+                  <span className="text-amber-300 font-medium">· crosses midnight (overnight)</span>
+                ) : (
+                  "· required for overlap check"
+                )}
+              </span>
               <Input
                 name="end_time"
                 type="time"
@@ -1648,7 +1660,9 @@ function ShootEditor({
                 name="notes"
                 maxLength={2000}
                 defaultValue={(shoot?.notes ?? "")
-                  .replace(/\s*\[Event Type:\s*[^\]]+\]/, "")
+                  .replace(/\s*\[Event Type:\s*[^\]]+\]/g, "")
+                  .replace(/\s*\[Planned Crew:\s*[^\]]+\]/g, "")
+                  .replace(/\s*\[End Time:\s*[^\]]+\]/g, "")
                   .trim()}
                 rows={2}
               />
