@@ -10,6 +10,7 @@ import {
   Clock3,
   Edit2,
   FolderKanban,
+  LoaderCircle,
   MapPin,
   Pencil,
   Plus,
@@ -144,12 +145,64 @@ export function ShootsManagementView({
   allShoots: Shoot[];
   availabilityRequests?: AvailabilityRequest[];
   onSaveAssignments: (shootId: string, values: AssignmentInput[]) => Promise<void>;
-  onRenameProject?: (oldName: string, newName: string) => Promise<void>;
+  onRenameProject?: ((oldName: string, newName: string) => Promise<void>) | undefined;
 }) {
   const [query, setQuery] = useState(externalQuery);
   const [statusFilter, setStatusFilter] = useState("All statuses");
-  const [selectedMonth, setSelectedMonth] = useState<string | null>(null);
-  const [selectedProjectName, setSelectedProjectName] = useState<string | null>(null);
+  const [selectedMonth, setSelectedMonth] = useState<string | null>(() => {
+    if (typeof window !== "undefined") {
+      const urlParams = new URLSearchParams(window.location.search);
+      const m = urlParams.get("month");
+      if (m) return m;
+      return sessionStorage.getItem("ta_selected_month") || null;
+    }
+    return null;
+  });
+  const [selectedProjectName, setSelectedProjectName] = useState<string | null>(() => {
+    if (typeof window !== "undefined") {
+      const urlParams = new URLSearchParams(window.location.search);
+      const p = urlParams.get("project");
+      if (p) return p;
+      return sessionStorage.getItem("ta_selected_project") || null;
+    }
+    return null;
+  });
+  const [selectedEventId, setSelectedEventId] = useState<string | null>(() => {
+    if (typeof window !== "undefined") {
+      const urlParams = new URLSearchParams(window.location.search);
+      const e = urlParams.get("event");
+      if (e) return e;
+      return sessionStorage.getItem("ta_selected_event") || null;
+    }
+    return null;
+  });
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (selectedMonth) {
+      sessionStorage.setItem("ta_selected_month", selectedMonth);
+    } else {
+      sessionStorage.removeItem("ta_selected_month");
+    }
+  }, [selectedMonth]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (selectedProjectName) {
+      sessionStorage.setItem("ta_selected_project", selectedProjectName);
+    } else {
+      sessionStorage.removeItem("ta_selected_project");
+    }
+  }, [selectedProjectName]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (selectedEventId) {
+      sessionStorage.setItem("ta_selected_event", selectedEventId);
+    } else {
+      sessionStorage.removeItem("ta_selected_event");
+    }
+  }, [selectedEventId]);
 
   const [editingShoot, setEditingShoot] = useState<Shoot | null | undefined>(undefined);
   const [defaultProjectNameForNewEvent, setDefaultProjectNameForNewEvent] = useState<
@@ -186,6 +239,7 @@ export function ShootsManagementView({
 
       const firstEvent = sortedEvents[0];
       const lastEvent = sortedEvents[sortedEvents.length - 1];
+      if (!firstEvent || !lastEvent) return;
       const originalName =
         firstEvent.couple_name || (firstEvent as any)["shoot name"] || "Untitled Shoot";
       const monthsSet = new Set(
@@ -376,9 +430,10 @@ export function ShootsManagementView({
                 onClick={() => {
                   setSelectedProjectName(null);
                   setSelectedMonth(null);
+                  setSelectedEventId(null);
                 }}
                 className={`transition-colors hover:text-[#e7a0ad] ${
-                  !selectedMonth && !selectedProjectName
+                  !selectedMonth && !selectedProjectName && !selectedEventId
                     ? "font-semibold text-[#e7a0ad]"
                     : "text-[#b8adb2]"
                 }`}
@@ -407,7 +462,25 @@ export function ShootsManagementView({
               {selectedProjectName && (
                 <>
                   <span className="text-[#82767d]">/</span>
-                  <span className="font-semibold text-[#e7a0ad]">{selectedProjectName}</span>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedEventId(null)}
+                    className={`transition-colors hover:text-[#e7a0ad] ${
+                      !selectedEventId ? "font-semibold text-[#e7a0ad]" : "text-[#b8adb2]"
+                    }`}
+                  >
+                    {selectedProjectName}
+                  </button>
+                </>
+              )}
+
+              {selectedEventId && activeProject && (
+                <>
+                  <span className="text-[#82767d]">/</span>
+                  <span className="font-semibold text-[#e7a0ad]">
+                    {activeProject.events.find((e) => e.id === selectedEventId)?.event_type ||
+                      "Event Details"}
+                  </span>
                 </>
               )}
             </nav>
@@ -497,14 +570,39 @@ export function ShootsManagementView({
         {/* ========================================================================= */}
         {/* VIEW LEVEL 3: CLIENT PROJECT DETAILS (All Events inside this project)   */}
         {/* ========================================================================= */}
-        {selectedProjectName && activeProject ? (
+        {selectedProjectName && !activeProject && loading ? (
+          <div className="flex items-center justify-center py-20 text-sm text-[#b8adb2]">
+            <LoaderCircle className="size-5 animate-spin text-[#c56c7d] mr-2" />
+            Loading project details…
+          </div>
+        ) : selectedProjectName && !activeProject ? (
+          <div className="p-8 text-center space-y-4">
+            <p className="text-sm text-[#b8adb2]">
+              Project "{selectedProjectName}" was not found or has been updated.
+            </p>
+            <Button
+              variant="outline"
+              size="sm"
+              className="border-[#30282e] bg-[#1b181d] text-xs text-[#e7a0ad] hover:bg-[#242026]"
+              onClick={() => {
+                setSelectedProjectName(null);
+                setSelectedEventId(null);
+              }}
+            >
+              <ArrowLeft className="size-3.5 mr-1" /> Back to Projects
+            </Button>
+          </div>
+        ) : selectedProjectName && activeProject ? (
           <div className="p-5 sm:p-6 space-y-6">
             {/* Back Button & Project Header Banner */}
             <div className="flex flex-wrap items-start justify-between gap-4 rounded-xl border border-[#30282e] bg-[#1b181d] p-4 sm:p-5 shadow-sm">
               <div className="space-y-1">
                 <button
                   type="button"
-                  onClick={() => setSelectedProjectName(null)}
+                  onClick={() => {
+                    setSelectedProjectName(null);
+                    setSelectedEventId(null);
+                  }}
                   className="inline-flex items-center gap-1.5 text-xs font-medium text-[#e7a0ad] hover:text-white mb-2 transition-colors"
                 >
                   <ArrowLeft className="size-3.5" />
@@ -724,7 +822,10 @@ export function ShootsManagementView({
                               variant="outline"
                               size="sm"
                               className="h-8 gap-1 border-[#30282e] bg-[#1b181d] text-xs text-[#b8adb2] hover:bg-[#242026] hover:text-[#f7f0ee] hover:border-[#c56c7d]/40 transition-colors"
-                              onClick={() => setAssigningShoot(eventItem)}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setAssigningShoot(eventItem);
+                              }}
                             >
                               <Users className="size-3.5" /> Assign Crew
                             </Button>
@@ -732,7 +833,8 @@ export function ShootsManagementView({
                               variant="outline"
                               size="sm"
                               className="h-8 px-2.5 text-xs border-[#30282e] bg-[#1b181d] text-[#b8adb2] hover:bg-[#242026] hover:text-[#f7f0ee] hover:border-[#c56c7d]/40 transition-colors"
-                              onClick={() => {
+                              onClick={(e) => {
+                                e.stopPropagation();
                                 setDefaultProjectNameForNewEvent(activeProject.name);
                                 setEditingShoot(eventItem);
                               }}
@@ -744,7 +846,10 @@ export function ShootsManagementView({
                               variant="outline"
                               size="sm"
                               className="h-8 px-2.5 text-xs border-[#30282e] bg-[#1b181d] text-rose-300 hover:bg-rose-500/10 hover:border-rose-500/30 transition-colors"
-                              onClick={() => void confirmDeleteEvent(eventItem)}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                void confirmDeleteEvent(eventItem);
+                              }}
                               aria-label={`Delete ${eventItem.event_type}`}
                             >
                               <Trash2 className="size-3.5" />
@@ -772,6 +877,66 @@ export function ShootsManagementView({
                                 )}
                               </span>
                             ))}
+                          </div>
+                        )}
+
+                        {/* Level 4: Individual Event Details */}
+                        {selectedEventId === eventItem.id && (
+                          <div
+                            onClick={(e) => e.stopPropagation()}
+                            className="mt-3 w-full rounded-xl border border-[#c56c7d]/40 bg-[#1f161c] p-4 space-y-3 shadow-lg"
+                          >
+                            <div className="flex items-center justify-between border-b border-[#30282e] pb-2">
+                              <span className="text-xs font-semibold text-[#e7a0ad] flex items-center gap-1.5">
+                                <Sparkles className="size-3.5 text-[#d9b98c]" />
+                                Individual Event Details · {eventItem.event_type}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => setSelectedEventId(null)}
+                                className="text-xs text-[#b8adb2] hover:text-[#f7f0ee] transition-colors"
+                              >
+                                Close Details
+                              </button>
+                            </div>
+
+                            <div className="grid gap-3 text-xs text-[#f7f0ee] sm:grid-cols-2 md:grid-cols-3">
+                              <div className="rounded-lg border border-[#30282e] bg-[#151317] p-3 space-y-1">
+                                <span className="block text-[10px] uppercase font-semibold text-[#82767d]">Schedule & Timing</span>
+                                <span className="font-medium text-[#f7f0ee] block">
+                                  {eventItem.event_date ? format(parseISO(eventItem.event_date), "EEEE, MMMM d, yyyy") : "Date TBA"}
+                                </span>
+                                <span className="block text-[#b8adb2] text-[11px]">
+                                  {formatTimingInterval(eventItem.start_time, eventItem.end_time)}
+                                </span>
+                              </div>
+
+                              <div className="rounded-lg border border-[#30282e] bg-[#151317] p-3 space-y-1">
+                                <span className="block text-[10px] uppercase font-semibold text-[#82767d]">Venue / Location</span>
+                                <span className="font-medium text-[#f7f0ee] block">
+                                  {eventItem.venue?.trim() || eventItem.location?.trim() || "Venue Not Added"}
+                                </span>
+                                {!eventItem.venue?.trim() ? (
+                                  <span className="block text-amber-300 text-[10px]">
+                                    Reminder: Venue is optional but not yet provided
+                                  </span>
+                                ) : (
+                                  <span className="block text-emerald-300 text-[10px]">
+                                    Venue confirmed
+                                  </span>
+                                )}
+                              </div>
+
+                              <div className="rounded-lg border border-[#30282e] bg-[#151317] p-3 space-y-1">
+                                <span className="block text-[10px] uppercase font-semibold text-[#82767d]">Staffing & Status</span>
+                                <span className="font-medium text-[#f7f0ee] block">
+                                  {staffingMetrics.assignedCrew} of {eventItem.planned_team_size} Crew Assigned
+                                </span>
+                                <span className="block text-[#e7a0ad] text-[10px]">
+                                  Status: {eventItem.status}
+                                </span>
+                              </div>
+                            </div>
                           </div>
                         )}
                       </article>
@@ -850,7 +1015,10 @@ export function ShootsManagementView({
                   return (
                     <div
                       key={project.id}
-                      onClick={() => setSelectedProjectName(project.name)}
+                      onClick={() => {
+                        setSelectedProjectName(project.name);
+                        setSelectedEventId(null);
+                      }}
                       className="studio-glow-card group cursor-pointer rounded-xl border border-[#30282e] bg-[#1b181d] p-4 transition-all duration-200 hover:border-[#c56c7d]/50 hover:bg-[#242026] hover:shadow-[0_0_20px_rgba(197,108,125,0.15)] flex flex-col justify-between"
                     >
                       <div className="space-y-2">
@@ -1047,7 +1215,10 @@ export function ShootsManagementView({
                     return (
                       <article
                         key={project.id}
-                        onClick={() => setSelectedProjectName(project.name)}
+                        onClick={() => {
+                        setSelectedProjectName(project.name);
+                        setSelectedEventId(null);
+                      }}
                         className="studio-glow-card group cursor-pointer flex flex-wrap items-center justify-between gap-3 px-5 py-3.5 rounded-xl border border-[#30282e]/80 bg-[#151317] transition-all duration-200 hover:border-[#c56c7d]/60 hover:bg-[#1b181d]"
                       >
                         <div className="flex items-center gap-3">
