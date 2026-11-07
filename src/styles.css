@@ -584,7 +584,6 @@
   --chat--border-radius: 14px;
 }
 
-
 /* ==========================================================================
    DARK, PREMIUM & FLASHY UI ENHANCEMENTS (TA BRIDALS)
    ========================================================================== */
@@ -597,7 +596,9 @@
 
 .studio-glow-card:hover {
   border-color: rgba(197, 108, 125, 0.45) !important;
-  box-shadow: 0 0 25px rgba(197, 108, 125, 0.16), 0 8px 32px rgba(0, 0, 0, 0.45) !important;
+  box-shadow:
+    0 0 25px rgba(197, 108, 125, 0.16),
+    0 8px 32px rgba(0, 0, 0, 0.45) !important;
   transform: translateY(-1.5px);
 }
 
@@ -775,10 +776,86 @@
   border: 1px solid #40323a !important;
   background: #151317 !important;
   color: #f7f0ee !important;
-  box-shadow: 0 24px 90px rgba(0, 0, 0, 0.75), 0 0 40px rgba(197, 108, 125, 0.1) !important;
+  box-shadow:
+    0 24px 90px rgba(0, 0, 0, 0.75),
+    0 0 40px rgba(197, 108, 125, 0.1) !important;
 }
 
 /* Calendar Cells in Dark Theme */
 .dark .border-r.border-b.border-\[\#f0efe9\] {
   border-color: #30282e !important;
+}
+
+/* ==========================================================================
+   UNIVERSAL RADIX & NATIVE PORTAL DARK THEME ENFORCEMENT
+   ========================================================================== */
+
+/* Native select options */
+select option {
+  background-color: #1b181d !important;
+  color: #f7f0ee !important;
+}
+
+/* Radix Popovers, Menus, Selects, and Dialogs rendered in Portals */
+[data-radix-popper-content-wrapper] > *,
+[role="dialog"],
+[role="alertdialog"],
+[role="menu"],
+[role="listbox"],
+[data-radix-select-viewport],
+[data-radix-dropdown-menu-content] {
+  background-color: #151317 !important;
+  border-color: #30282e !important;
+  color: #f7f0ee !important;
+  box-shadow:
+    0 16px 40px rgba(0, 0, 0, 0.7),
+    0 0 20px rgba(197, 108, 125, 0.08) !important;
+}
+
+/* Radix Menu Items & Select Items */
+[role="menuitem"],
+[role="option"] {
+  color: #b8adb2 !important;
+  transition: all 0.15s ease !important;
+}
+
+[role="menuitem"]:hover,
+[role="menuitem"]:focus,
+[role="menuitem"][data-highlighted],
+[role="option"]:hover,
+[role="option"]:focus,
+[role="option"][data-highlighted] {
+  background-color: #252026 !important;
+  color: #f7f0ee !important;
+}
+
+/* Universal Table Styles */
+table,
+thead,
+tbody,
+tr,
+th,
+td {
+  border-color: #30282e !important;
+}
+
+th {
+  color: #82767d !important;
+}
+
+/* Studio custom scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #0b0a0c;
+}
+::-webkit-scrollbar-thumb {
+  background: #252026;
+  border-radius: 4px;
+  border: 1px solid #30282e;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #762d40;
 }

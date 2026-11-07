@@ -395,7 +395,7 @@ function ClientRouteComponent() {
                 key={acc.profile.id}
                 type="button"
                 onClick={() => handleQuickDemo(acc)}
-                className="rounded border border-amber-300 bg-white px-2 py-0.5 text-[11px] font-medium text-amber-900 shadow-2xs hover:bg-amber-100 transition-colors"
+                className="rounded border border-amber-500/30 bg-[#151317] px-2 py-0.5 text-[11px] font-medium text-amber-300 shadow-2xs hover:bg-[#1b181d] transition-colors"
               >
                 {acc.profile.approvalStatus === "approved"
                   ? "Approved Client"
@@ -488,7 +488,7 @@ function ClientRouteComponent() {
                 variant="outline"
                 onClick={handleRefreshStatus}
                 disabled={checkingStatus}
-                className="flex-1 border-[#30282e] hover:bg-stone-50 text-[#b8adb2]"
+                className="flex-1 border-[#30282e] hover:bg-[#1b181d] text-[#b8adb2]"
               >
                 <RefreshCw className={`size-3.5 mr-1.5 ${checkingStatus ? "animate-spin" : ""}`} />
                 Check Status
@@ -603,7 +603,7 @@ function ClientRouteComponent() {
                 variant="outline"
                 size="sm"
                 onClick={() => setIsSettingsOpen(true)}
-                className="border-[#30282e] text-xs text-[#b8adb2] hover:bg-stone-100"
+                className="border-[#30282e] text-xs text-[#b8adb2] hover:bg-[#1b181d]"
               >
                 <Settings className="size-3.5 mr-1 text-[#b8adb2]" />
                 Settings
@@ -769,7 +769,7 @@ function ClientRouteComponent() {
                           onChange={(e) =>
                             setCustomSongEventGroup(e.target.value as WeddingEventGroup)
                           }
-                          className="w-full h-8.5 rounded-md border border-stone-300 bg-white px-2.5 text-xs text-[#f7f0ee] focus:outline-hidden"
+                          className="w-full h-8.5 rounded-md border border-[#30282e] bg-[#1b181d] px-2.5 text-xs text-[#f7f0ee] focus:outline-hidden focus:border-[#c56c7d]"
                         >
                           {WEDDING_EVENT_GROUPS.map((grp) => (
                             <option key={grp} value={grp}>
@@ -811,7 +811,7 @@ function ClientRouteComponent() {
                         variant="outline"
                         size="sm"
                         onClick={() => setIsAddingCustomSong(false)}
-                        className="text-xs h-8 border-stone-300"
+                        className="text-xs h-8 border-[#30282e] text-[#b8adb2] hover:bg-[#1b181d]"
                       >
                         Cancel
                       </Button>
@@ -834,7 +834,7 @@ function ClientRouteComponent() {
                       <Plus className="size-3.5 text-purple-700" />
                       <span>Your Custom Song Requests ({customSongRequests.length})</span>
                     </h4>
-                    <div className="divide-y divide-purple-100 rounded-xl border border-purple-200 bg-white overflow-hidden">
+                    <div className="divide-y divide-[#30282e] rounded-xl border border-[#30282e] bg-[#151317] overflow-hidden">
                       {customSongRequests.map((req) => (
                         <div
                           key={req.id}
@@ -916,7 +916,7 @@ function ClientRouteComponent() {
                       <button
                         type="button"
                         onClick={() => setActiveYouTubeVideoId(null)}
-                        className="rounded-lg p-1 text-stone-400 hover:bg-stone-800 hover:text-white transition-colors"
+                        className="rounded-lg p-1 text-stone-400 hover:bg-[#1b181d] hover:text-[#f7f0ee] transition-colors"
                         title="Close player"
                       >
                         <X className="size-4" />
@@ -949,14 +949,14 @@ function ClientRouteComponent() {
 
                 {/* Library Filter Pills when assigned multiple libraries */}
                 {session.assignedLibraryIds && session.assignedLibraryIds.length > 1 && (
-                  <div className="mb-6 flex flex-wrap items-center gap-1.5 p-1 rounded-xl bg-stone-100 border border-[#30282e]/80">
+                  <div className="mb-6 flex flex-wrap items-center gap-1.5 p-1 rounded-xl bg-[#151317] border border-[#30282e]">
                     <button
                       type="button"
                       onClick={() => setSelectedLibraryFilter("all")}
                       className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${
                         selectedLibraryFilter === "all"
-                          ? "bg-white text-[#f7f0ee] shadow-2xs font-semibold"
-                          : "text-[#b8adb2] hover:text-[#f7f0ee] hover:bg-stone-50"
+                          ? "bg-[#762d40] text-white shadow-2xs font-semibold border border-[#c56c7d]/40"
+                          : "text-[#b8adb2] hover:text-[#f7f0ee] hover:bg-[#1b181d]"
                       }`}
                     >
                       All Assigned Libraries ({songs.length})
@@ -971,8 +971,8 @@ function ClientRouteComponent() {
                           onClick={() => setSelectedLibraryFilter(libId)}
                           className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${
                             selectedLibraryFilter === libId
-                              ? "bg-white text-[#f7f0ee] shadow-2xs font-semibold"
-                              : "text-[#b8adb2] hover:text-[#f7f0ee] hover:bg-stone-50"
+                              ? "bg-[#762d40] text-white shadow-2xs font-semibold border border-[#c56c7d]/40"
+                              : "text-[#b8adb2] hover:text-[#f7f0ee] hover:bg-[#1b181d]"
                           }`}
                         >
                           {libName} ({count})
@@ -1021,7 +1021,7 @@ function ClientRouteComponent() {
                                 <div
                                   key={song.id}
                                   className={`px-4 py-3 flex items-center justify-between gap-3 transition-colors ${
-                                    isSelected ? "bg-emerald-50/40" : "hover:bg-stone-50/60"
+                                    isSelected ? "bg-emerald-950/40" : "hover:bg-[#1b181d]"
                                   }`}
                                 >
                                   <div className="flex items-center gap-3 min-w-0">
@@ -1058,7 +1058,7 @@ function ClientRouteComponent() {
                                         className={`flex size-8 shrink-0 items-center justify-center rounded-full transition-colors ${
                                           playingSongId === song.id
                                             ? "bg-[#2d3a2e] text-white"
-                                            : "bg-stone-100 text-[#b8adb2] hover:bg-stone-200"
+                                            : "bg-[#1b181d] text-[#b8adb2] hover:bg-[#252026]"
                                         }`}
                                         title="Play audio preview"
                                       >
@@ -1107,7 +1107,7 @@ function ClientRouteComponent() {
                                       className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-medium transition-all ${
                                         isSelected
                                           ? "bg-emerald-600 text-white shadow-2xs"
-                                          : "border border-[#30282e] text-[#b8adb2] hover:border-stone-300 hover:bg-stone-50"
+                                          : "border border-[#30282e] text-[#b8adb2] hover:border-[#c56c7d] hover:bg-[#1b181d]"
                                       }`}
                                     >
                                       {isSelected ? (
@@ -1177,7 +1177,7 @@ function ClientRouteComponent() {
               }}
               className={`rounded-lg py-2 transition-all ${
                 mode === "login"
-                  ? "bg-white text-[#f7f0ee] shadow-2xs font-semibold"
+                  ? "bg-[#762d40] text-white shadow-2xs font-semibold border border-[#c56c7d]/40"
                   : "text-[#b8adb2] hover:text-[#f7f0ee]"
               }`}
             >
@@ -1192,7 +1192,7 @@ function ClientRouteComponent() {
               }}
               className={`rounded-lg py-2 transition-all ${
                 mode === "signup"
-                  ? "bg-white text-[#f7f0ee] shadow-2xs font-semibold"
+                  ? "bg-[#762d40] text-white shadow-2xs font-semibold border border-[#c56c7d]/40"
                   : "text-[#b8adb2] hover:text-[#f7f0ee]"
               }`}
             >
@@ -1361,7 +1361,7 @@ function ClientRouteComponent() {
                 </div>
               </div>
 
-              <div className="rounded-lg bg-stone-50 border border-[#30282e]/60 p-2.5 text-[11px] text-[#82767d]">
+              <div className="rounded-lg bg-[#151317] border border-[#30282e] p-2.5 text-[11px] text-[#82767d]">
                 <strong>Studio Approval Policy:</strong> Client accounts are reviewed by the TA
                 Bridals admin before song library access is granted. Signups always start as
                 &quot;pending&quot;.

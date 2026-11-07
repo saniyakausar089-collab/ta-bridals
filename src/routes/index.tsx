@@ -540,7 +540,12 @@ function Index() {
         fallbackPayload.notes = fallbackNotes || null;
 
         const fallbackResult = shootId
-          ? await supabase.from("shoots").update(fallbackPayload).eq("id", shootId).select().single()
+          ? await supabase
+              .from("shoots")
+              .update(fallbackPayload)
+              .eq("id", shootId)
+              .select()
+              .single()
           : await supabase.from("shoots").insert(fallbackPayload).select().single();
 
         if (!fallbackResult.error && fallbackResult.data) {
@@ -974,7 +979,7 @@ function Index() {
 
   if (access === "checking") {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-[#f8f7f4] text-[#4c514c]">
+      <main className="flex min-h-screen items-center justify-center bg-[#0b0a0c] text-[#f7f0ee]">
         <div className="flex items-center gap-3 text-sm">
           <LoaderCircle className="size-4 animate-spin" aria-hidden="true" />
           Checking your studio access…
@@ -1196,7 +1201,7 @@ function AuthScreen({
   }
 
   return (
-    <main className="grid min-h-screen bg-[#fbfaf7] lg:grid-cols-[1.05fr_0.95fr]">
+    <main className="grid min-h-screen bg-[#0b0a0c] text-[#f7f0ee] lg:grid-cols-[1.05fr_0.95fr]">
       <section className="relative hidden min-h-screen overflow-hidden bg-[#30382f] p-12 text-white lg:flex lg:flex-col lg:justify-between">
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_78%_20%,rgba(205,174,126,0.24),transparent_38%),linear-gradient(145deg,transparent_35%,rgba(12,18,12,0.65))]" />
         <div className="relative flex items-center gap-3">
@@ -1228,17 +1233,17 @@ function AuthScreen({
             <span className="grid size-10 place-items-center rounded-full bg-[#30382f] text-white">
               <Camera className="size-5" strokeWidth={1.5} />
             </span>
-            <span className="font-serif text-lg tracking-wide text-[#30382f]">TA BRIDALS</span>
+            <span className="font-serif text-lg tracking-wide text-[#f7f0ee]">TA BRIDALS</span>
           </div>
 
-          <div className="mb-6 grid grid-cols-2 rounded-xl bg-[#eeebe2] p-1 text-xs font-medium text-[#6c6e64]">
+          <div className="mb-6 grid grid-cols-2 rounded-xl bg-[#151317] border border-[#30282e] p-1 text-xs font-medium text-[#b8adb2]">
             <button
               type="button"
               onClick={() => handleModeSwitch("signin")}
               className={`rounded-lg py-2.5 transition-all ${
                 mode === "signin"
-                  ? "bg-white text-[#30382f] font-semibold shadow-xs"
-                  : "hover:text-[#30382f]"
+                  ? "bg-[#762d40] text-white font-semibold shadow-xs border border-[#c56c7d]/40"
+                  : "text-[#b8adb2] hover:text-[#f7f0ee]"
               }`}
             >
               Sign In
@@ -1248,21 +1253,21 @@ function AuthScreen({
               onClick={() => handleModeSwitch("signup")}
               className={`rounded-lg py-2.5 transition-all ${
                 mode === "signup"
-                  ? "bg-white text-[#30382f] font-semibold shadow-xs"
-                  : "hover:text-[#30382f]"
+                  ? "bg-[#762d40] text-white font-semibold shadow-xs border border-[#c56c7d]/40"
+                  : "text-[#b8adb2] hover:text-[#f7f0ee]"
               }`}
             >
               Create Account
             </button>
           </div>
 
-          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#8b806f]">
+          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[#d9b98c]">
             {mode === "signin" ? "Welcome back" : "New team member"}
           </p>
-          <h2 className="mt-2 font-serif text-3xl text-[#30382f] sm:text-4xl">
+          <h2 className="mt-2 font-serif text-3xl text-[#f7f0ee] sm:text-4xl">
             {mode === "signin" ? "Your studio, in sync." : "Join the studio team."}
           </h2>
-          <p className="mt-2 text-sm leading-6 text-[#77786f]">
+          <p className="mt-2 text-sm leading-6 text-[#b8adb2]">
             {mode === "signin"
               ? "Sign in with your mobile number to access your studio workspace."
               : "Register below. New accounts require owner approval before accessing studio data."}
@@ -1306,7 +1311,7 @@ function AuthScreen({
 
           {noticeMessage && (
             <div
-              className="mt-6 flex items-start justify-between gap-3 rounded-lg border border-[#c8ddc2] bg-[#f2f8f0] px-4 py-3 text-sm text-[#385333]"
+              className="mt-6 flex items-start justify-between gap-3 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-300"
               role="status"
             >
               <div className="flex items-start gap-2">
@@ -1325,10 +1330,10 @@ function AuthScreen({
 
           {mode === "signin" ? (
             <form className="mt-7 space-y-4" onSubmit={handleSignInSubmit}>
-              <label className="block space-y-1.5 text-sm font-medium text-[#444941]">
+              <label className="block space-y-1.5 text-sm font-medium text-[#b8adb2]">
                 Mobile Number
                 <Input
-                  className="h-12 rounded-lg border-[#dedbd2] bg-white px-4 text-sm"
+                  className="h-12 rounded-lg border-[#30282e] bg-[#1b181d] px-4 text-sm text-[#f7f0ee] placeholder:text-[#82767d] focus:border-[#c56c7d]"
                   type="tel"
                   inputMode="numeric"
                   name="mobileNumber"
@@ -1347,10 +1352,10 @@ function AuthScreen({
                 </span>
               </label>
 
-              <label className="block space-y-1.5 text-sm font-medium text-[#444941]">
+              <label className="block space-y-1.5 text-sm font-medium text-[#b8adb2]">
                 Password
                 <Input
-                  className="h-12 rounded-lg border-[#dedbd2] bg-white px-4 text-sm"
+                  className="h-12 rounded-lg border-[#30282e] bg-[#1b181d] px-4 text-sm text-[#f7f0ee] placeholder:text-[#82767d] focus:border-[#c56c7d]"
                   type="password"
                   name="password"
                   value={signInPassword}
@@ -1362,7 +1367,7 @@ function AuthScreen({
               </label>
 
               <Button
-                className="mt-2 h-12 w-full rounded-lg bg-[#344234] text-sm text-white hover:bg-[#283528]"
+                className="mt-2 h-12 w-full rounded-lg studio-glow-button bg-[#762d40] text-sm text-white hover:bg-[#c56c7d] border border-[#c56c7d]/40 shadow-[0_0_12px_rgba(197,108,125,0.25)]"
                 type="submit"
                 disabled={loading}
               >
@@ -1382,7 +1387,7 @@ function AuthScreen({
                   <button
                     type="button"
                     onClick={() => handleModeSwitch("signup")}
-                    className="font-medium text-[#344234] underline underline-offset-2 hover:text-[#1e271e]"
+                    className="font-medium text-[#e7a0ad] underline underline-offset-2 hover:text-[#f7f0ee]"
                   >
                     Create account & request access
                   </button>
@@ -1392,20 +1397,20 @@ function AuthScreen({
                   <button
                     type="button"
                     onClick={() => setShowLinkModal(true)}
-                    className="text-[#656358] underline underline-offset-2 hover:text-[#344234]"
+                    className="text-[#b8adb2] underline underline-offset-2 hover:text-[#e7a0ad]"
                   >
                     Existing user with email? Link your mobile number
                   </button>
                 </div>
               </div>
 
-              <div className="mt-4 border-t border-[#dedbd2] pt-3 text-center">
+              <div className="mt-4 border-t border-[#30282e] pt-3 text-center">
                 <p className="text-xs text-[#89877e]">
                   Wedding couple looking for your song library?
                 </p>
                 <Link
                   to="/client"
-                  className="mt-1.5 inline-flex items-center gap-1.5 rounded-lg border border-[#dedbd2] bg-white px-3 py-1.5 text-xs font-medium text-[#344234] hover:bg-[#f1f0e9] transition-colors"
+                  className="mt-1.5 inline-flex items-center gap-1.5 rounded-lg border border-[#30282e] bg-[#1b181d] px-3 py-1.5 text-xs font-medium text-[#e7a0ad] hover:bg-[#252026] transition-colors"
                 >
                   <Music2 className="size-3.5 text-[#546254]" />
                   Open Client Song Library Portal &rarr;
@@ -1414,10 +1419,10 @@ function AuthScreen({
             </form>
           ) : (
             <form className="mt-7 space-y-4" onSubmit={handleSignUpSubmit}>
-              <label className="block space-y-1.5 text-sm font-medium text-[#444941]">
+              <label className="block space-y-1.5 text-sm font-medium text-[#b8adb2]">
                 Full name
                 <Input
-                  className="h-12 rounded-lg border-[#dedbd2] bg-white px-4"
+                  className="h-12 rounded-lg border-[#30282e] bg-[#1b181d] px-4 text-[#f7f0ee] placeholder:text-[#82767d] focus:border-[#c56c7d]"
                   type="text"
                   name="fullName"
                   value={fullName}
@@ -1428,10 +1433,10 @@ function AuthScreen({
                 />
               </label>
 
-              <label className="block space-y-1.5 text-sm font-medium text-[#444941]">
+              <label className="block space-y-1.5 text-sm font-medium text-[#b8adb2]">
                 Mobile Number
                 <Input
-                  className="h-12 rounded-lg border-[#dedbd2] bg-white px-4 text-sm"
+                  className="h-12 rounded-lg border-[#30282e] bg-[#1b181d] px-4 text-sm text-[#f7f0ee] placeholder:text-[#82767d] focus:border-[#c56c7d]"
                   type="tel"
                   inputMode="numeric"
                   name="signUpMobile"
@@ -1447,10 +1452,10 @@ function AuthScreen({
                 </span>
               </label>
 
-              <label className="block space-y-1.5 text-sm font-medium text-[#444941]">
+              <label className="block space-y-1.5 text-sm font-medium text-[#b8adb2]">
                 Recovery Email Address
                 <Input
-                  className="h-12 rounded-lg border-[#dedbd2] bg-white px-4"
+                  className="h-12 rounded-lg border-[#30282e] bg-[#1b181d] px-4 text-[#f7f0ee] placeholder:text-[#82767d] focus:border-[#c56c7d]"
                   type="email"
                   name="email"
                   value={signUpEmail}
@@ -1461,10 +1466,10 @@ function AuthScreen({
                 />
               </label>
 
-              <label className="block space-y-1.5 text-sm font-medium text-[#444941]">
+              <label className="block space-y-1.5 text-sm font-medium text-[#b8adb2]">
                 Password
                 <Input
-                  className="h-12 rounded-lg border-[#dedbd2] bg-white px-4"
+                  className="h-12 rounded-lg border-[#30282e] bg-[#1b181d] px-4 text-[#f7f0ee] placeholder:text-[#82767d] focus:border-[#c56c7d]"
                   type="password"
                   name="password"
                   value={password}
@@ -1476,10 +1481,10 @@ function AuthScreen({
                 />
               </label>
 
-              <label className="block space-y-1.5 text-sm font-medium text-[#444941]">
+              <label className="block space-y-1.5 text-sm font-medium text-[#b8adb2]">
                 Confirm password
                 <Input
-                  className="h-12 rounded-lg border-[#dedbd2] bg-white px-4"
+                  className="h-12 rounded-lg border-[#30282e] bg-[#1b181d] px-4 text-[#f7f0ee] placeholder:text-[#82767d] focus:border-[#c56c7d]"
                   type="password"
                   name="confirmPassword"
                   value={confirmPassword}
@@ -1500,7 +1505,7 @@ function AuthScreen({
               </div>
 
               <Button
-                className="mt-2 h-12 w-full rounded-lg bg-[#344234] text-sm text-white hover:bg-[#283528]"
+                className="mt-2 h-12 w-full rounded-lg studio-glow-button bg-[#762d40] text-sm text-white hover:bg-[#c56c7d] border border-[#c56c7d]/40 shadow-[0_0_12px_rgba(197,108,125,0.25)]"
                 type="submit"
                 disabled={loading}
               >
@@ -1519,8 +1524,8 @@ function AuthScreen({
           {/* Account Linking Modal for Existing Users */}
           {showLinkModal && (
             <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-              <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl border border-stone-200">
-                <h3 className="font-serif text-xl text-[#30382f]">Link Mobile Number to Account</h3>
+              <div className="w-full max-w-md rounded-2xl bg-[#151317] p-6 shadow-2xl border border-[#30282e] text-[#f7f0ee]">
+                <h3 className="font-serif text-xl text-[#f7f0ee]">Link Mobile Number to Account</h3>
                 <p className="mt-1 text-xs text-stone-600 leading-relaxed">
                   If you created your account with an email address previously, enter your
                   credentials below along with your 10-digit mobile number to enable mobile login.
@@ -1538,7 +1543,7 @@ function AuthScreen({
                 )}
 
                 <form onSubmit={handleLinkAccountSubmit} className="mt-4 space-y-3">
-                  <label className="block text-xs font-medium text-stone-700">
+                  <label className="block text-xs font-medium text-[#b8adb2]">
                     Registered Email
                     <Input
                       type="email"
@@ -1550,7 +1555,7 @@ function AuthScreen({
                     />
                   </label>
 
-                  <label className="block text-xs font-medium text-stone-700">
+                  <label className="block text-xs font-medium text-[#b8adb2]">
                     Account Password
                     <Input
                       type="password"
@@ -1562,7 +1567,7 @@ function AuthScreen({
                     />
                   </label>
 
-                  <label className="block text-xs font-medium text-stone-700">
+                  <label className="block text-xs font-medium text-[#b8adb2]">
                     10-Digit Mobile Number
                     <Input
                       type="tel"
@@ -1576,7 +1581,7 @@ function AuthScreen({
                     />
                   </label>
 
-                  <div className="mt-5 flex justify-end gap-2 pt-2 border-t border-stone-100">
+                  <div className="mt-5 flex justify-end gap-2 pt-2 border-t border-[#30282e]">
                     <Button
                       type="button"
                       variant="outline"
@@ -1589,7 +1594,7 @@ function AuthScreen({
                     <Button
                       type="submit"
                       disabled={linkLoading}
-                      className="bg-[#344234] text-white hover:bg-[#283528] text-xs"
+                      className="studio-glow-button bg-[#762d40] text-white hover:bg-[#c56c7d] border border-[#c56c7d]/40 text-xs"
                     >
                       {linkLoading ? "Linking..." : "Verify & Link Number"}
                     </Button>
@@ -1618,8 +1623,8 @@ function PendingApprovalScreen({
   onSignOut: () => void;
 }) {
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center bg-[#fbfaf7] px-6 py-12">
-      <div className="w-full max-w-lg rounded-2xl border border-[#e8e5dc] bg-white p-8 shadow-xs sm:p-10">
+    <main className="flex min-h-screen flex-col items-center justify-center bg-[#0b0a0c] text-[#f7f0ee] px-6 py-12">
+      <div className="w-full max-w-lg rounded-2xl border border-[#30282e] bg-[#151317] p-8 shadow-xl sm:p-10 text-[#f7f0ee]">
         <div className="flex items-center justify-between border-b border-[#f1eee6] pb-6">
           <Brand />
           <span className="flex items-center gap-1.5 rounded-full bg-amber-50 px-3 py-1 text-xs font-medium text-amber-800 border border-amber-200">
@@ -1629,9 +1634,9 @@ function PendingApprovalScreen({
         </div>
 
         <div className="mt-8 text-center sm:text-left">
-          <h1 className="font-serif text-3xl text-[#30382f]">Registration Submitted</h1>
+          <h1 className="font-serif text-3xl text-[#f7f0ee]">Registration Submitted</h1>
           <p className="mt-3 text-sm leading-6 text-[#696c64]">
-            Hello <span className="font-semibold text-[#30382f]">{displayName}</span>. Your account
+            Hello <span className="font-semibold text-[#f7f0ee]">{displayName}</span>. Your account
             has been created and is waiting for review by the studio owner.
           </p>
         </div>
@@ -1639,7 +1644,7 @@ function PendingApprovalScreen({
         <div className="mt-6 space-y-3 rounded-xl bg-[#f8f7f3] p-5 text-xs leading-5 text-[#6c6e66]">
           <div className="flex items-center justify-between border-b border-[#ece8de] pb-2">
             <span className="font-medium text-[#494c44]">Registered account:</span>
-            <span className="font-mono text-[#30382f]">{email}</span>
+            <span className="font-mono text-[#e7a0ad]">{email}</span>
           </div>
           <div className="flex items-center justify-between border-b border-[#ece8de] pb-2">
             <span className="font-medium text-[#494c44]">Access level:</span>
@@ -1656,7 +1661,7 @@ function PendingApprovalScreen({
           <Button
             onClick={onCheckStatus}
             disabled={checkingStatus}
-            className="flex-1 h-11 bg-[#344234] text-white hover:bg-[#283528]"
+            className="flex-1 h-11 studio-glow-button bg-[#762d40] text-white hover:bg-[#c56c7d] border border-[#c56c7d]/40"
           >
             {checkingStatus ? (
               <>
@@ -1673,7 +1678,7 @@ function PendingApprovalScreen({
           <Button
             variant="outline"
             onClick={onSignOut}
-            className="h-11 border-[#dedbd2] text-[#4d5149]"
+            className="h-11 border-[#30282e] bg-[#1b181d] text-[#b8adb2]"
           >
             <LogOut className="size-4 mr-1.5" />
             Sign out
@@ -1693,21 +1698,21 @@ function RejectedScreen({
   onSignOut: () => void;
 }) {
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center bg-[#fbfaf7] px-6 py-12">
-      <div className="w-full max-w-md rounded-2xl border border-red-200 bg-white p-8 text-center shadow-xs">
+    <main className="flex min-h-screen flex-col items-center justify-center bg-[#0b0a0c] text-[#f7f0ee] px-6 py-12">
+      <div className="w-full max-w-md rounded-2xl border border-red-500/30 bg-[#151317] p-8 text-center shadow-xl text-[#f7f0ee]">
         <div className="mx-auto grid size-12 place-items-center rounded-full bg-red-50 text-red-700">
           <ShieldAlert className="size-6" />
         </div>
-        <h1 className="mt-4 font-serif text-2xl text-[#30382f]">Registration Not Approved</h1>
+        <h1 className="mt-4 font-serif text-2xl text-[#f7f0ee]">Registration Not Approved</h1>
         <p className="mt-2 text-sm leading-6 text-[#72756d]">
-          The registration for <span className="font-medium text-[#30382f]">{email}</span> was not
+          The registration for <span className="font-medium text-[#e7a0ad]">{email}</span> was not
           approved by the studio administrator. If you believe this is in error, please contact
           studio management directly.
         </p>
         <div className="mt-6">
           <Button
             onClick={onSignOut}
-            className="w-full h-11 bg-[#344234] text-white hover:bg-[#283528]"
+            className="w-full h-11 studio-glow-button bg-[#762d40] text-white hover:bg-[#c56c7d] border border-[#c56c7d]/40"
           >
             <LogOut className="size-4 mr-1.5" />
             Sign out
@@ -1902,10 +1907,10 @@ function Workspace({
   const firstName = profileName.trim().split(/\s+/)[0] || "there";
 
   return (
-    <div className="studio-app min-h-screen bg-[#f8f7f4] text-[#343a33]">
-      <aside className="fixed inset-y-0 left-0 z-10 hidden w-[196px] flex-col border-r border-[#e9e7df] bg-white px-4 py-6 lg:flex">
+    <div className="studio-app min-h-screen bg-[#0b0a0c] text-[#f7f0ee]">
+      <aside className="fixed inset-y-0 left-0 z-10 hidden w-[196px] flex-col border-r border-[#30282e] bg-[#100d10] px-4 py-6 lg:flex">
         <Brand />
-        <p className="mb-3 mt-12 px-3 text-[10px] font-semibold uppercase tracking-[0.2em] text-[#aaa69b]">
+        <p className="mb-3 mt-12 px-3 text-[10px] font-semibold uppercase tracking-[0.2em] text-[#d9b98c]">
           Workspace
         </p>
         <nav className="space-y-1" aria-label="Main navigation">
@@ -1934,8 +1939,8 @@ function Workspace({
                 aria-current={section === id ? "page" : undefined}
                 className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm transition-colors ${
                   section === id
-                    ? "bg-[#eef0eb] font-medium text-[#344234]"
-                    : "text-[#74766e] hover:bg-[#f7f6f2] hover:text-[#343a33]"
+                    ? "studio-glow-card bg-[#762d40]/40 font-medium text-[#e7a0ad] border border-[#c56c7d]/40 shadow-[0_0_12px_rgba(197,108,125,0.2)]"
+                    : "text-[#b8adb2] hover:bg-[#1b181d] hover:text-[#f7f0ee]"
                 }`}
               >
                 <Icon className="size-[17px] shrink-0" strokeWidth={1.8} aria-hidden="true" />
@@ -1949,22 +1954,22 @@ function Workspace({
             );
           })}
         </nav>
-        <div className="mt-auto rounded-xl bg-[#f7f6f2] p-4">
-          <p className="font-serif text-sm italic text-[#586651]">
+        <div className="mt-auto rounded-xl bg-[#151317] border border-[#30282e] p-4">
+          <p className="font-serif text-sm italic text-[#d9b98c]">
             {isAdmin ? "Weddings are better with the right team." : "Welcome to the studio team."}
           </p>
         </div>
         <Link
           to="/client"
-          className="mt-4 flex items-center gap-2.5 rounded-xl border border-[#dedbd2] bg-[#fbfaf7] px-3 py-2 text-xs font-medium text-[#344234] hover:bg-[#f1f0e9] transition-colors"
+          className="studio-glow-button mt-4 flex items-center gap-2.5 rounded-xl border border-[#30282e] bg-[#151317] px-3 py-2 text-xs font-medium text-[#e7a0ad] hover:bg-[#1b181d] transition-colors"
         >
-          <Music2 className="size-4 text-[#526052]" />
+          <Music2 className="size-4 text-[#e7a0ad]" />
           <span>Client Song Portal &rarr;</span>
         </Link>
         <button
           type="button"
           onClick={onSignOut}
-          className="mt-3 flex items-center gap-3 px-3 py-2 text-sm text-[#76776f] hover:text-[#343a33]"
+          className="mt-3 flex items-center gap-3 px-3 py-2 text-sm text-[#82767d] hover:text-[#f7f0ee] transition-colors"
         >
           <LogOut className="size-4" aria-hidden="true" />
           Sign out
@@ -1972,7 +1977,7 @@ function Workspace({
       </aside>
 
       <div className="lg:pl-[196px]">
-        <header className="sticky top-0 z-[5] border-b border-[#e9e7df] bg-white/95 backdrop-blur">
+        <header className="sticky top-0 z-[5] border-b border-[#30282e] bg-[#100d10]/95 backdrop-blur">
           <div className="mx-auto flex h-[62px] max-w-[1440px] items-center justify-between px-5 sm:px-7">
             <div className="flex items-center gap-3 lg:hidden">
               <Brand compact />
@@ -2002,7 +2007,9 @@ function Workspace({
                     onClick={() => onSectionChange(id)}
                     aria-current={section === id ? "page" : undefined}
                     className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-md px-2.5 py-2 text-xs ${
-                      section === id ? "bg-[#eef0eb] font-medium text-[#344234]" : "text-[#76776f]"
+                      section === id
+                        ? "bg-[#762d40] font-medium text-white shadow-[0_0_10px_rgba(197,108,125,0.3)] border border-[#c56c7d]/40"
+                        : "text-[#b8adb2] hover:text-[#f7f0ee]"
                     }`}
                   >
                     <span>{mobileLabel}</span>
@@ -2019,7 +2026,7 @@ function Workspace({
                 aria-hidden="true"
               />
               <Input
-                className="h-9 border-[#e6e4dd] bg-[#f8f7f4] pl-9 text-xs"
+                className="h-9 border-[#30282e] bg-[#151317] text-[#f7f0ee] placeholder:text-[#82767d] pl-9 text-xs focus:border-[#c56c7d]"
                 placeholder="Search your studio"
                 aria-label="Search your studio"
                 value={globalQuery}
@@ -2058,27 +2065,27 @@ function Workspace({
               )}
               <Link
                 to="/client"
-                className="hidden sm:inline-flex items-center gap-1.5 rounded-lg border border-[#dedbd2] bg-[#f8f7f4] px-3 py-1.5 text-xs font-medium text-[#344234] hover:bg-[#edeae2] transition-colors shadow-2xs"
+                className="studio-glow-button hidden sm:inline-flex items-center gap-1.5 rounded-lg border border-[#30282e] bg-[#151317] px-3 py-1.5 text-xs font-medium text-[#e7a0ad] hover:bg-[#1b181d] transition-colors shadow-2xs"
               >
-                <Music2 className="size-3.5 text-[#526052]" />
+                <Music2 className="size-3.5 text-[#e7a0ad]" />
                 Client Song Portal &rarr;
               </Link>
               <button
                 type="button"
                 onClick={() => setIsSettingsOpen(true)}
                 title="Account Settings (Change Name / Password)"
-                className="flex items-center gap-2 rounded-xl p-1.5 hover:bg-white/10 text-left transition-colors cursor-pointer group"
+                className="flex items-center gap-2 rounded-xl p-1.5 hover:bg-[#1b181d] text-left transition-colors cursor-pointer group"
               >
                 <div className="hidden text-right sm:block">
-                  <p className="text-xs font-medium text-[#42483f] group-hover:text-[#e7a0ad] transition-colors">
+                  <p className="text-xs font-medium text-[#f7f0ee] group-hover:text-[#e7a0ad] transition-colors">
                     {displayedName}
                   </p>
-                  <p className="mt-0.5 text-[10px] text-[#99968c]">
+                  <p className="mt-0.5 text-[10px] text-[#82767d]">
                     {isAdmin ? "Studio owner" : "Team member"}
                   </p>
                 </div>
                 <div
-                  className="grid size-9 place-items-center rounded-full bg-[#e9ece5] text-xs font-semibold text-[#435040] border border-transparent group-hover:border-[#c56c7d] transition-all"
+                  className="grid size-9 place-items-center rounded-full bg-[#762d40]/40 text-xs font-semibold text-[#e7a0ad] border border-[#c56c7d]/30 group-hover:border-[#c56c7d] transition-all"
                   aria-hidden="true"
                 >
                   {displayedName.slice(0, 1).toUpperCase() || firstName.slice(0, 1).toUpperCase()}
@@ -2089,7 +2096,7 @@ function Workspace({
               <button
                 type="button"
                 onClick={onSignOut}
-                className="rounded-md p-2 text-[#8a897f] hover:bg-[#f5f4f0] lg:hidden"
+                className="rounded-md p-2 text-[#b8adb2] hover:bg-[#1b181d] lg:hidden"
                 aria-label="Sign out"
               >
                 <LogOut className="size-4" />
@@ -2110,21 +2117,21 @@ function Workspace({
         <main className="studio-main mx-auto max-w-[1440px] px-5 py-6 sm:px-7">
           <div className="mb-8 flex flex-wrap items-end justify-between gap-4">
             <div>
-              <p className="mb-2 text-[10px] font-medium uppercase tracking-[0.2em] text-[#9a8c77]">
+              <p className="mb-2 text-[10px] font-medium uppercase tracking-[0.2em] text-[#d9b98c]">
                 {section === "overview" ? "WEDDING STUDIO · " : ""}
                 {format(new Date(), "EEEE, MMMM d, yyyy")}
               </p>
-              <h1 className="font-serif text-[30px] leading-tight text-[#343a33] sm:text-[34px]">
+              <h1 className="font-serif text-[30px] leading-tight text-[#f7f0ee] sm:text-[34px]">
                 {section === "overview" ? `Welcome back, ${firstName}.` : copy.title}
               </h1>
-              <p className="mt-2 text-sm text-[#818177]">
+              <p className="mt-2 text-sm text-[#b8adb2]">
                 {section === "overview"
                   ? "Manage your shoots, team assignments and upcoming events — all in one place."
                   : copy.description}
               </p>
             </div>
             {loading && (
-              <span className="flex items-center gap-2 pb-1 text-xs text-[#77786f]">
+              <span className="flex items-center gap-2 pb-1 text-xs text-[#82767d]">
                 <LoaderCircle className="size-3.5 animate-spin" aria-hidden="true" />
                 Updating
               </span>
@@ -2133,7 +2140,7 @@ function Workspace({
 
           {error ? (
             <div
-              className="flex flex-wrap items-center justify-between gap-4 rounded-xl border border-red-200 bg-white p-5"
+              className="flex flex-wrap items-center justify-between gap-4 rounded-xl border border-red-500/30 bg-[#151317] p-5"
               role="alert"
             >
               <div>
@@ -2384,7 +2391,7 @@ function RegistrationsView({
   return (
     <div className="space-y-6">
       <div className="grid gap-4 sm:grid-cols-3">
-        <div className="rounded-xl border border-[#e9e6dd] bg-white p-5">
+        <div className="studio-glow-card rounded-xl border border-[#30282e] bg-[#151317] p-5">
           <div className="flex items-center justify-between">
             <span className="text-xs font-medium uppercase tracking-wider text-[#8b877a]">
               Pending Approval
@@ -2393,11 +2400,11 @@ function RegistrationsView({
               <Clock3 className="size-4" />
             </span>
           </div>
-          <p className="mt-3 font-serif text-3xl text-[#30382f]">{pendingCount}</p>
+          <p className="mt-3 font-serif text-3xl text-[#e7a0ad]">{pendingCount}</p>
           <p className="mt-1 text-xs text-[#89867b]">Awaiting owner verification</p>
         </div>
 
-        <div className="rounded-xl border border-[#e9e6dd] bg-white p-5">
+        <div className="studio-glow-card rounded-xl border border-[#30282e] bg-[#151317] p-5">
           <div className="flex items-center justify-between">
             <span className="text-xs font-medium uppercase tracking-wider text-[#8b877a]">
               Approved Team
@@ -2406,11 +2413,11 @@ function RegistrationsView({
               <ShieldCheck className="size-4" />
             </span>
           </div>
-          <p className="mt-3 font-serif text-3xl text-[#30382f]">{approvedCount}</p>
+          <p className="mt-3 font-serif text-3xl text-[#71d8aa]">{approvedCount}</p>
           <p className="mt-1 text-xs text-[#89867b]">Full team member access</p>
         </div>
 
-        <div className="rounded-xl border border-[#e9e6dd] bg-white p-5">
+        <div className="studio-glow-card rounded-xl border border-[#30282e] bg-[#151317] p-5">
           <div className="flex items-center justify-between">
             <span className="text-xs font-medium uppercase tracking-wider text-[#8b877a]">
               Total Registrations
@@ -2419,14 +2426,14 @@ function RegistrationsView({
               <Users className="size-4" />
             </span>
           </div>
-          <p className="mt-3 font-serif text-3xl text-[#30382f]">{registrations.length}</p>
+          <p className="mt-3 font-serif text-3xl text-[#f7f0ee]">{registrations.length}</p>
           <p className="mt-1 text-xs text-[#89867b]">All time account requests</p>
         </div>
       </div>
 
       {actionNotice && (
         <div
-          className="flex items-center justify-between rounded-lg border border-[#c4dcbf] bg-[#f2f8f0] px-4 py-3 text-sm text-[#385333]"
+          className="flex items-center justify-between rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-300"
           role="status"
         >
           <div className="flex items-center gap-2">
@@ -2459,16 +2466,16 @@ function RegistrationsView({
         </div>
       )}
 
-      <section className="overflow-hidden rounded-2xl border border-[#e9e7df] bg-white">
-        <div className="flex flex-wrap items-center justify-between gap-4 border-b border-[#efeee9] px-5 py-4 sm:px-6">
+      <section className="overflow-hidden rounded-2xl border border-[#30282e] bg-[#151317]">
+        <div className="flex flex-wrap items-center justify-between gap-4 border-b border-[#30282e] px-5 py-4 sm:px-6">
           <div className="flex flex-wrap items-center gap-1">
             <button
               type="button"
               onClick={() => setFilter("pending")}
               className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
                 filter === "pending"
-                  ? "bg-[#344234] text-white"
-                  : "bg-[#f4f2ec] text-[#696b61] hover:text-[#30382f]"
+                  ? "bg-[#762d40] text-white border border-[#c56c7d]/40 shadow-[0_0_10px_rgba(197,108,125,0.25)]"
+                  : "bg-[#1b181d] text-[#b8adb2] hover:text-[#f7f0ee]"
               }`}
             >
               Pending ({pendingCount})
@@ -2478,8 +2485,8 @@ function RegistrationsView({
               onClick={() => setFilter("approved")}
               className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
                 filter === "approved"
-                  ? "bg-[#344234] text-white"
-                  : "bg-[#f4f2ec] text-[#696b61] hover:text-[#30382f]"
+                  ? "bg-[#762d40] text-white border border-[#c56c7d]/40 shadow-[0_0_10px_rgba(197,108,125,0.25)]"
+                  : "bg-[#1b181d] text-[#b8adb2] hover:text-[#f7f0ee]"
               }`}
             >
               Approved ({approvedCount})
@@ -2489,8 +2496,8 @@ function RegistrationsView({
               onClick={() => setFilter("rejected")}
               className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
                 filter === "rejected"
-                  ? "bg-[#344234] text-white"
-                  : "bg-[#f4f2ec] text-[#696b61] hover:text-[#30382f]"
+                  ? "bg-[#762d40] text-white border border-[#c56c7d]/40 shadow-[0_0_10px_rgba(197,108,125,0.25)]"
+                  : "bg-[#1b181d] text-[#b8adb2] hover:text-[#f7f0ee]"
               }`}
             >
               Rejected ({rejectedCount})
@@ -2500,8 +2507,8 @@ function RegistrationsView({
               onClick={() => setFilter("all")}
               className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
                 filter === "all"
-                  ? "bg-[#344234] text-white"
-                  : "bg-[#f4f2ec] text-[#696b61] hover:text-[#30382f]"
+                  ? "bg-[#762d40] text-white border border-[#c56c7d]/40 shadow-[0_0_10px_rgba(197,108,125,0.25)]"
+                  : "bg-[#1b181d] text-[#b8adb2] hover:text-[#f7f0ee]"
               }`}
             >
               All ({registrations.length})
@@ -2531,7 +2538,7 @@ function RegistrationsView({
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Search requests…"
-                className="h-9 border-[#e6e4dd] pl-8 text-xs"
+                className="h-9 border-[#30282e] bg-[#1b181d] text-[#f7f0ee] placeholder:text-[#82767d] pl-8 text-xs focus:border-[#c56c7d]"
               />
             </label>
             <Button
@@ -2563,7 +2570,7 @@ function RegistrationsView({
             }
           />
         ) : (
-          <div className="divide-y divide-[#f2efe8]">
+          <div className="divide-y divide-[#30282e]">
             {filteredRegistrations.map((reg) => {
               const isOwner = isOwnerEmail(reg.email);
               const isProcessing = processingId === reg.user_id;
@@ -2571,13 +2578,13 @@ function RegistrationsView({
               return (
                 <article
                   key={reg.user_id}
-                  className="flex flex-col gap-4 p-5 transition-colors hover:bg-[#faf9f5] sm:flex-row sm:items-center sm:justify-between"
+                  className="flex flex-col gap-4 p-5 transition-colors hover:bg-[#1b181d]/70 sm:flex-row sm:items-center sm:justify-between"
                 >
                   <div className="flex items-start gap-3 min-w-0">
                     <Avatar name={reg.display_name || "Team Member"} />
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2">
-                        <p className="truncate text-sm font-medium text-[#30382f]">
+                        <p className="truncate text-sm font-medium text-[#f7f0ee]">
                           {reg.display_name || "Unnamed applicant"}
                         </p>
                         {isOwner && (
@@ -2607,7 +2614,7 @@ function RegistrationsView({
                           size="sm"
                           onClick={() => handleApprove(reg.user_id, reg.display_name)}
                           disabled={isProcessing}
-                          className="h-8 bg-[#344234] text-white hover:bg-[#283528] text-xs font-medium"
+                          className="h-8 studio-glow-button bg-[#762d40] text-white hover:bg-[#c56c7d] border border-[#c56c7d]/40 text-xs font-medium"
                         >
                           {isProcessing ? (
                             <LoaderCircle className="size-3.5 animate-spin" />
@@ -2623,7 +2630,7 @@ function RegistrationsView({
                           variant="outline"
                           onClick={() => handleReject(reg.user_id, reg.display_name)}
                           disabled={isProcessing}
-                          className="h-8 border-[#dedbd2] text-red-700 hover:bg-red-50 text-xs font-medium"
+                          className="h-8 border-red-500/30 text-rose-400 hover:bg-red-500/10 text-xs font-medium"
                         >
                           <X className="size-3 mr-1" />
                           Reject
@@ -2662,7 +2669,7 @@ function RegistrationsView({
                           variant="outline"
                           onClick={() => handleDelete(reg.user_id, reg.display_name)}
                           disabled={isProcessing}
-                          className="h-8 border-[#dedbd2] text-red-700 hover:bg-red-50 text-xs font-medium"
+                          className="h-8 border-red-500/30 text-rose-400 hover:bg-red-500/10 text-xs font-medium"
                           title="Permanently delete registration record"
                         >
                           <Trash2 className="size-3 mr-1" />
@@ -2714,7 +2721,7 @@ function Brand({ compact = false }: { compact?: boolean }) {
       </span>
       {!compact && (
         <span>
-          <span className="block font-serif text-base tracking-[0.08em] text-[#344234]">
+          <span className="block font-serif text-base tracking-[0.08em] text-[#f7f0ee]">
             TA BRIDALS
           </span>
           <span className="mt-0.5 block text-[9px] uppercase tracking-[0.18em] text-[#969287]">
@@ -2914,7 +2921,7 @@ function Overview({
           <Button
             size="sm"
             onClick={() => onNavigate("approvals")}
-            className="h-8 bg-[#344234] text-white hover:bg-[#283528] text-xs font-medium"
+            className="h-8 studio-glow-button bg-[#762d40] text-white hover:bg-[#c56c7d] border border-[#c56c7d]/40 text-xs font-medium"
           >
             Review registrations
           </Button>
@@ -2984,18 +2991,18 @@ function Overview({
       </div>
 
       <div className="grid gap-4 2xl:grid-cols-[minmax(0,1.4fr)_minmax(350px,0.9fr)]">
-        <section className="overflow-hidden rounded-2xl border border-[#e9e7df] bg-white">
-          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#efeee9] px-5 py-5 sm:px-6">
+        <section className="overflow-hidden rounded-2xl border border-[#30282e] bg-[#151317]">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#30282e] px-5 py-5 sm:px-6">
             <div>
-              <h2 className="font-serif text-xl text-[#3e453d]">Upcoming shoots</h2>
-              <p className="mt-1 text-xs text-[#929086]">
+              <h2 className="font-serif text-xl text-[#f7f0ee]">Upcoming shoots</h2>
+              <p className="mt-1 text-xs text-[#b8adb2]">
                 Your next celebrations, all in one place.
               </p>
             </div>
             <button
               type="button"
               onClick={() => onNavigate("shoots")}
-              className="text-xs font-medium text-[#586651] hover:text-[#344234]"
+              className="text-xs font-medium text-[#e7a0ad] hover:text-[#f7f0ee] transition-colors"
             >
               View all <span aria-hidden="true">→</span>
             </button>
@@ -3008,7 +3015,7 @@ function Overview({
               detail="When you add an upcoming shoot, it'll show up here."
             />
           ) : (
-            <div className="divide-y divide-[#f0efe9]">
+            <div className="divide-y divide-[#30282e]">
               {upcoming.slice(0, 5).map((shoot) => {
                 const shootAssignments = assignments.filter((a) => a.shoot_id === shoot.id);
                 const assignedMembers = shootAssignments.map((a) => {
@@ -3046,18 +3053,18 @@ function Overview({
       </div>
 
       <section className="grid gap-4 xl:grid-cols-[1fr_1fr]">
-        <div className="rounded-2xl border border-[#e9e7df] bg-white p-5 sm:p-6">
+        <div className="rounded-2xl border border-[#30282e] bg-[#151317] p-5 sm:p-6">
           <div className="flex items-center justify-between gap-3">
             <div>
-              <h2 className="font-serif text-xl text-[#3e453d]">Team overview</h2>
-              <p className="mt-1 text-xs text-[#929086]">
+              <h2 className="font-serif text-xl text-[#f7f0ee]">Team overview</h2>
+              <p className="mt-1 text-xs text-[#b8adb2]">
                 {team.length} registered · {availableCount} available
               </p>
             </div>
             <button
               type="button"
               onClick={() => onNavigate("team")}
-              className="text-xs font-medium text-[#586651] hover:text-[#344234]"
+              className="text-xs font-medium text-[#e7a0ad] hover:text-[#f7f0ee] transition-colors"
             >
               Meet the team <span aria-hidden="true">→</span>
             </button>
@@ -3096,10 +3103,10 @@ function Overview({
                   <div key={member.id} className="flex items-center gap-3">
                     <Avatar name={member.full_name} />
                     <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-medium text-[#444941]">
+                      <p className="truncate text-sm font-medium text-[#f7f0ee]">
                         {member.full_name}
                       </p>
-                      <p className="mt-0.5 truncate text-xs text-[#929086]">{member.role}</p>
+                      <p className="mt-0.5 truncate text-xs text-[#b8adb2]">{member.role}</p>
                     </div>
                     <Availability available={member.available} />
                   </div>
@@ -3108,7 +3115,7 @@ function Overview({
             </>
           )}
         </div>
-        <div className="studio-feature-panel flex flex-col justify-between rounded-2xl bg-[#344234] p-6 text-white sm:p-7">
+        <div className="studio-feature-panel flex flex-col justify-between rounded-2xl bg-[#151317] border border-[#30282e] p-6 text-[#f7f0ee] sm:p-7">
           <div>
             <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[#d5c7ad]">
               A NOTE FOR THE STUDIO
@@ -3135,9 +3142,9 @@ function Overview({
 
 function TeamSummary({ label, value }: { label: string; value: number }) {
   return (
-    <div className="rounded-lg border border-[#e9e7df] bg-[#f8f7f4] px-3 py-2.5">
-      <p className="text-lg font-medium text-[#3e453d]">{value}</p>
-      <p className="mt-1 text-[10px] text-[#929086]">{label}</p>
+    <div className="rounded-lg border border-[#30282e] bg-[#1b181d] px-3 py-2.5">
+      <p className="text-lg font-medium text-[#f7f0ee]">{value}</p>
+      <p className="mt-1 text-[10px] text-[#b8adb2]">{label}</p>
     </div>
   );
 }
@@ -3154,13 +3161,13 @@ function MetricCard({
   children: React.ReactNode;
 }) {
   return (
-    <div className="rounded-xl border border-[#e9e7df] bg-white p-5">
+    <div className="studio-glow-card rounded-xl border border-[#30282e] bg-[#151317] p-5">
       <div className="flex items-center justify-between text-[#8d927f]">
-        <span className="text-xs font-medium text-[#77786f]">{label}</span>
+        <span className="text-xs font-medium text-[#b8adb2]">{label}</span>
         {children}
       </div>
-      <p className="mt-5 font-serif text-3xl text-[#394238]">{value}</p>
-      <p className="mt-1 text-[11px] text-[#99968c]">{caption}</p>
+      <p className="mt-5 font-serif text-3xl text-[#f7f0ee]">{value}</p>
+      <p className="mt-1 text-[11px] text-[#82767d]">{caption}</p>
     </div>
   );
 }
@@ -3258,21 +3265,23 @@ function CalendarView({
 
   return (
     <>
-      <section className="overflow-hidden rounded-2xl border border-[#e9e7df] bg-white">
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#efeee9] px-5 py-4 sm:px-6">
+      <section className="overflow-hidden rounded-2xl border border-[#30282e] bg-[#151317]">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#30282e] px-5 py-4 sm:px-6">
           <div>
-            <h2 className="font-serif text-xl text-[#3e453d]">
+            <h2 className="font-serif text-xl text-[#f7f0ee]">
               {format(anchor, view === "month" ? "MMMM yyyy" : "'Week of' MMM d, yyyy")}
             </h2>
-            <p className="mt-1 text-xs text-[#929086]">Studio shoot schedule</p>
+            <p className="mt-1 text-xs text-[#b8adb2]">Studio shoot schedule</p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
             {!compact && (
-              <div className="flex rounded-lg border border-[#e6e4dd] bg-[#f8f7f4] p-0.5 text-xs">
+              <div className="flex rounded-lg border border-[#30282e] bg-[#1b181d] p-0.5 text-xs">
                 <button
                   type="button"
                   className={`rounded px-2.5 py-1 ${
-                    view === "month" ? "bg-white font-medium text-[#344234]" : "text-[#76776f]"
+                    view === "month"
+                      ? "bg-[#762d40] font-medium text-white shadow-[0_0_10px_rgba(197,108,125,0.3)] border border-[#c56c7d]/40"
+                      : "text-[#b8adb2] hover:text-[#f7f0ee]"
                   }`}
                   onClick={() => setView("month")}
                 >
@@ -3281,7 +3290,9 @@ function CalendarView({
                 <button
                   type="button"
                   className={`rounded px-2.5 py-1 ${
-                    view === "week" ? "bg-white font-medium text-[#344234]" : "text-[#76776f]"
+                    view === "week"
+                      ? "bg-[#762d40] font-medium text-white shadow-[0_0_10px_rgba(197,108,125,0.3)] border border-[#c56c7d]/40"
+                      : "text-[#b8adb2] hover:text-[#f7f0ee]"
                   }`}
                   onClick={() => setView("week")}
                 >
@@ -3332,11 +3343,11 @@ function CalendarView({
         ) : (
           <div className="overflow-x-auto">
             <div className={compact ? "min-w-0" : "min-w-[760px]"}>
-              <div className="grid grid-cols-7 border-b border-[#efeee9]">
+              <div className="grid grid-cols-7 border-b border-[#30282e]">
                 {Array.from({ length: 7 }, (_, i) => (
                   <div
                     key={i}
-                    className="py-3 text-center text-[10px] font-semibold uppercase tracking-[0.12em] text-[#99968c]"
+                    className="py-3 text-center text-[10px] font-semibold uppercase tracking-[0.12em] text-[#82767d]"
                   >
                     {format(addDays(startOfWeek(new Date()), i), "EEE")}
                   </div>
@@ -3348,14 +3359,16 @@ function CalendarView({
                   return (
                     <div
                       key={day.toISOString()}
-                      className={`${compact ? "min-h-[78px]" : "min-h-[112px]"} border-b border-r border-[#f0efe9] p-2.5 ${
-                        view === "month" && !isSameMonth(day, anchor) ? "bg-[#fbfaf8]" : ""
+                      className={`${compact ? "min-h-[78px]" : "min-h-[112px]"} border-b border-r border-[#30282e] p-2.5 ${
+                        view === "month" && !isSameMonth(day, anchor)
+                          ? "bg-[#100d10]/60"
+                          : "bg-[#151317]"
                       }`}
                     >
                       <span
                         className={`grid size-7 place-items-center rounded-full text-xs ${
                           isToday(day)
-                            ? "bg-[#344234] font-medium text-white"
+                            ? "bg-[#762d40] font-medium text-white border border-[#c56c7d]/40 shadow-[0_0_10px_rgba(197,108,125,0.3)]"
                             : isSameMonth(day, anchor)
                               ? "text-[#565b52]"
                               : "text-[#bbb8ae]"
@@ -3369,7 +3382,7 @@ function CalendarView({
                             key={shoot.id}
                             type="button"
                             onClick={() => setSelectedShoot(shoot)}
-                            className="w-full truncate rounded bg-[#eef0eb] px-1.5 py-1 text-left text-[10px] text-[#4c5847]"
+                            className="w-full truncate rounded bg-[#762d40]/40 border border-[#c56c7d]/30 px-1.5 py-1 text-left text-[10px] text-[#f7f0ee] hover:bg-[#762d40]/70 transition-colors"
                             title={`${shoot.couple_name} · ${shoot.event_type}`}
                             aria-label={`View ${shoot.event_type} for ${shoot.couple_name}`}
                           >
@@ -3390,12 +3403,12 @@ function CalendarView({
           </div>
         )}
         {!loading && shoots.length === 0 && (
-          <p className="px-5 py-3 text-center text-xs text-[#929086]">
+          <p className="px-5 py-3 text-center text-xs text-[#b8adb2]">
             No shoots yet — your calendar is ready when you are.
           </p>
         )}
         {!loading && shoots.length > 0 && (
-          <div className="border-t border-[#efeee9] p-4 md:hidden">
+          <div className="border-t border-[#30282e] p-4 md:hidden">
             <h3 className="mb-3 font-serif text-lg">This period</h3>
             <div className="space-y-2">
               {shoots
@@ -3630,8 +3643,8 @@ function TeamView({
       <section className="overflow-hidden rounded-2xl border border-[#30282e] bg-[#151317]">
         <div className="flex flex-wrap items-center justify-between gap-4 border-b border-[#30282e] px-5 py-5 sm:px-6">
           <div>
-            <h2 className="font-serif text-xl text-[#3e453d]">Meet your team</h2>
-            <p className="mt-1 text-xs text-[#929086]">
+            <h2 className="font-serif text-xl text-[#f7f0ee]">Meet your team</h2>
+            <p className="mt-1 text-xs text-[#b8adb2]">
               {team.length} {team.length === 1 ? "person" : "people"} in your studio
             </p>
           </div>
@@ -3646,11 +3659,11 @@ function TeamView({
                 onChange={(event) => setQuery(event.target.value)}
                 placeholder="Search your team…"
                 aria-label="Search team"
-                className="h-10 border-[#e6e4dd] pl-9 text-sm"
+                className="h-10 border-[#30282e] bg-[#1b181d] text-[#f7f0ee] placeholder:text-[#82767d] pl-9 text-sm focus:border-[#c56c7d]"
               />
             </label>
             <select
-              className="h-10 rounded-md border px-3 text-xs"
+              className="h-10 rounded-md border border-[#30282e] bg-[#1b181d] text-[#f7f0ee] px-3 text-xs focus:border-[#c56c7d]"
               aria-label="Filter by role"
               value={roleFilter}
               onChange={(event) => setRoleFilter(event.target.value)}
@@ -3669,7 +3682,7 @@ function TeamView({
               <option>Data Manager / Footage Backup Assistant</option>
             </select>
             <select
-              className="h-10 rounded-md border px-3 text-xs"
+              className="h-10 rounded-md border border-[#30282e] bg-[#1b181d] text-[#f7f0ee] px-3 text-xs focus:border-[#c56c7d]"
               aria-label="Filter by availability"
               value={availability}
               onChange={(event) => setAvailability(event.target.value)}
@@ -3680,7 +3693,7 @@ function TeamView({
             </select>
             {editable && (
               <Button
-                className="h-10 gap-2 rounded-lg bg-[#344234] text-xs text-white"
+                className="studio-glow-button h-10 gap-2 rounded-lg bg-[#762d40] hover:bg-[#c56c7d] text-xs text-white border border-[#c56c7d]/40 shadow-[0_0_12px_rgba(197,108,125,0.25)] transition-all"
                 onClick={() => setEditingMember(null)}
               >
                 <Plus className="size-4" /> Add member
@@ -3711,12 +3724,12 @@ function TeamView({
                 <Avatar name={member.full_name} />
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center justify-between gap-2">
-                    <p className="truncate text-sm font-medium text-[#444941]">
+                    <p className="truncate text-sm font-medium text-[#f7f0ee]">
                       {member.full_name}
                     </p>
                     <Availability available={member.available} />
                   </div>
-                  <p className="mt-1 text-xs text-[#87867d]">{member.role}</p>
+                  <p className="mt-1 text-xs text-[#b8adb2]">{member.role}</p>
                   {member.status && member.status !== "active" && (
                     <span className="mt-1 inline-block rounded-full bg-amber-500/10 px-2 py-0.5 text-[10px] text-amber-300 border border-amber-500/20 capitalize">
                       {member.status.replace("_", " ")}
@@ -3736,7 +3749,7 @@ function TeamView({
                   )}
                   {member.email && (
                     <a
-                      className="mt-3 block truncate text-xs text-[#75806c] hover:underline"
+                      className="mt-3 block truncate text-xs text-[#e7a0ad] hover:underline"
                       href={`mailto:${member.email}`}
                     >
                       {member.email}
@@ -3744,7 +3757,7 @@ function TeamView({
                   )}
                   {member.phone && (
                     <a
-                      className="mt-1 block text-xs text-[#75806c] hover:underline"
+                      className="mt-1 block text-xs text-[#e7a0ad] hover:underline"
                       href={`tel:${member.phone}`}
                     >
                       {member.phone}
@@ -3756,17 +3769,17 @@ function TeamView({
                     </p>
                   )}
                   {editable && (
-                    <div className="mt-4 flex gap-3 border-t border-[#f0efe9] pt-3 text-xs">
+                    <div className="mt-4 flex gap-3 border-t border-[#30282e] pt-3 text-xs">
                       <button
                         type="button"
-                        className="text-[#586651] hover:underline"
+                        className="text-[#e7a0ad] hover:underline"
                         onClick={() => setEditingMember(member)}
                       >
                         Edit
                       </button>
                       <button
                         type="button"
-                        className="text-[#96615b] hover:underline"
+                        className="text-rose-400 hover:underline"
                         onClick={() => void confirmDelete(member)}
                       >
                         Remove
@@ -4094,7 +4107,7 @@ function ShootRow({
 }) {
   return (
     <article className="flex flex-wrap items-center gap-4 px-5 py-4 sm:px-6">
-      <div className="grid size-11 shrink-0 place-items-center rounded-xl bg-[#f1f2ed] text-center text-[#59654f]">
+      <div className="grid size-11 shrink-0 place-items-center rounded-xl bg-[#762d40]/40 text-center text-[#e7a0ad] border border-[#c56c7d]/30">
         <span className="text-[9px] font-semibold uppercase leading-none">
           {format(parseISO(shoot.event_date), "MMM")}
         </span>
@@ -4103,13 +4116,13 @@ function ShootRow({
         </span>
       </div>
       <div className="min-w-[155px] flex-1">
-        <p className="text-sm font-medium text-[#42483f]">{shoot.couple_name}</p>
-        <div className="mt-1 flex flex-wrap items-center gap-1.5 text-xs text-[#8d8b81]">
+        <p className="text-sm font-medium text-[#f7f0ee]">{shoot.couple_name}</p>
+        <div className="mt-1 flex flex-wrap items-center gap-1.5 text-xs text-[#82767d]">
           <span>{shoot.event_type}</span>
           {staffingMetrics ? (
             <>
               <span>·</span>
-              <span className="font-medium text-[#42483f]">
+              <span className="font-medium text-[#f7f0ee]">
                 {staffingMetrics.assignedCrew}/{shoot.planned_team_size} crew
               </span>
               {staffingMetrics.additionalCrewRequired > 0 && (
@@ -4131,11 +4144,11 @@ function ShootRow({
           ) : null}
         </div>
       </div>
-      <div className="hidden min-w-[150px] items-center gap-2 text-xs text-[#77786f] md:flex">
+      <div className="hidden min-w-[150px] items-center gap-2 text-xs text-[#b8adb2] md:flex">
         <MapPin className="size-3.5 shrink-0 text-[#a19e93]" aria-hidden="true" />
         <span className="truncate">{shoot.venue || shoot.location}</span>
       </div>
-      <div className="flex items-center gap-2 text-xs text-[#77786f]">
+      <div className="flex items-center gap-2 text-xs text-[#b8adb2]">
         <Clock3 className="size-3.5 text-[#a19e93]" aria-hidden="true" />
         {formatTime(shoot.start_time)}
       </div>
@@ -4146,7 +4159,7 @@ function ShootRow({
             <Button
               variant="outline"
               size="sm"
-              className="h-8 gap-1 border-[#e9e7df] text-xs text-[#586651]"
+              className="studio-glow-button h-8 gap-1 border-[#30282e] bg-[#1b181d] text-xs text-[#e7a0ad] hover:bg-[#252026]"
               onClick={onAssign}
             >
               <Users className="size-3.5" /> Assign
@@ -4156,7 +4169,7 @@ function ShootRow({
             <Button
               variant="outline"
               size="sm"
-              className="h-8 px-2.5 text-xs text-[#586651]"
+              className="h-8 px-2.5 text-xs border-[#30282e] bg-[#1b181d] text-[#e7a0ad] hover:bg-[#252026]"
               onClick={onEdit}
               aria-label={`Edit ${shoot.couple_name}`}
             >
@@ -4167,7 +4180,7 @@ function ShootRow({
             <Button
               variant="outline"
               size="sm"
-              className="h-8 px-2.5 text-xs text-[#96615b]"
+              className="h-8 px-2.5 text-xs border-red-500/30 bg-[#1b181d] text-rose-400 hover:bg-red-500/10"
               onClick={onDelete}
               aria-label={`Delete ${shoot.couple_name}`}
             >
@@ -4177,19 +4190,19 @@ function ShootRow({
         </div>
       )}
       {assignedMembers.length > 0 && (
-        <div className="mt-1 flex w-full flex-wrap items-center gap-1.5 border-t border-[#f4f3ee] pt-2 text-xs">
-          <span className="text-[10px] font-semibold uppercase tracking-wider text-[#99968c]">
+        <div className="mt-1 flex w-full flex-wrap items-center gap-1.5 border-t border-[#30282e] pt-2 text-xs">
+          <span className="text-[10px] font-semibold uppercase tracking-wider text-[#82767d]">
             Crew ({assignedMembers.length}):
           </span>
           {assignedMembers.map((m) => (
             <span
               key={m.id + m.type}
-              className="inline-flex items-center gap-1 rounded-md border border-[#e9e7df] bg-[#f8f7f4] px-2 py-0.5 text-[11px] text-[#42483f]"
+              className="inline-flex items-center gap-1 rounded-md border border-[#30282e] bg-[#1b181d] px-2 py-0.5 text-[11px] text-[#b8adb2]"
             >
               <span className="font-medium">{m.name}</span>
-              <span className="text-[#8d8b81]">({m.role})</span>
+              <span className="text-[#82767d]">({m.role})</span>
               {m.type === "post_production" && (
-                <span className="rounded bg-[#dedad2] px-1 text-[9px] text-[#555]">Post</span>
+                <span className="rounded bg-[#30282e] px-1 text-[9px] text-[#d9b98c]">Post</span>
               )}
             </span>
           ))}
@@ -4201,14 +4214,14 @@ function ShootRow({
 
 function StatusBadge({ status }: { status: string }) {
   const palette: Record<string, string> = {
-    Upcoming: "bg-[#eef0eb] text-[#56634f]",
-    "In Progress": "bg-[#fbf2e6] text-[#9a713c]",
-    Completed: "bg-[#edf3ef] text-[#587462]",
-    Cancelled: "bg-[#f7ecea] text-[#96615b]",
+    Upcoming: "bg-[#762d40]/30 text-[#e7a0ad] border border-[#c56c7d]/30",
+    "In Progress": "bg-amber-500/15 text-amber-300 border border-amber-500/25",
+    Completed: "bg-emerald-500/15 text-emerald-300 border border-emerald-500/25",
+    Cancelled: "bg-rose-500/15 text-rose-300 border border-rose-500/25",
   };
   return (
     <span
-      className={`rounded-full px-2.5 py-1 text-[10px] font-medium ${palette[status] ?? "bg-[#f1f0eb] text-[#77786f]"}`}
+      className={`rounded-full px-2.5 py-1 text-[10px] font-medium ${palette[status] ?? "bg-[#f1f0eb] text-[#b8adb2]"}`}
     >
       {status}
     </span>
@@ -4225,7 +4238,7 @@ function Avatar({ name }: { name: string }) {
     .toUpperCase();
   return (
     <span
-      className="grid size-10 shrink-0 place-items-center rounded-full bg-[#e9ece5] text-xs font-semibold text-[#59654f]"
+      className="grid size-10 shrink-0 place-items-center rounded-full bg-[#762d40]/40 text-xs font-semibold text-[#e7a0ad] border border-[#c56c7d]/30"
       aria-hidden="true"
     >
       {initials}
@@ -4237,10 +4250,10 @@ function Availability({ available }: { available: boolean }) {
   return (
     <span
       className={`flex shrink-0 items-center gap-1.5 text-[10px] ${
-        available ? "text-[#69806a]" : "text-[#969287]"
+        available ? "text-[#71d8aa]" : "text-[#82767d]"
       }`}
     >
-      <span className={`size-1.5 rounded-full ${available ? "bg-[#82a17f]" : "bg-[#c0bdb3]"}`} />
+      <span className={`size-1.5 rounded-full ${available ? "bg-[#71d8aa]" : "bg-[#82767d]"}`} />
       {available ? "Available" : "Unavailable"}
     </span>
   );
@@ -4251,9 +4264,9 @@ function LoadingRows() {
     <div className="space-y-3 px-5 py-5" aria-label="Loading studio data">
       {[0, 1, 2].map((row) => (
         <div key={row} className="flex animate-pulse items-center gap-3">
-          <span className="size-10 rounded-xl bg-[#f0efe9]" />
-          <span className="h-3 w-36 rounded bg-[#f0efe9]" />
-          <span className="ml-auto h-3 w-20 rounded bg-[#f0efe9]" />
+          <span className="size-10 rounded-xl bg-[#1b181d]" />
+          <span className="h-3 w-36 rounded bg-[#1b181d]" />
+          <span className="ml-auto h-3 w-20 rounded bg-[#1b181d]" />
         </div>
       ))}
     </div>
@@ -4263,8 +4276,8 @@ function LoadingRows() {
 function EmptyState({ title, detail }: { title: string; detail: string }) {
   return (
     <div className="px-5 py-10 text-center sm:py-12">
-      <p className="font-serif text-lg text-[#52594e]">{title}</p>
-      <p className="mt-2 text-xs text-[#929086]">{detail}</p>
+      <p className="font-serif text-lg text-[#f7f0ee]">{title}</p>
+      <p className="mt-2 text-xs text-[#b8adb2]">{detail}</p>
     </div>
   );
 }
