@@ -19,6 +19,7 @@ import type { ProfileRecord } from "@/lib/auth";
 import type { AvailabilityRequest } from "@/lib/audit";
 import type { OperatingExpenseRecord, PayrollObligationRecord } from "@/lib/finance";
 import type { calculateStaffingMetrics } from "@/lib/scheduling";
+import type { ShootReminderItem } from "@/lib/shootReminders";
 
 type Shoot = Tables<"shoots">;
 
@@ -80,6 +81,7 @@ interface AdminNotificationCenterProps {
   pendingExpenses: OperatingExpenseRecord[];
   pendingPayroll: PayrollObligationRecord[];
   pendingSongClientsCount: number;
+  shootReminders?: ShootReminderItem[];
   onNavigate: (section: Section) => void;
 }
 
@@ -90,6 +92,7 @@ export function AdminNotificationCenter({
   pendingExpenses,
   pendingPayroll,
   pendingSongClientsCount,
+  shootReminders,
   onNavigate,
 }: AdminNotificationCenterProps) {
   const [isOpen, setIsOpen] = useState(false);
@@ -187,6 +190,25 @@ export function AdminNotificationCenter({
       });
     }
 
+    // 7. 24-Hour Upcoming Shoot Reminders
+    if (shootReminders && shootReminders.length > 0) {
+      for (const reminder of shootReminders) {
+        if (reminder.isPending) {
+          const hours = Math.round(reminder.hoursUntilStart);
+          const hoursText = hours <= 1 ? "in ~1 hr" : `in ~${hours} hrs`;
+          list.push({
+            id: `reminder-${reminder.eventId}`,
+            category: "shoot",
+            title: `Shoot Reminder: ${reminder.projectName}`,
+            subtitle: `${reminder.eventName} starts ${hoursText} (${reminder.dateFormatted} at ${reminder.timeFormatted}) · ${reminder.assignedCrew.length} crew assigned`,
+            time: reminder.timeFormatted,
+            targetSection: "overview",
+            severity: "warning",
+          });
+        }
+      }
+    }
+
     return list;
   }, [
     pendingRegistrations,
@@ -195,6 +217,7 @@ export function AdminNotificationCenter({
     pendingExpenses,
     pendingPayroll,
     pendingSongClientsCount,
+    shootReminders,
   ]);
 
   const totalCount = notifications.length;
@@ -218,6 +241,12 @@ export function AdminNotificationCenter({
   function handleSelect(item: NotificationItem) {
     setIsOpen(false);
     onNavigate(item.targetSection);
+    if (item.id.startsWith("reminder-")) {
+      setTimeout(() => {
+        const el = document.getElementById("shoot-reminders-section");
+        if (el) el.scrollIntoView({ behavior: "smooth" });
+      }, 100);
+    }
   }
 
   const categoryIcons = {

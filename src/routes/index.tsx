@@ -64,6 +64,8 @@ import { AvailabilitySection } from "@/components/AvailabilitySection";
 import { FinanceSection } from "@/components/FinanceSection";
 import { SongLibraryAdminSection } from "@/components/SongLibraryAdminSection";
 import { NotificationBadge, AdminNotificationCenter } from "@/components/AdminNotificationCenter";
+import { ShootRemindersSection } from "@/components/ShootRemindersSection";
+import { getEligibleShootReminders } from "@/lib/shootReminders";
 import { AccountSettingsModal } from "@/components/AccountSettingsModal";
 import { ShootsManagementView } from "@/components/ShootsManagementView";
 import { MessagingView } from "@/components/MessagingView";
@@ -1865,6 +1867,12 @@ function Workspace({
 
   const understaffedShootsCount = understaffedShoots.length;
 
+  const shootReminders = useMemo(
+    () => getEligibleShootReminders(shoots, assignments, team),
+    [shoots, assignments, team],
+  );
+  const pendingRemindersCount = shootReminders.filter((r) => r.isPending).length;
+
   const pendingExpenses = useMemo(
     () => expenses.filter((e) => e.status === "submitted"),
     [expenses],
@@ -1930,6 +1938,8 @@ function Workspace({
                   ? pendingLeaveCount
                   : id === "shoots"
                     ? understaffedShootsCount
+                    : id === "overview"
+                      ? pendingRemindersCount
                     : id === "finance"
                       ? pendingFinanceCount
                       : id === "songs"
@@ -2002,6 +2012,8 @@ function Workspace({
                       ? pendingLeaveCount
                       : id === "shoots"
                         ? understaffedShootsCount
+                        : id === "overview"
+                          ? pendingRemindersCount
                         : id === "finance"
                           ? pendingFinanceCount
                           : id === "songs"
@@ -2068,6 +2080,7 @@ function Workspace({
                   pendingExpenses={pendingExpenses}
                   pendingPayroll={pendingPayroll}
                   pendingSongClientsCount={pendingSongClientsCount ?? 0}
+                  shootReminders={shootReminders}
                   onNavigate={onSectionChange}
                 />
               )}
@@ -2776,6 +2789,10 @@ function Overview({
   workerPayments?: WorkerPaymentRecord[];
   expenses?: OperatingExpenseRecord[];
 }) {
+  const shootReminders = useMemo(
+    () => getEligibleShootReminders(shoots, assignments, team),
+    [shoots, assignments, team],
+  );
   const today = new Date();
   const upcoming = shoots.filter(
     (shoot) => shoot.status === "Upcoming" && parseISO(shoot.event_date) >= startOfDay(today),
@@ -3005,6 +3022,11 @@ function Overview({
           <Clock3 className="size-4" />
         </MetricCard>
       </div>
+
+      <ShootRemindersSection
+        reminders={shootReminders}
+        onNavigateToShoots={() => onNavigate("shoots")}
+      />
 
       <div className="grid gap-4 2xl:grid-cols-[minmax(0,1.4fr)_minmax(350px,0.9fr)]">
         <section className="overflow-hidden rounded-2xl border border-[#30282e] bg-[#151317]">
