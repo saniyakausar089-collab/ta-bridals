@@ -30,6 +30,7 @@ import {
   deriveMessagingProjects,
   generatePersonalizedMessage,
   buildWhatsAppClickToChatUrl,
+  openWhatsAppChat,
   formatShootDate,
   formatShootTime,
   type Shoot,
@@ -220,8 +221,7 @@ export function MessagingView({
     projectId: string,
     memberId: string
   ) => {
-    const url = buildWhatsAppClickToChatUrl(waDigits, messageText);
-    window.open(url, "_blank", "noopener,noreferrer");
+    openWhatsAppChat(waDigits, messageText);
     setMemberStatus(projectId, memberId, "whatsapp_opened");
   };
 

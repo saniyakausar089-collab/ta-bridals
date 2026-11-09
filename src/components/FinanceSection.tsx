@@ -45,7 +45,9 @@ import {
   calculateStudioTotals,
   computeInvoiceBalance,
   computePayrollBalance,
+  deriveProjectFinancialSummaries,
   formatCurrency,
+  type ProjectFinancialRecord,
   type ClientInvoiceRecord,
   type ClientPaymentRecord,
   type PayrollObligationRecord,
@@ -119,6 +121,13 @@ export function FinanceSection({
   const [showPayrollModal, setShowPayrollModal] = useState(false);
   const [showDisburseModal, setShowDisburseModal] = useState(false);
   const [showExpenseModal, setShowExpenseModal] = useState(false);
+  const [preselectedInvoiceId, setPreselectedInvoiceId] = useState<string>("");
+  const [invoiceClientName, setInvoiceClientName] = useState<string>("");
+
+  // Project-Level Financial Records (Consolidated per Project)
+  const projectFinancialSummaries = useMemo(() => {
+    return deriveProjectFinancialSummaries(shoots, invoices, clientPayments);
+  }, [shoots, invoices, clientPayments]);
 
   // Submitting States
   const [submitting, setSubmitting] = useState(false);
@@ -569,7 +578,7 @@ export function FinanceSection({
         <div className="flex flex-wrap items-center gap-2">
           {[
             { id: "overview", label: "Financial Overview", icon: TrendingUp },
-            { id: "shoots", label: "Shoot Profitability", icon: DollarSign },
+            { id: "shoots", label: "Project & Shoot Finances", icon: DollarSign },
             { id: "payroll", label: "Crew Payroll", icon: Users },
             { id: "billing", label: "Client Invoices & Receipts", icon: Receipt },
             { id: "expenses", label: "Operating Expenses", icon: Wallet },
@@ -746,9 +755,257 @@ export function FinanceSection({
 
       {/* ----------------- TAB: SHOOT PROFITABILITY ----------------- */}
       {activeTab === "shoots" && (
-        <section className="overflow-hidden rounded-2xl border border-[#30282e] bg-[#151317]">
-          <div className="border-b border-[#30282e] p-5">
-            <h3 className="font-serif text-xl text-[#f7f0ee]">Event Profitability Ledger</h3>
+        <div className="space-y-6">
+          {/* PROJECT-LEVEL FINANCIAL RECORDS & CONSOLIDATED LEDGER */}
+          <section className="space-y-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h3 className="font-serif text-xl text-[#f7f0ee]">Project Financial Records</h3>
+                <p className="text-xs text-[#82767d]">
+                  Consolidated client finances: Associated events (Haldi, Nikah, Reception, etc.), multi-installment payments, and total balances.
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  size="sm"
+                  onClick={() => setShowInvoiceModal(true)}
+                  className="gap-1.5 bg-[#c56c7d] text-xs font-medium text-[#0b0a0c] hover:bg-[#e7a0ad]"
+                >
+                  <Plus className="size-3.5" />
+                  New Project Invoice
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    setPreselectedInvoiceId("");
+                    setShowPaymentModal(true);
+                  }}
+                  className="gap-1.5 border-[#40323a] text-xs text-[#e7a0ad] hover:bg-[#24171e]"
+                >
+                  <CreditCard className="size-3.5" />
+                  Receive Payment
+                </Button>
+              </div>
+            </div>
+
+            {projectFinancialSummaries.length === 0 ? (
+              <div className="rounded-2xl border border-[#30282e] bg-[#151317] p-12 text-center text-xs text-[#82767d]">
+                No projects found. Create shoots or projects to view consolidated finances.
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {projectFinancialSummaries.map((record) => (
+                  <div
+                    key={record.projectId}
+                    className="studio-glow-card rounded-2xl border border-[#30282e] bg-[#151317] p-5 space-y-4 transition-all"
+                  >
+                    {/* PROJECT HEADER */}
+                    <div className="flex flex-wrap items-start justify-between gap-3 border-b border-[#2b232a] pb-3">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[#d9b98c]">
+                            PROJECT
+                          </span>
+                          <span className="text-xs text-[#82767d]">·</span>
+                          <span className="text-xs text-[#b8adb2]">
+                            {record.associatedEvents.length} Associated {record.associatedEvents.length === 1 ? "Event" : "Events"}
+                          </span>
+                        </div>
+                        <h4 className="mt-0.5 font-serif text-2xl text-[#f7f0ee]">{record.projectName}</h4>
+                      </div>
+
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span
+                          className={`inline-block rounded-full px-3 py-1 text-xs font-medium border ${
+                            record.paymentStatus === "paid"
+                              ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-300"
+                              : record.paymentStatus === "partial"
+                                ? "border-amber-500/30 bg-amber-500/10 text-amber-300"
+                                : record.paymentStatus === "unpaid"
+                                  ? "border-rose-500/30 bg-rose-500/10 text-rose-300"
+                                  : "border-[#40343e] bg-[#1d171d] text-[#82767d]"
+                          }`}
+                        >
+                          {record.paymentStatus === "paid"
+                            ? "Paid in Full"
+                            : record.paymentStatus === "partial"
+                              ? "Partial Payment"
+                              : record.paymentStatus === "unpaid"
+                                ? "Unpaid / Issued"
+                                : "No Invoice"}
+                        </span>
+
+                        {record.invoice && record.remainingBalance > 0 && (
+                          <Button
+                            size="sm"
+                            onClick={() => {
+                              setPreselectedInvoiceId(record.invoice!.id);
+                              setShowPaymentModal(true);
+                            }}
+                            className="h-8 gap-1 bg-[#71d8aa] text-xs font-medium text-[#0b0a0c] hover:bg-[#8eedc0]"
+                          >
+                            <CreditCard className="size-3.5" />
+                            Record Payment
+                          </Button>
+                        )}
+
+                        {!record.invoice && (
+                          <Button
+                            size="sm"
+                            onClick={() => {
+                              setInvoiceClientName(record.projectName);
+                              setShowInvoiceModal(true);
+                            }}
+                            className="h-8 gap-1 bg-[#c56c7d] text-xs font-medium text-[#0b0a0c] hover:bg-[#e7a0ad]"
+                          >
+                            <Plus className="size-3.5" />
+                            Invoice Project
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* ASSOCIATED EVENTS SECTION (Haldi, Nikah, Reception, etc.) */}
+                    <div>
+                      <p className="text-[10px] font-semibold uppercase tracking-wider text-[#9a8c77] mb-2">
+                        Associated Events ({record.associatedEvents.length})
+                      </p>
+                      <div className="grid gap-2 sm:grid-cols-2 md:grid-cols-3">
+                        {record.associatedEvents.map((evt) => (
+                          <div
+                            key={evt.id}
+                            className="rounded-lg border border-[#262025] bg-[#1a141b] p-3 text-xs space-y-1"
+                          >
+                            <div className="flex items-center justify-between">
+                              <span className="font-semibold text-[#f7f0ee]">{evt.eventType}</span>
+                              <span className="rounded border border-[#3b303a] px-1.5 py-0.2 text-[10px] text-[#82767d]">
+                                {evt.status || "Upcoming"}
+                              </span>
+                            </div>
+                            <p className="text-[11px] text-[#b8adb2]">
+                              {evt.eventDate ? format(parseISO(evt.eventDate), "MMM d, yyyy") : "Date TBA"}
+                              {evt.startTime ? ` · ${evt.startTime}` : ""}
+                            </p>
+                            <p className="text-[11px] text-[#82767d] truncate">
+                              {evt.venue || "Venue not set"}
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* PROJECT FINANCE METRICS */}
+                    <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 rounded-xl border border-[#2b232a] bg-[#120f13] p-4 text-xs">
+                      <div>
+                        <span className="text-[10px] uppercase font-semibold text-[#82767d]">
+                          Total Project Amount
+                        </span>
+                        <p className="font-serif text-lg font-medium text-[#f7f0ee] mt-0.5">
+                          {formatCurrency(record.totalBilled)}
+                        </p>
+                      </div>
+                      <div>
+                        <span className="text-[10px] uppercase font-semibold text-[#82767d]">
+                          Amount Paid
+                        </span>
+                        <p className="font-serif text-lg font-medium text-emerald-400 mt-0.5">
+                          {formatCurrency(record.amountPaid)}
+                        </p>
+                      </div>
+                      <div>
+                        <span className="text-[10px] uppercase font-semibold text-[#82767d]">
+                          Remaining Balance
+                        </span>
+                        <p className="font-serif text-lg font-medium text-amber-400 mt-0.5">
+                          {formatCurrency(record.remainingBalance)}
+                        </p>
+                      </div>
+                      <div>
+                        <span className="text-[10px] uppercase font-semibold text-[#82767d]">
+                          Payment Installments
+                        </span>
+                        <p className="font-serif text-lg font-medium text-[#d9b98c] mt-0.5">
+                          {record.payments.length} {record.payments.length === 1 ? "Payment" : "Payments"}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* PAYMENT HISTORY */}
+                    <div>
+                      <p className="text-[10px] font-semibold uppercase tracking-wider text-[#9a8c77] mb-2">
+                        Payment History ({record.payments.length})
+                      </p>
+                      {record.payments.length === 0 ? (
+                        <p className="text-xs text-[#82767d] italic">No payment installments recorded yet.</p>
+                      ) : (
+                        <div className="overflow-x-auto rounded-lg border border-[#2b232a]">
+                          <table className="w-full text-left text-xs">
+                            <thead>
+                              <tr className="border-b border-[#2b232a] bg-[#161217] text-[#82767d]">
+                                <th className="py-2.5 px-3 font-medium">Receipt #</th>
+                                <th className="py-2.5 px-3 font-medium">Date</th>
+                                <th className="py-2.5 px-3 font-medium">Method</th>
+                                <th className="py-2.5 px-3 font-medium">Amount</th>
+                                <th className="py-2.5 px-3 font-medium">Reference</th>
+                                <th className="py-2.5 px-3 font-medium">Notes</th>
+                                <th className="py-2.5 px-3 font-medium text-right">Receipt</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-[#241e25] bg-[#120f13]">
+                              {record.payments.map((p) => (
+                                <tr key={p.id}>
+                                  <td className="py-2 px-3 font-mono text-[#f7f0ee]">{p.receipt_number}</td>
+                                  <td className="py-2 px-3 text-[#b8adb2]">{p.payment_date}</td>
+                                  <td className="py-2 px-3 capitalize text-[#d9b98c]">
+                                    {p.payment_method.replace("_", " ")}
+                                  </td>
+                                  <td className="py-2 px-3 font-medium text-emerald-400">
+                                    {formatCurrency(p.amount)}
+                                  </td>
+                                  <td className="py-2 px-3 text-[#82767d]">
+                                    {p.transaction_reference || "—"}
+                                  </td>
+                                  <td className="py-2 px-3 text-[#82767d] max-w-[150px] truncate">
+                                    {p.notes || "—"}
+                                  </td>
+                                  <td className="py-2 px-3 text-right">
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        setActiveReceipt({
+                                          title: "Client Payment Receipt",
+                                          receiptNo: p.receipt_number,
+                                          date: p.payment_date,
+                                          recipientOrPayer: record.projectName,
+                                          amount: p.amount,
+                                          method: p.payment_method,
+                                          reference: p.transaction_reference,
+                                          notes: p.notes,
+                                        })
+                                      }
+                                      className="text-[11px] text-[#e7a0ad] hover:underline"
+                                    >
+                                      View
+                                    </button>
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
+
+          {/* DETAILED EVENT PROFITABILITY LEDGER */}
+          <section className="overflow-hidden rounded-2xl border border-[#30282e] bg-[#151317]">
+            <div className="border-b border-[#30282e] p-5">
+              <h3 className="font-serif text-xl text-[#f7f0ee]">Event Profitability Ledger</h3>
             <p className="text-xs text-[#82767d]">
               Direct attribution of revenue, crew payroll, rented equipment, and allocated overhead
               per wedding.
@@ -818,6 +1075,7 @@ export function FinanceSection({
             </table>
           </div>
         </section>
+        </div>
       )}
 
       {/* ----------------- TAB: CREW PAYROLL ----------------- */}
@@ -1208,19 +1466,47 @@ export function FinanceSection({
             </div>
             <form onSubmit={handleCreateInvoiceSubmit} className="space-y-4">
               <label className="studio-field">
-                Select Shoot / Couple
-                <select name="shoot_id" required>
-                  {shoots.map((s) => (
-                    <option key={s.id} value={s.id}>
-                      {s.couple_name} ({s.event_type} · {s.event_date})
-                    </option>
-                  ))}
+                Select Client Project
+                <select
+                  name="shoot_id"
+                  required
+                  onChange={(e) => {
+                    const selShootId = e.target.value;
+                    const proj = projectFinancialSummaries.find(
+                      (p) => p.primaryShootId === selShootId,
+                    );
+                    if (proj) {
+                      setInvoiceClientName(proj.projectName);
+                    }
+                  }}
+                >
+                  <option value="">-- Choose Client Project --</option>
+                  {projectFinancialSummaries.map((p) => {
+                    const hasInvoice = Boolean(p.invoice);
+                    const eventList = p.associatedEvents.map((e) => e.eventType).join(", ");
+                    return (
+                      <option
+                        key={p.projectId}
+                        value={p.primaryShootId}
+                        disabled={hasInvoice}
+                      >
+                        {p.projectName} ({p.associatedEvents.length} Events: {eventList})
+                        {hasInvoice ? ` — [Invoice ${p.invoice?.invoice_number} Already Exists]` : ""}
+                      </option>
+                    );
+                  })}
                 </select>
               </label>
 
               <label className="studio-field">
                 Client / Billing Name
-                <Input name="client_name" required placeholder="e.g. Maya & Arjun Family" />
+                <Input
+                  name="client_name"
+                  required
+                  value={invoiceClientName}
+                  onChange={(e) => setInvoiceClientName(e.target.value)}
+                  placeholder="e.g. Maya & Arjun Family"
+                />
               </label>
 
               <div className="grid gap-3 sm:grid-cols-2">
@@ -1304,14 +1590,22 @@ export function FinanceSection({
             </div>
             <form onSubmit={handleRecordPaymentSubmit} className="space-y-4">
               <label className="studio-field">
-                Select Client Invoice
-                <select name="invoice_id" required>
-                  {invoices.map((inv) => (
-                    <option key={inv.id} value={inv.id}>
-                      {inv.invoice_number} · {inv.client_name} (Due:{" "}
-                      {formatCurrency(inv.outstanding_balance)})
-                    </option>
-                  ))}
+                Select Client Project Invoice
+                <select
+                  name="invoice_id"
+                  required
+                  defaultValue={preselectedInvoiceId || invoices[0]?.id}
+                >
+                  {invoices.map((inv) => {
+                    const proj = projectFinancialSummaries.find((p) => p.invoice?.id === inv.id);
+                    const eventCount = proj?.associatedEvents.length ?? 1;
+                    return (
+                      <option key={inv.id} value={inv.id}>
+                        {inv.client_name} · Invoice #{inv.invoice_number} ({eventCount} {eventCount === 1 ? "Event" : "Events"} · Due:{" "}
+                        {formatCurrency(inv.outstanding_balance)})
+                      </option>
+                    );
+                  })}
                 </select>
               </label>
 

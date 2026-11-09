@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { NotificationBadge } from "@/components/AdminNotificationCenter";
+import { openWhatsAppChat } from "@/lib/messagingUtils";
 import {
   type ShootReminderItem,
   type ReminderStatus,
@@ -49,10 +50,19 @@ export function ShootRemindersSection({
   const [wizardIndex, setWizardIndex] = useState(0);
 
   // Handle single crew member WhatsApp open
-  const handleOpenWhatsApp = (reminder: ShootReminderItem, memberId: string, url: string) => {
-    if (!url) return;
-    // Open WhatsApp Click-to-Chat in new tab/window
-    window.open(url, "_blank", "noopener,noreferrer");
+  const handleOpenWhatsApp = (
+    reminder: ShootReminderItem,
+    memberId: string,
+    urlFallback?: string,
+  ) => {
+    const crew = reminder.assignedCrew.find((c) => c.memberId === memberId);
+    if (!crew && !urlFallback) return;
+
+    if (crew?.phoneInfo?.isValid) {
+      openWhatsAppChat(crew.phoneInfo.waDigits, crew.message);
+    } else if (urlFallback) {
+      window.open(urlFallback, "_blank", "noopener,noreferrer");
+    }
 
     // Advance status to "whatsapp_opened" (NEVER directly to sent)
     const allIds = reminder.assignedCrew.map((c) => c.memberId);

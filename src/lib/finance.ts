@@ -114,6 +114,29 @@ export interface ShootProfitabilitySummary {
   isFullyPaid: boolean;
 }
 
+export interface AssociatedProjectEvent {
+  id: string;
+  eventType: string;
+  eventDate: string;
+  location: string;
+  status: string;
+}
+
+export interface ProjectFinancialRecord {
+  projectId: string; // normalized lower-cased project key
+  projectName: string; // Client / Project Name (e.g. "Maya & Arjun")
+  associatedEvents: AssociatedProjectEvent[];
+  primaryShootId: string;
+  invoice: ClientInvoiceRecord | null;
+  totalProjectAmount: number;
+  totalBilled: number;
+  amountPaid: number;
+  remainingBalance: number;
+  paymentStatus: "unbilled" | "unpaid" | "partially_paid" | "partial" | "paid" | "overdue";
+  paymentHistory: ClientPaymentRecord[];
+  payments: ClientPaymentRecord[];
+}
+
 export interface StudioFinancialOverview {
   totalRevenueBilled: number;
   totalCashCollected: number;
@@ -272,6 +295,155 @@ export function calculateShootProfitability(
     profitMarginPct,
     isFullyPaid: cashCollected >= recognizedRevenue && recognizedRevenue > 0,
   };
+}
+
+/**
+ * Consolidates financial tracking to the entire PROJECT level.
+ * 
+ * CHANGE 4: Finance and Invoices - Project-Level Payments
+ * Structure:
+ * PROJECT
+ * ├── Client / Project Name
+ * ├── Associated Events (Haldi, Nikah, Reception, etc.)
+ * └── Project Finance
+ *     ├── Total Project Amount
+ *     ├── Amount Paid
+ *     ├── Remaining Balance
+ *     └── Payment History
+ */
+export function deriveProjectFinancialSummaries(
+  shoots: Array<{
+    id: string;
+    couple_name: string;
+    "shoot name"?: string | null;
+    event_type: string;
+    event_date: string;
+    location?: string | null;
+    venue?: string | null;
+    status: string;
+    package_amount?: number | null;
+  }>,
+  invoices: ClientInvoiceRecord[],
+  payments: ClientPaymentRecord[],
+): ProjectFinancialRecord[] {
+  // Group shoots by client/couple project name
+  const projectMap = new Map<string, typeof shoots>();
+  for (const shoot of shoots) {
+    const rawName = (
+      shoot.couple_name ||
+      (shoot as any)["shoot name"] ||
+      "Untitled Project"
+    ).trim();
+    const key = rawName.toLowerCase();
+    if (!projectMap.has(key)) {
+      projectMap.set(key, []);
+    }
+    projectMap.get(key)!.push(shoot);
+  }
+
+  const summaries: ProjectFinancialRecord[] = [];
+
+  projectMap.forEach((events, key) => {
+    const sortedEvents = [...events].sort((a, b) =>
+      (a.event_date || "").localeCompare(b.event_date || ""),
+    );
+    const firstEvent = sortedEvents[0];
+    if (!firstEvent) return;
+
+    const originalName = (
+      firstEvent.couple_name ||
+      (firstEvent as any)["shoot name"] ||
+      "Untitled Project"
+    ).trim();
+    const eventIds = new Set(sortedEvents.map((e) => e.id));
+
+    // Find all invoices associated with any event in this project or matching client name
+    const projectInvoices = invoices.filter(
+      (inv) =>
+        inv.status !== "cancelled" &&
+        (eventIds.has(inv.shoot_id) || inv.client_name.trim().toLowerCase() === key),
+    );
+
+    const primaryInvoice = projectInvoices.length > 0 ? projectInvoices[0] : null;
+    const projectInvoiceIds = new Set(projectInvoices.map((i) => i.id));
+
+    // Find all payments made against any event in this project or against project invoices
+    const projectPayments = payments.filter(
+      (p) =>
+        !p.is_reversed &&
+        (eventIds.has(p.shoot_id) || (p.invoice_id && projectInvoiceIds.has(p.invoice_id))),
+    );
+
+    // Sort payment history chronologically (newest first)
+    projectPayments.sort((a, b) => (b.payment_date || "").localeCompare(a.payment_date || ""));
+
+    // Total Project Amount: from project invoice(s) or sum of package amounts
+    let totalProjectAmount = 0;
+    if (projectInvoices.length > 0) {
+      totalProjectAmount = projectInvoices.reduce(
+        (sum, inv) => {
+          const calculatedBilled =
+            Number(inv.agreed_price || 0) +
+            Number(inv.additional_charges || 0) -
+            Number(inv.discount_amount || 0) +
+            Number(inv.tax_amount || 0);
+          return sum + Number(inv.total_billed || calculatedBilled || inv.agreed_price || 0);
+        },
+        0,
+      );
+    } else {
+      totalProjectAmount = sortedEvents.reduce(
+        (sum, e) => sum + Number(e.package_amount || 0),
+        0,
+      );
+    }
+
+    // Total Amount Paid across all partial payments
+    const amountPaid = projectPayments.reduce((sum, p) => sum + Number(p.amount || 0), 0);
+
+    // Remaining Balance
+    const remainingBalance = Math.max(0, totalProjectAmount - amountPaid);
+
+    // Project Payment Status
+    let paymentStatus: ProjectFinancialRecord["paymentStatus"] = "unbilled";
+    if (projectInvoices.length > 0 || totalProjectAmount > 0) {
+      if (remainingBalance === 0 && amountPaid > 0) {
+        paymentStatus = "paid";
+      } else if (amountPaid > 0 && remainingBalance > 0) {
+        paymentStatus = "partially_paid";
+      } else if (amountPaid === 0) {
+        const dueDate = primaryInvoice?.due_date;
+        if (dueDate && new Date(dueDate).getTime() < Date.now()) {
+          paymentStatus = "overdue";
+        } else {
+          paymentStatus = "unpaid";
+        }
+      }
+    }
+
+    summaries.push({
+      projectId: key,
+      projectName: originalName,
+      associatedEvents: sortedEvents.map((e) => ({
+        id: e.id,
+        eventType: e.event_type || "Event",
+        eventDate: e.event_date || "",
+        location: e.venue || e.location || "TBA",
+        status: e.status,
+      })),
+      primaryShootId: firstEvent.id,
+      invoice: primaryInvoice || null,
+      totalProjectAmount,
+      totalBilled: totalProjectAmount,
+      amountPaid,
+      remainingBalance,
+      paymentStatus: (paymentStatus === "partially_paid" ? "partial" : paymentStatus) as any,
+      paymentHistory: projectPayments,
+      payments: projectPayments,
+    });
+  });
+
+  return summaries.sort((a, b) => a.projectName.localeCompare(b.projectName));
 }
 
 /**

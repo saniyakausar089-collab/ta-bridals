@@ -145,6 +145,77 @@ export function buildWhatsAppClickToChatUrl(waDigits: string, message: string): 
 }
 
 /**
+ * Builds native WhatsApp app deep link:
+ * whatsapp://send?phone=COUNTRYCODEPHONENUMBER&text=ENCODED_MESSAGE
+ * This prioritizes opening the installed mobile app on Android/iOS without web login.
+ */
+export function getWhatsAppDirectUrl(
+  waDigits: string,
+  message: string,
+): string & { nativeAppUrl: string; webUrl: string } {
+  const cleanDigits = waDigits.replace(/\D/g, "");
+  const encodedText = encodeURIComponent(message);
+  const nativeAppUrl = `whatsapp://send?phone=${cleanDigits}&text=${encodedText}`;
+  const webUrl = `https://wa.me/${cleanDigits}?text=${encodedText}`;
+  const str = new String(nativeAppUrl);
+  return Object.assign(str, {
+    nativeAppUrl,
+    webUrl,
+  }) as string & { nativeAppUrl: string; webUrl: string };
+}
+
+/**
+ * Opens WhatsApp prioritizing the installed mobile application (Android / iOS).
+ * - Uses native app deep link (`whatsapp://send?...`) where supported to bypass WhatsApp Web login.
+ * - Safely falls back to web click-to-chat (`https://wa.me/...`) if app is unavailable.
+ * - Never falsely marks a message as sent.
+ */
+export function openWhatsAppChat(waDigits: string, message: string): void {
+  const cleanDigits = waDigits.replace(/\D/g, "");
+  const encodedText = encodeURIComponent(message);
+  const deepLink = `whatsapp://send?phone=${cleanDigits}&text=${encodedText}`;
+  const webFallback = `https://wa.me/${cleanDigits}?text=${encodedText}`;
+
+  if (typeof window === "undefined") return;
+
+  const userAgent = typeof navigator !== "undefined" ? navigator.userAgent || "" : "";
+  const isMobile =
+    /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini|Mobile/i.test(userAgent);
+
+  if (isMobile) {
+    // Mobile device (Android / iOS): Prioritize native WhatsApp application
+    let appOpened = false;
+
+    // Listen for blur / pagehide which indicates native app launched
+    const handleAppLaunch = () => {
+      appOpened = true;
+    };
+    window.addEventListener("blur", handleAppLaunch, { once: true });
+    window.addEventListener("pagehide", handleAppLaunch, { once: true });
+
+    // Use location change or simulated anchor click to invoke native app scheme
+    const anchor = document.createElement("a");
+    anchor.href = deepLink;
+    anchor.style.display = "none";
+    document.body.appendChild(anchor);
+    anchor.click();
+    document.body.removeChild(anchor);
+
+    // Fallback timer: If native app didn't launch after 1.5s, fall back to web click-to-chat
+    setTimeout(() => {
+      window.removeEventListener("blur", handleAppLaunch);
+      window.removeEventListener("pagehide", handleAppLaunch);
+      if (!appOpened && !document.hidden) {
+        window.open(webFallback, "_blank", "noopener,noreferrer");
+      }
+    }, 1500);
+  } else {
+    // Desktop browser: open standard web click-to-chat in new tab
+    window.open(webFallback, "_blank", "noopener,noreferrer");
+  }
+}
+
+/**
  * Formats a 24-hr time string (e.g. "14:30:00" or "09:00") into "02:30 PM" / "9:00 AM".
  */
 export function formatShootTime(timeStr: string | null | undefined): string {

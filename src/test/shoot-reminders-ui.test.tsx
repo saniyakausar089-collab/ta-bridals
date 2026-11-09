@@ -49,7 +49,7 @@ describe("ShootRemindersSection Component", () => {
           displayFormatted: "+91 98401 23456",
         },
         status: "pending",
-        whatsAppUrl: "https://wa.me/919840123456?text=test",
+        whatsAppUrl: `https://wa.me/919840123456?text=${encodeURIComponent("Hi Vikram Rathore! 👋\n\nReminder: You have an upcoming shoot tomorrow.")}`,
         message: "Hi Vikram Rathore! 👋\n\nReminder: You have an upcoming shoot tomorrow.",
       },
       {

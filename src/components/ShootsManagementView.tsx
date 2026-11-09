@@ -35,6 +35,16 @@ import {
   getWorkerScheduleStatus,
 } from "@/lib/scheduling";
 import { getAllRoles } from "@/lib/roles";
+import {
+  calculateTotalRequiredCrew,
+  getCrewRequirementsForShoot,
+  getPhotographerClassificationsForShoot,
+  saveCrewRequirementsLocally,
+  savePhotographerClassificationsLocally,
+  ROLE_CATEGORIES,
+  type CrewRequirements,
+  type PhotographerClassification,
+} from "@/lib/crewRequirements";
 
 type Shoot = Tables<"shoots">;
 type TeamMember = Tables<"team_members">;
@@ -722,6 +732,9 @@ export function ShootsManagementView({
                       eventItem.planned_team_size,
                       eventAssignments,
                     );
+                    const eventCrewReqs = getCrewRequirementsForShoot(eventItem);
+                    const totalReqCrew = calculateTotalRequiredCrew(eventCrewReqs);
+                    const photoClassifications = getPhotographerClassificationsForShoot(eventItem);
 
                     return (
                       <article
@@ -766,17 +779,33 @@ export function ShootsManagementView({
                             </span>
                             <span>·</span>
                             <span className="font-medium text-[#f7f0ee]">
-                              {staffingMetrics.assignedCrew}/{eventItem.planned_team_size} crew
+                              {totalReqCrew > 0
+                                ? `${eventAssignments.length}/${totalReqCrew} crew`
+                                : `${staffingMetrics.assignedCrew}/${eventItem.planned_team_size} crew`}
                             </span>
-                            {staffingMetrics.additionalCrewRequired > 0 && (
-                              <span className="rounded border border-amber-500/30 bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-amber-300">
-                                Needs {staffingMetrics.additionalCrewRequired} more
-                              </span>
-                            )}
-                            {staffingMetrics.staffingStatus === "Fully Staffed" && (
-                              <span className="rounded border border-emerald-500/30 bg-emerald-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-300">
-                                Fully staffed
-                              </span>
+                            {totalReqCrew > 0 ? (
+                              eventAssignments.length < totalReqCrew ? (
+                                <span className="rounded border border-amber-500/30 bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-amber-300">
+                                  {totalReqCrew - eventAssignments.length} vacant
+                                </span>
+                              ) : (
+                                <span className="rounded border border-emerald-500/30 bg-emerald-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-300">
+                                  Fully assigned
+                                </span>
+                              )
+                            ) : (
+                              <>
+                                {staffingMetrics.additionalCrewRequired > 0 && (
+                                  <span className="rounded border border-amber-500/30 bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-amber-300">
+                                    Needs {staffingMetrics.additionalCrewRequired} more
+                                  </span>
+                                )}
+                                {staffingMetrics.staffingStatus === "Fully Staffed" && (
+                                  <span className="rounded border border-emerald-500/30 bg-emerald-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-300">
+                                    Fully staffed
+                                  </span>
+                                )}
+                              </>
                             )}
                           </div>
                         </div>
@@ -863,20 +892,33 @@ export function ShootsManagementView({
                             <span className="text-[10px] font-semibold uppercase tracking-wider text-[#82767d]">
                               Crew ({assignedMembers.length}):
                             </span>
-                            {assignedMembers.map((m) => (
-                              <span
-                                key={m.id + m.type}
-                                className="inline-flex items-center gap-1 rounded-md border border-[#30282e] bg-[#1b181d] px-2 py-0.5 text-[11px] text-[#f7f0ee]"
-                              >
-                                <span className="font-medium">{m.name}</span>
-                                <span className="text-[#82767d]">({m.role})</span>
-                                {m.type === "post_production" && (
-                                  <span className="rounded bg-[#762d40]/40 px-1 text-[9px] text-[#e7a0ad]">
-                                    Post
-                                  </span>
-                                )}
-                              </span>
-                            ))}
+                            {assignedMembers.map((m) => {
+                              const photoClass = photoClassifications[m.id];
+                              return (
+                                <span
+                                  key={m.id + m.type}
+                                  className="inline-flex items-center gap-1 rounded-md border border-[#30282e] bg-[#1b181d] px-2 py-0.5 text-[11px] text-[#f7f0ee]"
+                                >
+                                  <span className="font-medium">{m.name}</span>
+                                  <span className="text-[#82767d]">({m.role})</span>
+                                  {photoClass === "Candidate" && (
+                                    <span className="rounded border border-amber-500/40 bg-amber-500/20 px-1 text-[9px] font-semibold text-amber-300">
+                                      Candidate
+                                    </span>
+                                  )}
+                                  {photoClass === "Normal" && (
+                                    <span className="rounded border border-emerald-500/30 bg-emerald-500/10 px-1 text-[9px] text-emerald-300">
+                                      Normal
+                                    </span>
+                                  )}
+                                  {m.type === "post_production" && (
+                                    <span className="rounded bg-[#762d40]/40 px-1 text-[9px] text-[#e7a0ad]">
+                                      Post
+                                    </span>
+                                  )}
+                                </span>
+                              );
+                            })}
                           </div>
                         )}
 
@@ -2128,18 +2170,78 @@ function AssignmentEditor({
   onClose: () => void;
   onSave: (shootId: string, values: AssignmentInput[]) => Promise<void>;
 }) {
+  const [requirements, setRequirements] = useState<CrewRequirements>(() => {
+    const saved = getCrewRequirementsForShoot(shoot);
+    const hasAnySaved = Object.values(saved).some((v) => v > 0);
+    if (hasAnySaved) return saved;
+
+    // If no saved requirements, check if there are existing assignments to infer initial requirements
+    const initialAssignments = assignments.filter((a) => a.shoot_id === shoot.id);
+    if (initialAssignments.length > 0) {
+      const inferred: CrewRequirements = {
+        photographer: 0,
+        videographer: 0,
+        drone_operator: 0,
+        cinematographer: 0,
+        others: 0,
+      };
+      for (const a of initialAssignments) {
+        const member = team.find((t) => t.id === a.team_member_id);
+        const roleStr = (member?.role || "").toLowerCase();
+        if (roleStr.includes("photo")) inferred.photographer++;
+        else if (roleStr.includes("video")) inferred.videographer++;
+        else if (roleStr.includes("drone")) inferred.drone_operator++;
+        else if (roleStr.includes("cinema")) inferred.cinematographer++;
+        else inferred.others++;
+      }
+      return inferred;
+    }
+    return saved; // defaults to all 0s
+  });
+
+  const [photoClassifications, setPhotoClassifications] = useState<
+    Record<string, PhotographerClassification>
+  >(() => getPhotographerClassificationsForShoot(shoot));
+
   const [selected, setSelected] = useState<AssignmentInput[]>(() =>
     assignments
       .filter((assignment) => assignment.shoot_id === shoot.id)
       .map(({ team_member_id, assignment_type }) => ({ team_member_id, assignment_type })),
   );
+
+  const [slots, setSlots] = useState<Record<string, string[]>>(() => {
+    const initialSlots: Record<string, string[]> = {
+      photographer: [],
+      videographer: [],
+      drone_operator: [],
+      cinematographer: [],
+      others: [],
+    };
+
+    const initialAssignments = assignments.filter((a) => a.shoot_id === shoot.id);
+    for (const a of initialAssignments) {
+      const member = team.find((t) => t.id === a.team_member_id);
+      const roleStr = (member?.role || "").toLowerCase();
+      let cat: keyof CrewRequirements = "others";
+      if (roleStr.includes("photo")) cat = "photographer";
+      else if (roleStr.includes("video")) cat = "videographer";
+      else if (roleStr.includes("drone")) cat = "drone_operator";
+      else if (roleStr.includes("cinema")) cat = "cinematographer";
+
+      initialSlots[cat].push(a.team_member_id);
+    }
+    return initialSlots;
+  });
+
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const selectedIds = new Set(selected.map((assignment) => assignment.team_member_id));
 
+  const totalRequired = calculateTotalRequiredCrew(requirements);
+
   const staffingMetrics = useMemo(
-    () => calculateStaffingMetrics(shoot.planned_team_size, selected),
-    [shoot.planned_team_size, selected],
+    () => calculateStaffingMetrics(totalRequired > 0 ? totalRequired : shoot.planned_team_size, selected),
+    [shoot.planned_team_size, selected, totalRequired],
   );
 
   // Compute real-time schedule status for all active workers
@@ -2187,6 +2289,54 @@ function AssignmentEditor({
 
   const hasOverlapConflict = selectedConflicts.some((c) => c.type === "shoot_overlap");
 
+  function updateRequirement(category: keyof CrewRequirements, delta: number) {
+    setRequirements((prev) => {
+      const current = prev[category] || 0;
+      const nextVal = Math.max(0, Math.min(20, current + delta));
+      return { ...prev, [category]: nextVal };
+    });
+  }
+
+  function setRequirementValue(category: keyof CrewRequirements, val: number) {
+    const nextVal = Math.max(0, Math.min(20, isNaN(val) ? 0 : val));
+    setRequirements((prev) => ({ ...prev, [category]: nextVal }));
+  }
+
+  function assignSlotMember(category: keyof CrewRequirements, slotIdx: number, newMemberId: string) {
+    setError("");
+    const prevMemberId = (slots[category] || [])[slotIdx] || "";
+
+    if (newMemberId && newMemberId !== prevMemberId) {
+      const workerStatus = workerScheduleStatuses.get(newMemberId);
+      if (workerStatus?.hasOverlapConflict) {
+        setError(`Cannot assign ${workerStatus.workerName}: Overlapping assignment on another shoot.`);
+        return;
+      }
+    }
+
+    setSlots((prev) => {
+      const arr = [...(prev[category] || [])];
+      while (arr.length <= slotIdx) arr.push("");
+      arr[slotIdx] = newMemberId;
+      return { ...prev, [category]: arr };
+    });
+
+    setSelected((current) => {
+      let filtered = current.filter((item) => item.team_member_id !== prevMemberId);
+      if (newMemberId && !filtered.some((item) => item.team_member_id === newMemberId)) {
+        filtered = [...filtered, { team_member_id: newMemberId, assignment_type: "on_site" }];
+      }
+      return filtered;
+    });
+
+    if (category === "photographer" && newMemberId && !photoClassifications[newMemberId]) {
+      setPhotoClassifications((prev) => ({
+        ...prev,
+        [newMemberId]: "Normal",
+      }));
+    }
+  }
+
   function toggleMember(memberId: string) {
     const workerStatus = workerScheduleStatuses.get(memberId);
     if (workerStatus?.hasOverlapConflict) {
@@ -2199,6 +2349,14 @@ function AssignmentEditor({
     setSelected((current) => {
       const exists = current.some((item) => item.team_member_id === memberId);
       if (exists) {
+        // Clear from slots if present
+        setSlots((prev) => {
+          const nextSlots = { ...prev };
+          for (const key of Object.keys(nextSlots)) {
+            nextSlots[key] = nextSlots[key].map((id) => (id === memberId ? "" : id));
+          }
+          return nextSlots;
+        });
         return current.filter((item) => item.team_member_id !== memberId);
       }
       const onSiteCount = current.filter((i) => i.assignment_type === "on_site").length;
@@ -2233,6 +2391,10 @@ function AssignmentEditor({
     }
 
     try {
+      // Save crew requirements and classifications locally & note sync
+      saveCrewRequirementsLocally(shoot.id, requirements);
+      savePhotographerClassificationsLocally(shoot.id, photoClassifications);
+
       await onSave(shoot.id, selected);
       onClose();
     } catch (err) {
@@ -2250,15 +2412,15 @@ function AssignmentEditor({
       }}
     >
       <section
-        className="studio-modal max-w-2xl"
+        className="studio-modal max-w-2xl max-h-[90vh] overflow-y-auto"
         role="dialog"
         aria-modal="true"
         aria-labelledby="assignment-editor-title"
       >
-        <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
+        <div className="mb-5 flex flex-wrap items-start justify-between gap-3 border-b border-[#30282e] pb-4">
           <div>
             <p className="text-[10px] font-medium uppercase tracking-[0.2em] text-[#9a8c77]">
-              CREW ASSIGNMENT
+              CREW ASSIGNMENT & REQUIREMENTS
             </p>
             <h2 id="assignment-editor-title" className="mt-1 font-serif text-2xl text-[#f7f0ee]">
               {shoot.couple_name}
@@ -2271,20 +2433,81 @@ function AssignmentEditor({
           <div className="text-right">
             <span
               className={`inline-block rounded-full px-2.5 py-0.5 text-[11px] font-medium ${
-                staffingMetrics.staffingStatus === "Fully Staffed"
+                totalRequired > 0 && selected.length >= totalRequired
                   ? "bg-emerald-500/10 text-emerald-300 border border-emerald-500/20"
-                  : staffingMetrics.staffingStatus === "Overstaffed"
+                  : totalRequired > 0 && selected.length < totalRequired
                     ? "bg-amber-500/10 text-amber-300 border border-amber-500/20"
-                    : "bg-red-500/10 text-red-300 border border-red-500/20"
+                    : "bg-[#221c25] text-[#b8adb2] border border-[#40343e]"
               }`}
             >
-              {staffingMetrics.staffingStatus} ({staffingMetrics.uniqueOnSiteWorkers}/
-              {staffingMetrics.plannedTeamSize} on-site)
+              {totalRequired > 0
+                ? `${selected.length}/${totalRequired} Assigned (${totalRequired - selected.length > 0 ? `${totalRequired - selected.length} open` : "Fulfilled"})`
+                : `${selected.length} Assigned (0 required)`}
             </span>
           </div>
         </div>
 
-        {/* INSTANT CONFLICT WARNINGS (Section 5) */}
+        {/* CREW REQUIREMENTS SECTION */}
+        <div className="mb-5 rounded-xl border border-[#30282e] bg-[#1a141b] p-4">
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#30282e]/80 pb-3">
+            <div>
+              <h3 className="font-serif text-sm font-semibold text-[#f7f0ee]">Crew Requirements</h3>
+              <p className="text-[11px] text-[#82767d]">
+                Specify the required headcount per category before assigning team members.
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-[#9a8c77]">Total Required:</span>
+              <span className="rounded-full border border-[#c56c7d]/40 bg-[#762d40]/20 px-3 py-0.5 text-xs font-semibold text-[#f7f0ee]">
+                {totalRequired} crew {totalRequired === 1 ? "member" : "members"}
+              </span>
+            </div>
+          </div>
+
+          <div className="mt-3 grid grid-cols-2 gap-2.5 sm:grid-cols-3 md:grid-cols-5">
+            {ROLE_CATEGORIES.map((cat) => {
+              const val = requirements[cat.id] || 0;
+              return (
+                <div
+                  key={cat.id}
+                  className="rounded-lg border border-[#30282e] bg-[#120f13] p-2.5 text-center"
+                >
+                  <span className="block text-[11px] font-medium text-[#b8adb2] truncate" title={cat.label}>
+                    {cat.label}
+                  </span>
+                  <div className="mt-2 flex items-center justify-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => updateRequirement(cat.id, -1)}
+                      disabled={val <= 0}
+                      className="grid size-6 place-items-center rounded border border-[#40343e] bg-[#1f1920] text-xs text-[#f7f0ee] hover:bg-[#2d222e] disabled:opacity-30 disabled:cursor-not-allowed"
+                    >
+                      -
+                    </button>
+                    <input
+                      type="number"
+                      min={0}
+                      max={20}
+                      value={val}
+                      onChange={(e) => setRequirementValue(cat.id, parseInt(e.target.value, 10))}
+                      className="w-10 rounded border border-[#40343e] bg-[#161117] py-0.5 text-center text-xs font-semibold text-[#f7f0ee]"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => updateRequirement(cat.id, 1)}
+                      disabled={val >= 20}
+                      className="grid size-6 place-items-center rounded border border-[#40343e] bg-[#1f1920] text-xs text-[#f7f0ee] hover:bg-[#2d222e] disabled:opacity-30"
+                    >
+                      +
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* INSTANT CONFLICT WARNINGS */}
         {selectedConflicts.length > 0 && (
           <div
             className="mb-4 rounded-xl border border-red-500/40 bg-red-500/10 p-3.5 text-xs text-red-200 space-y-2"
@@ -2331,70 +2554,200 @@ function AssignmentEditor({
           </div>
         )}
 
-        <div className="max-h-[360px] space-y-2 overflow-y-auto pr-1">
-          {team.map((member) => {
-            const isAssigned = selectedIds.has(member.id);
-            const current = selected.find((item) => item.team_member_id === member.id);
-            const status = workerScheduleStatuses.get(member.id);
-            const isUnavailable = status?.hasOverlapConflict;
+        {/* ROLE ASSIGNMENT SLOTS */}
+        {totalRequired === 0 ? (
+          <div className="mb-4 rounded-xl border border-dashed border-[#30282e] bg-[#151217] p-4 text-center text-xs text-[#82767d]">
+            Crew requirements are currently 0. Increase role counts above to generate assignment slots, or select crew from the member list below.
+          </div>
+        ) : (
+          <div className="mb-5 space-y-3">
+            <h4 className="text-xs font-semibold uppercase tracking-wider text-[#9a8c77]">
+              Role Assignment Slots
+            </h4>
+            {ROLE_CATEGORIES.map((cat) => {
+              const reqCount = requirements[cat.id] || 0;
+              if (reqCount === 0) return null;
 
-            return (
-              <div
-                key={member.id}
-                className={`flex flex-wrap items-center justify-between gap-3 rounded-xl border p-3 text-xs transition-colors ${
-                  isUnavailable
-                    ? "border-red-500/30 bg-red-950/20"
-                    : isAssigned
-                      ? "border-[#762d40] bg-[#221c25]"
-                      : "border-[#30282e] bg-[#1d171d]"
-                }`}
-              >
-                <label className="flex items-start gap-3 cursor-pointer flex-1 min-w-[220px]">
-                  <input
-                    type="checkbox"
-                    checked={isAssigned}
-                    disabled={isUnavailable && !isAssigned}
-                    onChange={() => toggleMember(member.id)}
-                    className="mt-0.5 size-4 rounded border-[#40343e] accent-[#762d40] disabled:opacity-40"
-                  />
-                  <div className="space-y-0.5">
+              const categoryAssigned = (slots[cat.id] || []).filter(Boolean);
+              const isFullyAssigned = categoryAssigned.length >= reqCount;
+              const vacancies = Math.max(0, reqCount - categoryAssigned.length);
+
+              return (
+                <div
+                  key={cat.id}
+                  className="rounded-xl border border-[#30282e] bg-[#161217] p-3.5 space-y-2.5"
+                >
+                  <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#2a2228] pb-2">
                     <div className="flex items-center gap-2">
-                      <span className="font-medium text-[#f7f0ee]">{member.full_name}</span>
-                      <span className="text-[11px] text-[#82767d]">({member.role})</span>
+                      <span className="font-semibold text-xs text-[#f7f0ee]">{cat.label}</span>
+                      <span className="text-[11px] text-[#82767d]">({reqCount} required)</span>
                     </div>
-
-                    {isUnavailable ? (
-                      <div className="rounded border border-red-500/40 bg-red-500/10 px-2 py-0.5 text-[10px] text-red-200 mt-1">
-                        <span className="font-semibold text-red-300">Unavailable:</span> Overlaps
-                        with {status?.overlapConflict?.conflictingShoot?.coupleName} (
-                        {status?.overlapConflict?.conflictingShoot?.eventType}) on{" "}
-                        {status?.overlapConflict?.conflictingShoot?.formattedTiming}
-                      </div>
-                    ) : status?.sameDayAssignments && status.sameDayAssignments.length > 0 ? (
-                      <p className="text-[11px] text-emerald-400 font-medium">
-                        ✓ {status.statusText}
-                      </p>
-                    ) : (
-                      <p className="text-[11px] text-[#71d8aa]">✓ Available</p>
-                    )}
+                    <div>
+                      {isFullyAssigned ? (
+                        <span className="rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-[10px] font-semibold text-emerald-300">
+                          ✓ Fully Assigned ({categoryAssigned.length}/{reqCount})
+                        </span>
+                      ) : (
+                        <span className="rounded-full border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-[10px] font-semibold text-amber-300">
+                          ⚠ {vacancies} {vacancies === 1 ? "Vacancy" : "Vacancies"} ({categoryAssigned.length}/{reqCount})
+                        </span>
+                      )}
+                    </div>
                   </div>
-                </label>
 
-                {isAssigned && (
-                  <select
-                    className="rounded-md border border-[#30282e] bg-[#120f12] px-2 py-1 text-xs text-[#f7f0ee]"
-                    value={current?.assignment_type ?? "on_site"}
-                    onChange={(event) =>
-                      changeType(member.id, event.target.value as Assignment["assignment_type"])
-                    }
-                  >
-                    <option value="on_site">On site</option>
-                    <option value="post_production">Post production</option>
-                  </select>
-                )}
-              </div>
-            );
-          })}
+                  {/* Slot Items */}
+                  <div className="space-y-2">
+                    {Array.from({ length: reqCount }).map((_, slotIdx) => {
+                      const currentMemberId = (slots[cat.id] || [])[slotIdx] || "";
+                      const isPhotographer = cat.id === "photographer";
+
+                      return (
+                        <div
+                          key={slotIdx}
+                          className="flex flex-wrap items-center gap-2 rounded-lg border border-[#2b232a] bg-[#1a141b] p-2 text-xs"
+                        >
+                          <span className="text-[11px] font-medium text-[#9a8c77] w-14 shrink-0">
+                            Slot {slotIdx + 1}:
+                          </span>
+
+                          <select
+                            value={currentMemberId}
+                            onChange={(e) => assignSlotMember(cat.id, slotIdx, e.target.value)}
+                            className="flex-1 min-w-[180px] rounded-md border border-[#3b3039] bg-[#120f13] px-2.5 py-1 text-xs text-[#f7f0ee] focus:border-[#c56c7d] focus:outline-none"
+                          >
+                            <option value="">-- Select {cat.label} --</option>
+                            {team.map((member) => {
+                              const workerStatus = workerScheduleStatuses.get(member.id);
+                              const isUnavailable = workerStatus?.hasOverlapConflict;
+                              const isSelectedInOther =
+                                selectedIds.has(member.id) && member.id !== currentMemberId;
+
+                              return (
+                                <option
+                                  key={member.id}
+                                  value={member.id}
+                                  disabled={isUnavailable || isSelectedInOther}
+                                >
+                                  {member.full_name} ({member.role})
+                                  {isSelectedInOther ? " — [Assigned in other slot]" : ""}
+                                  {isUnavailable ? " — [Unavailable: Overlaps]" : ""}
+                                </option>
+                              );
+                            })}
+                          </select>
+
+                          {/* Photographer Classification Dropdown: Normal / Candidate */}
+                          {isPhotographer && (
+                            <div className="flex items-center gap-1.5 shrink-0">
+                              <span className="text-[10px] text-[#82767d]">Type:</span>
+                              <select
+                                value={currentMemberId ? (photoClassifications[currentMemberId] || "Normal") : "Normal"}
+                                disabled={!currentMemberId}
+                                onChange={(e) => {
+                                  if (!currentMemberId) return;
+                                  const val = e.target.value as PhotographerClassification;
+                                  setPhotoClassifications((prev) => ({
+                                    ...prev,
+                                    [currentMemberId]: val,
+                                  }));
+                                }}
+                                className="rounded-md border border-[#3b3039] bg-[#120f13] px-2 py-1 text-xs text-[#f7f0ee] disabled:opacity-40"
+                              >
+                                <option value="Normal">Normal</option>
+                                <option value="Candidate">Candidate</option>
+                              </select>
+                            </div>
+                          )}
+
+                          {currentMemberId && (
+                            <button
+                              type="button"
+                              onClick={() => assignSlotMember(cat.id, slotIdx, "")}
+                              className="text-[11px] text-rose-400 hover:text-rose-300 px-1"
+                              title="Clear slot"
+                            >
+                              ✕
+                            </button>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {/* TEAM MEMBER STATUS & POST-PRODUCTION OPTIONS */}
+        <div className="mt-4 border-t border-[#30282e] pt-3">
+          <p className="mb-2 text-[10px] uppercase font-semibold text-[#82767d]">
+            All Studio Team Members & Assignment Type
+          </p>
+          <div className="max-h-[220px] space-y-2 overflow-y-auto pr-1">
+            {team.map((member) => {
+              const isAssigned = selectedIds.has(member.id);
+              const current = selected.find((item) => item.team_member_id === member.id);
+              const status = workerScheduleStatuses.get(member.id);
+              const isUnavailable = status?.hasOverlapConflict;
+
+              return (
+                <div
+                  key={member.id}
+                  className={`flex flex-wrap items-center justify-between gap-3 rounded-xl border p-2.5 text-xs transition-colors ${
+                    isUnavailable
+                      ? "border-red-500/30 bg-red-950/20"
+                      : isAssigned
+                        ? "border-[#762d40] bg-[#221c25]"
+                        : "border-[#30282e] bg-[#1d171d]"
+                  }`}
+                >
+                  <label className="flex items-start gap-3 cursor-pointer flex-1 min-w-[200px]">
+                    <input
+                      type="checkbox"
+                      checked={isAssigned}
+                      disabled={isUnavailable && !isAssigned}
+                      onChange={() => toggleMember(member.id)}
+                      className="mt-0.5 size-4 rounded border-[#40343e] accent-[#762d40] disabled:opacity-40"
+                    />
+                    <div className="space-y-0.5">
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium text-[#f7f0ee]">{member.full_name}</span>
+                        <span className="text-[11px] text-[#82767d]">({member.role})</span>
+                      </div>
+
+                      {isUnavailable ? (
+                        <div className="rounded border border-red-500/40 bg-red-500/10 px-2 py-0.5 text-[10px] text-red-200 mt-0.5">
+                          <span className="font-semibold text-red-300">Unavailable:</span> Overlaps
+                          with {status?.overlapConflict?.conflictingShoot?.coupleName} (
+                          {status?.overlapConflict?.conflictingShoot?.eventType})
+                        </div>
+                      ) : status?.sameDayAssignments && status.sameDayAssignments.length > 0 ? (
+                        <p className="text-[10px] text-emerald-400 font-medium">
+                          ✓ {status.statusText}
+                        </p>
+                      ) : (
+                        <p className="text-[10px] text-[#71d8aa]">✓ Available</p>
+                      )}
+                    </div>
+                  </label>
+
+                  {isAssigned && (
+                    <select
+                      className="rounded-md border border-[#30282e] bg-[#120f12] px-2 py-1 text-xs text-[#f7f0ee]"
+                      value={current?.assignment_type ?? "on_site"}
+                      onChange={(event) =>
+                        changeType(member.id, event.target.value as Assignment["assignment_type"])
+                      }
+                    >
+                      <option value="on_site">On site</option>
+                      <option value="post_production">Post production</option>
+                    </select>
+                  )}
+                </div>
+              );
+            })}
+          </div>
         </div>
 
         {error && (
