@@ -25,6 +25,7 @@ type Shoot = Tables<"shoots">;
 export type Section =
   | "overview"
   | "shoots"
+  | "messaging"
   | "calendar"
   | "team"
   | "availability"

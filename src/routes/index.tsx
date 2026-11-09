@@ -52,6 +52,7 @@ import {
   AlertTriangle,
   Bell,
   Settings,
+  MessageSquare,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -65,6 +66,7 @@ import { SongLibraryAdminSection } from "@/components/SongLibraryAdminSection";
 import { NotificationBadge, AdminNotificationCenter } from "@/components/AdminNotificationCenter";
 import { AccountSettingsModal } from "@/components/AccountSettingsModal";
 import { ShootsManagementView } from "@/components/ShootsManagementView";
+import { MessagingView } from "@/components/MessagingView";
 import {
   formatCurrency,
   calculateStudioTotals,
@@ -111,6 +113,7 @@ type AssignmentInput = Pick<Assignment, "team_member_id" | "assignment_type">;
 type Section =
   | "overview"
   | "shoots"
+  | "messaging"
   | "calendar"
   | "team"
   | "availability"
@@ -127,6 +130,7 @@ const baseNavigation: {
 }[] = [
   { id: "overview", label: "Dashboard", mobileLabel: "Home", icon: LayoutDashboard },
   { id: "shoots", label: "All Shoots", mobileLabel: "Shoots", icon: Camera },
+  { id: "messaging", label: "Messaging", mobileLabel: "Messaging", icon: MessageSquare },
   { id: "calendar", label: "Calendar", mobileLabel: "Calendar", icon: CalendarDays },
   { id: "team", label: "Team Overview", mobileLabel: "Team", icon: Users },
   { id: "availability", label: "Availability", mobileLabel: "Availability", icon: CalendarClock },
@@ -137,6 +141,10 @@ const sectionCopy: Record<Section, { title: string; description: string }> = {
   overview: {
     title: "Your studio at a glance",
     description: "A clear view of what's happening across your team.",
+  },
+  messaging: {
+    title: "Messaging",
+    description: "Coordinate shoots with assigned crew members via personalized WhatsApp dispatch.",
   },
   shoots: {
     title: "All shoots",
@@ -2180,6 +2188,14 @@ function Workspace({
               availabilityRequests={availabilityRequests}
               onSaveAssignments={onSaveAssignments}
               onRenameProject={onRenameProject}
+            />
+          ) : section === "messaging" ? (
+            <MessagingView
+              shoots={displayedShoots}
+              allShoots={shoots}
+              team={team}
+              assignments={assignments}
+              loading={loading}
             />
           ) : section === "calendar" ? (
             <CalendarView
