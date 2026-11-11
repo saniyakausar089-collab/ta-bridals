@@ -164,7 +164,7 @@ describe("EventWhatsAppModal Component", () => {
     fireEvent.change(contactInput, { target: { value: "+91 91234 56789" } });
 
     const textarea = screen.getByLabelText(/Event details message preview/i) as HTMLTextAreaElement;
-    expect(textarea.value).toContain("- CONTACT NUMBER: +91 91234 56789");
+    expect(textarea.value).toContain("CONTACT NUMBER: +91 91234 56789");
   });
 
   it("dispatches single crew member and advances delivery status to WhatsApp Opened", () => {

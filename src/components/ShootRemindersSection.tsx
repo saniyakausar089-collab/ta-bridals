@@ -48,18 +48,22 @@ export function ShootRemindersSection({
   // "Message All Crew" Wizard Stepper state
   const [wizardReminder, setWizardReminder] = useState<ShootReminderItem | null>(null);
   const [wizardIndex, setWizardIndex] = useState(0);
+  const [editedMessages, setEditedMessages] = useState<Record<string, string>>({});
 
   // Handle single crew member WhatsApp open
   const handleOpenWhatsApp = (
     reminder: ShootReminderItem,
     memberId: string,
     urlFallback?: string,
+    customMessage?: string,
   ) => {
     const crew = reminder.assignedCrew.find((c) => c.memberId === memberId);
     if (!crew && !urlFallback) return;
 
+    const messageToSend = customMessage || crew?.message || "";
+
     if (crew?.phoneInfo?.isValid) {
-      openWhatsAppChat(crew.phoneInfo.waDigits, crew.message);
+      openWhatsAppChat(crew.phoneInfo.waDigits, messageToSend);
     } else if (urlFallback) {
       window.open(urlFallback, "_blank", "noopener,noreferrer");
     }
@@ -120,6 +124,29 @@ export function ShootRemindersSection({
     wizardReminder && wizardReminder.assignedCrew[wizardIndex]
       ? wizardReminder.assignedCrew[wizardIndex]
       : null;
+
+  const stepKey =
+    wizardReminder && currentWizardCrew
+      ? `${wizardReminder.eventId}_${currentWizardCrew.memberId}`
+      : "";
+  const currentDraftMessage =
+    stepKey && editedMessages[stepKey] !== undefined
+      ? editedMessages[stepKey]
+      : currentWizardCrew?.message || "";
+
+  const handleEditCurrentDraft = (newVal: string) => {
+    if (!stepKey) return;
+    setEditedMessages((prev) => ({ ...prev, [stepKey]: newVal }));
+  };
+
+  const handleResetCurrentDraft = () => {
+    if (!stepKey) return;
+    setEditedMessages((prev) => {
+      const copy = { ...prev };
+      delete copy[stepKey];
+      return copy;
+    });
+  };
 
   const storedStatuses = getStoredReminderStatuses();
   const pendingCount = reminders.filter((r) => {
@@ -504,12 +531,27 @@ export function ShootRemindersSection({
 
             {/* Message Template Preview Box */}
             <div className="mt-4">
-              <label className="block text-[11px] font-semibold uppercase tracking-wider text-[#a08d96] mb-1.5">
-                WhatsApp Message Preview
-              </label>
-              <pre className="rounded-xl border border-[#30282e] bg-[#100d10] p-3 font-mono text-[11px] text-[#e7a0ad] leading-relaxed whitespace-pre-wrap select-all">
-                {currentWizardCrew.message}
-              </pre>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="block text-[11px] font-semibold uppercase tracking-wider text-[#a08d96]">
+                  WhatsApp Message Draft (Editable)
+                </label>
+                {stepKey && editedMessages[stepKey] !== undefined && (
+                  <button
+                    type="button"
+                    onClick={handleResetCurrentDraft}
+                    className="text-[10px] text-[#d9b98c] hover:underline cursor-pointer"
+                  >
+                    Reset to Default
+                  </button>
+                )}
+              </div>
+              <textarea
+                value={currentDraftMessage}
+                onChange={(e) => handleEditCurrentDraft(e.target.value)}
+                rows={12}
+                className="w-full rounded-xl border border-[#30282e] bg-[#100d10] p-3 font-mono text-[11px] text-[#e7a0ad] leading-relaxed whitespace-pre-wrap select-text focus:border-[#762d40] focus:outline-none"
+                placeholder="Event details message draft..."
+              />
             </div>
 
             {/* Action Bar */}
@@ -550,6 +592,7 @@ export function ShootRemindersSection({
                         wizardReminder,
                         currentWizardCrew.memberId,
                         currentWizardCrew.whatsAppUrl,
+                        currentDraftMessage,
                       )
                     }
                     className="h-8 bg-[#25D366] hover:bg-[#1ebd59] text-black font-semibold text-xs px-3 shadow-xs"

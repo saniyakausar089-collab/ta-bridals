@@ -9,12 +9,14 @@ import {
   Check,
   Clock3,
   Edit2,
+  FileText,
   FolderKanban,
   LoaderCircle,
   MapPin,
   MessageSquare,
   Pencil,
   Plus,
+  Printer,
   Search,
   Sparkles,
   Trash2,
@@ -24,6 +26,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { EventWhatsAppModal } from "@/components/EventWhatsAppModal";
+import { EventDetailsPdfModal } from "@/components/EventDetailsPdfModal";
 import type { Tables, TablesInsert } from "@/integrations/supabase/types";
 import type { AvailabilityRequest } from "@/lib/audit";
 import {
@@ -226,6 +229,10 @@ export function ShootsManagementView({
     newName: string;
   } | null>(null);
   const [whatsAppEvent, setWhatsAppEvent] = useState<{
+    event: Shoot;
+    projectName: string;
+  } | null>(null);
+  const [pdfEvent, setPdfEvent] = useState<{
     event: Shoot;
     projectName: string;
   } | null>(null);
@@ -856,6 +863,18 @@ export function ShootsManagementView({
                             <Button
                               variant="outline"
                               size="sm"
+                              className="h-8 gap-1.5 border-[#40343e] bg-[#1b181d] text-xs font-medium text-[#f7f0ee] hover:bg-[#242026] hover:border-[#c56c7d]/50 transition-colors"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setPdfEvent({ event: eventItem, projectName: activeProject.name });
+                              }}
+                              title="View Event Details Sheet (PDF Format)"
+                            >
+                              <FileText className="size-3.5 text-[#d9b98c]" /> Event PDF
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
                               className="h-8 gap-1.5 border-[#25D366]/40 bg-[#25D366]/10 text-xs font-medium text-[#25D366] hover:bg-[#25D366]/20 hover:border-[#25D366]/60 transition-colors"
                               onClick={(e) => {
                                 e.stopPropagation();
@@ -1009,17 +1028,31 @@ export function ShootsManagementView({
                                   Generates event-specific details and sends individually to assigned crew ({assignedMembers.length} members).
                                 </p>
                               </div>
-                              <Button
-                                type="button"
-                                size="sm"
-                                className="h-8 gap-2 bg-[#25D366] text-black hover:bg-[#20ba59] font-medium text-xs shadow-md transition-colors"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setWhatsAppEvent({ event: eventItem, projectName: activeProject.name });
-                                }}
-                              >
-                                <MessageSquare className="size-3.5" /> Send Event Details on WhatsApp
-                              </Button>
+                              <div className="flex items-center gap-2">
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  size="sm"
+                                  className="h-8 gap-1.5 border-[#40343e] bg-[#161217] text-xs font-medium text-[#f7f0ee] hover:bg-[#201c22] transition-colors"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setPdfEvent({ event: eventItem, projectName: activeProject.name });
+                                  }}
+                                >
+                                  <FileText className="size-3.5 text-[#d9b98c]" /> Event PDF Sheet
+                                </Button>
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  className="h-8 gap-2 bg-[#25D366] text-black hover:bg-[#20ba59] font-medium text-xs shadow-md transition-colors"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setWhatsAppEvent({ event: eventItem, projectName: activeProject.name });
+                                  }}
+                                >
+                                  <MessageSquare className="size-3.5" /> Send on WhatsApp
+                                </Button>
+                              </div>
                             </div>
                           </div>
                         )}
@@ -1448,6 +1481,22 @@ export function ShootsManagementView({
           assignments={assignments}
           team={team}
           onClose={() => setWhatsAppEvent(null)}
+        />
+      )}
+
+      {/* EVENT DETAILS PDF / PRINT FLYER MODAL */}
+      {pdfEvent && (
+        <EventDetailsPdfModal
+          shoot={pdfEvent.event}
+          projectName={pdfEvent.projectName}
+          assignments={assignments}
+          team={team}
+          onClose={() => setPdfEvent(null)}
+          onOpenWhatsApp={() => {
+            const target = pdfEvent;
+            setPdfEvent(null);
+            setWhatsAppEvent(target);
+          }}
         />
       )}
     </>

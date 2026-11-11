@@ -692,70 +692,69 @@ export function generateEventWhatsAppDetails(params: GenerateEventWhatsAppDetail
     ``,
     `Please find below the event details.`,
     ``,
-    `- CLIENT NAME: ${resolvedClient}`,
-    `- CONTACT NUMBER: ${resolvedContact}`,
+    `CLIENT NAME: ${resolvedClient}`,
+    `CONTACT NUMBER: ${resolvedContact}`,
     ``,
-    `EVENT DETAILS`,
+    `EVENT DETAILS:`,
+    `EVENT DATE: ${eventDate}`,
+    `EVENT: ${eventName}`,
+    `REPORTING TIME: ${reportingTime}`,
     ``,
-    `- EVENT DATE: ${eventDate}`,
-    `- EVENT NAME: ${eventName}`,
-    `- REPORTING TIME: ${reportingTime}`,
-    ``,
-    `VENUE`,
-    ``,
+    `VENUE:`,
   ];
 
   if (venueName && address && venueName.toLowerCase() !== address.toLowerCase()) {
-    lines.push(`- ${venueName}`);
-    lines.push(`- ${address}`);
+    lines.push(`${venueName}, ${address}`);
   } else if (venueName) {
-    lines.push(`- ${venueName}`);
+    lines.push(`${venueName}`);
   } else if (address) {
-    lines.push(`- ${address}`);
+    lines.push(`${address}`);
   } else {
-    lines.push(`- Location TBA`);
+    lines.push(`Location TBA`);
   }
 
   if (photographers.length > 0) {
-    lines.push(``, `PHOTOGRAPHERS`, ``);
-    photographers.forEach((p) => {
-      lines.push(`- ${p.name}`);
-      if (p.phone && p.phone.trim()) {
-        lines.push(`- ${p.phone.trim()}`);
-      }
+    lines.push(``, `PHOTOGRAPHERS:`, ``);
+    photographers.forEach((p, idx) => {
+      const phonePart = p.phone && p.phone.trim() ? ` – ${p.phone.trim()}` : "";
+      lines.push(`${idx + 1}. ${p.name}${phonePart}`);
     });
   }
 
   if (videographers.length > 0) {
-    lines.push(``, `VIDEOGRAPHERS`, ``);
-    videographers.forEach((v) => {
-      lines.push(`- ${v.name}`);
-      if (v.phone && v.phone.trim()) {
-        lines.push(`- ${v.phone.trim()}`);
-      }
+    lines.push(``, `VIDEOGRAPHERS:`, ``);
+    videographers.forEach((v, idx) => {
+      const phonePart = v.phone && v.phone.trim() ? ` – ${v.phone.trim()}` : "";
+      lines.push(`${idx + 1}. ${v.name}${phonePart}`);
     });
   }
 
   if (droneOperators.length > 0) {
-    lines.push(``, `DRONE OPERATORS`, ``);
-    droneOperators.forEach((d) => {
-      lines.push(`- ${d.name}`);
+    lines.push(``, `DRONE OPERATORS:`, ``);
+    droneOperators.forEach((d, idx) => {
+      const phonePart = d.phone && d.phone.trim() ? ` – ${d.phone.trim()}` : "";
+      lines.push(`${idx + 1}. ${d.name}${phonePart}`);
     });
   }
 
   if (cinematographers.length > 0) {
-    lines.push(``, `CINEMATOGRAPHERS`, ``);
-    cinematographers.forEach((c) => {
-      lines.push(`- ${c.name}`);
+    lines.push(``, `CINEMATOGRAPHERS:`, ``);
+    cinematographers.forEach((c, idx) => {
+      const phonePart = c.phone && c.phone.trim() ? ` – ${c.phone.trim()}` : "";
+      lines.push(`${idx + 1}. ${c.name}${phonePart}`);
     });
   }
 
   if (others.length > 0) {
-    lines.push(``, `OTHERS`, ``);
-    others.forEach((o) => {
-      lines.push(`- ${o.name}`);
+    lines.push(``, `OTHERS:`, ``);
+    others.forEach((o, idx) => {
+      const phonePart = o.phone && o.phone.trim() ? ` – ${o.phone.trim()}` : "";
+      const rolePart = o.role && o.role !== "Crew Member" ? ` (${o.role})` : "";
+      lines.push(`${idx + 1}. ${o.name}${rolePart}${phonePart}`);
     });
   }
+
+  lines.push(``, `– TA BRIDALS`);
 
   return lines.join("\n");
 }

@@ -223,29 +223,26 @@ describe("Event-Wise WhatsApp Event Details Messaging — TA Bridals", () => {
       expect(message).toContain("TA BRIDALS – EVENT DETAILS");
       expect(message).toContain("Dear Team,");
       expect(message).toContain("Please find below the event details.");
-      expect(message).toContain("- CLIENT NAME: Mushtaq Wedding");
-      expect(message).toContain("- CONTACT NUMBER: +91 99887 76655");
+      expect(message).toContain("CLIENT NAME: Mushtaq Wedding");
+      expect(message).toContain("CONTACT NUMBER: +91 99887 76655");
 
       // Event Details
-      expect(message).toContain("EVENT DETAILS");
-      expect(message).toContain("- EVENT DATE: 20 November 2026");
-      expect(message).toContain("- EVENT NAME: Haldi");
-      expect(message).toContain("- REPORTING TIME: 9:00 AM");
+      expect(message).toContain("EVENT DETAILS:");
+      expect(message).toContain("EVENT DATE: 20 November 2026");
+      expect(message).toContain("EVENT: Haldi");
+      expect(message).toContain("REPORTING TIME: 9:00 AM");
 
       // Venue
-      expect(message).toContain("VENUE");
-      expect(message).toContain("- Taj Krishna");
-      expect(message).toContain("- Road No 1, Banjara Hills, Hyderabad");
+      expect(message).toContain("VENUE:");
+      expect(message).toContain("Taj Krishna, Road No 1, Banjara Hills, Hyderabad");
 
       // Photographers category
-      expect(message).toContain("PHOTOGRAPHERS");
-      expect(message).toContain("- Arfan Khan");
-      expect(message).toContain("- +91 98765 43210");
+      expect(message).toContain("PHOTOGRAPHERS:");
+      expect(message).toContain("1. Arfan Khan – +91 98765 43210");
 
       // Videographers category
-      expect(message).toContain("VIDEOGRAPHERS");
-      expect(message).toContain("- Akram Syed");
-      expect(message).toContain("- +91 98765 43211");
+      expect(message).toContain("VIDEOGRAPHERS:");
+      expect(message).toContain("1. Akram Syed – +91 98765 43211");
 
       // MUST NOT include unassigned categories
       expect(message).not.toContain("DRONE OPERATORS");
@@ -273,8 +270,8 @@ describe("Event-Wise WhatsApp Event Details Messaging — TA Bridals", () => {
         assignedCrew: customCrew,
       });
 
-      expect(message).toContain("DRONE OPERATORS");
-      expect(message).toContain("- Toufeeq Drone");
+      expect(message).toContain("DRONE OPERATORS:");
+      expect(message).toContain("1. Toufeeq Drone – +91 98765 43214");
       expect(message).not.toContain("PHOTOGRAPHERS");
       expect(message).not.toContain("VIDEOGRAPHERS");
       expect(message).not.toContain("CINEMATOGRAPHERS");

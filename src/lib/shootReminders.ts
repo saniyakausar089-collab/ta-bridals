@@ -18,6 +18,8 @@ import {
   buildWhatsAppClickToChatUrl,
   formatShootDate,
   formatShootTime,
+  categorizeCrewRole,
+  type CrewCategory,
   type NormalizedPhoneResult,
 } from "./messagingUtils";
 
@@ -118,50 +120,176 @@ export function isWithin24HourReminderWindow(
   return diffHours > 0 && diffHours <= 24;
 }
 
-/**
- * Generates the official TA Bridals 24-Hour WhatsApp Shoot Reminder Template.
- * Exact template required by specification:
- * 
- * Hi [Crew Member Name]! 👋
- * 
- * Reminder: You have an upcoming shoot tomorrow.
- * 
- * Project: [Project Name]
- * Event: [Event Name]
- * Date: [Date]
- * Time: [Time]
- * Location: [Location]
- * 
- * Please be available on time.
- * 
- * – TA Bridals
- */
-export function generateShootReminderMessage(params: {
-  crewName: string;
+export interface ShootReminderCrewMember {
+  name: string;
+  role?: string | null;
+  phone?: string | null;
+  category?: CrewCategory;
+}
+
+export interface GenerateShootReminderMessageParams {
+  crewName?: string;
   projectName: string;
   eventName: string;
   dateFormatted: string;
   timeFormatted: string;
   locationFormatted: string;
-}): string {
-  const { crewName, projectName, eventName, dateFormatted, timeFormatted, locationFormatted } =
-    params;
+  clientName?: string;
+  clientContact?: string;
+  assignedCrew?: ShootReminderCrewMember[];
+}
 
-  return [
-    `Hi ${crewName}! 👋`,
+/**
+ * Generates the official TA Bridals Event Details WhatsApp Message.
+ * 
+ * Format:
+ * TA BRIDALS – EVENT DETAILS
+ * 
+ * Dear Team,
+ * 
+ * Please find below the event details.
+ * 
+ * CLIENT NAME: [Client Name]
+ * CONTACT NUMBER: [Client Contact]
+ * 
+ * EVENT DETAILS:
+ * EVENT DATE: [Event Date]
+ * EVENT: [Individual Event Name]
+ * REPORTING TIME: [Reporting Time]
+ * 
+ * VENUE:
+ * [Complete Venue and Address]
+ * 
+ * PHOTOGRAPHERS:
+ * 
+ * 1. [Photographer Name] – [Contact Number]
+ * 
+ * VIDEOGRAPHERS:
+ * 
+ * 1. [Videographer Name] – [Contact Number]
+ * 
+ * DRONE OPERATORS:
+ * [Assigned Members, if any]
+ * 
+ * CINEMATOGRAPHERS:
+ * [Assigned Members, if any]
+ * 
+ * OTHERS:
+ * [Assigned Members, if any]
+ * 
+ * – TA BRIDALS
+ */
+export function generateShootReminderMessage(params: GenerateShootReminderMessageParams): string {
+  const clientName = (params.clientName || params.projectName || "Client").trim();
+  const clientContact = (params.clientContact || "Available on request").trim();
+  const eventName = (params.eventName || "Event").trim();
+  const dateFormatted = (params.dateFormatted || "Date TBA").trim();
+  const reportingTime = (params.timeFormatted || "Time TBA").trim();
+  const venue = (params.locationFormatted || "Location TBA").trim();
+
+  // Resolve assigned crew list
+  let crewList = params.assignedCrew ? [...params.assignedCrew] : [];
+  if (crewList.length === 0 && params.crewName) {
+    crewList = [
+      {
+        name: params.crewName,
+        role: "Crew Member",
+        category: "OTHERS",
+      },
+    ];
+  }
+
+  const photographers: ShootReminderCrewMember[] = [];
+  const videographers: ShootReminderCrewMember[] = [];
+  const droneOperators: ShootReminderCrewMember[] = [];
+  const cinematographers: ShootReminderCrewMember[] = [];
+  const others: ShootReminderCrewMember[] = [];
+
+  for (const c of crewList) {
+    const category = c.category || categorizeCrewRole(c.role);
+    switch (category) {
+      case "PHOTOGRAPHERS":
+        photographers.push(c);
+        break;
+      case "VIDEOGRAPHERS":
+        videographers.push(c);
+        break;
+      case "DRONE OPERATORS":
+        droneOperators.push(c);
+        break;
+      case "CINEMATOGRAPHERS":
+        cinematographers.push(c);
+        break;
+      case "OTHERS":
+      default:
+        others.push(c);
+        break;
+    }
+  }
+
+  const formatCrewLine = (c: ShootReminderCrewMember, index: number, showRole: boolean = false): string => {
+    const phonePart = c.phone && c.phone.trim() ? ` – ${c.phone.trim()}` : "";
+    const rolePart = showRole && c.role && c.role.trim() && c.role !== "Crew Member" ? ` (${c.role.trim()})` : "";
+    return `${index + 1}. ${c.name}${rolePart}${phonePart}`;
+  };
+
+  const lines: string[] = [
+    `TA BRIDALS – EVENT DETAILS`,
     ``,
-    `Reminder: You have an upcoming shoot tomorrow.`,
+    `Dear Team,`,
     ``,
-    `Project: ${projectName}`,
-    `Event: ${eventName}`,
-    `Date: ${dateFormatted}`,
-    `Time: ${timeFormatted}`,
-    `Location: ${locationFormatted}`,
+    `Please find below the event details.`,
     ``,
-    `Please be available on time.`,
+    `CLIENT NAME: ${clientName}`,
+    `CONTACT NUMBER: ${clientContact}`,
     ``,
-    `– TA Bridals`,
-  ].join("\n");
+    `EVENT DETAILS:`,
+    `EVENT DATE: ${dateFormatted}`,
+    `EVENT: ${eventName}`,
+    `REPORTING TIME: ${reportingTime}`,
+    ``,
+    `VENUE:`,
+    `${venue}`,
+  ];
+
+  if (photographers.length > 0) {
+    lines.push(``, `PHOTOGRAPHERS:`, ``);
+    photographers.forEach((c, idx) => {
+      lines.push(formatCrewLine(c, idx));
+    });
+  }
+
+  if (videographers.length > 0) {
+    lines.push(``, `VIDEOGRAPHERS:`, ``);
+    videographers.forEach((c, idx) => {
+      lines.push(formatCrewLine(c, idx));
+    });
+  }
+
+  if (droneOperators.length > 0) {
+    lines.push(``, `DRONE OPERATORS:`, ``);
+    droneOperators.forEach((c, idx) => {
+      lines.push(formatCrewLine(c, idx));
+    });
+  }
+
+  if (cinematographers.length > 0) {
+    lines.push(``, `CINEMATOGRAPHERS:`, ``);
+    cinematographers.forEach((c, idx) => {
+      lines.push(formatCrewLine(c, idx));
+    });
+  }
+
+  if (others.length > 0) {
+    lines.push(``, `OTHERS:`, ``);
+    others.forEach((c, idx) => {
+      lines.push(formatCrewLine(c, idx, true));
+    });
+  }
+
+  lines.push(``, `– TA BRIDALS`);
+
+  return lines.join("\n");
 }
 
 /**
@@ -330,44 +458,90 @@ export function getEligibleShootReminders(
         ? `${shoot.venue}, ${shoot.location}`
         : shoot.venue || shoot.location || "Location TBA";
 
-    // Resolve assigned crew for this specific event
-    const eventAssignments = assignments.filter((a) => a.shoot_id === shoot.id);
-    const assignedCrew: AssignedCrewReminder[] = [];
+    // Resolve client contact from shoot.client_phone or shoot.notes
+    let clientContact = "";
+    if ((shoot as any).client_phone) {
+      clientContact = (shoot as any).client_phone.trim();
+    }
+    if (!clientContact && shoot.notes) {
+      const match = shoot.notes.match(/(?:Client\s*Contact|Contact|Phone|Mobile):\s*([+0-9\s-]+)/i);
+      if (match && match[1]) {
+        clientContact = match[1].trim();
+      }
+    }
+    if (!clientContact) {
+      clientContact = "Available on request";
+    }
 
+    // Resolve assigned crew strictly for this specific event
+    const eventAssignments = assignments.filter((a) => a.shoot_id === shoot.id);
+
+    // Group unique crew members for this event to avoid duplicate recipients
+    const uniqueMemberMap = new Map<string, { member: TeamMember; roles: Set<string> }>();
     for (const a of eventAssignments) {
       const member = teamMap.get(a.team_member_id);
-      const fullName = member?.full_name || "Assigned Crew";
-      const role = a.assignment_type || member?.role || "Crew Member";
-      const phone = member?.phone || null;
+      if (!member) continue;
+      if (!uniqueMemberMap.has(member.id)) {
+        uniqueMemberMap.set(member.id, { member, roles: new Set<string>() });
+      }
+      const role = a.assignment_type || member.role || "Crew Member";
+      uniqueMemberMap.get(member.id)!.roles.add(role);
+    }
+
+    // Build event-specific crew list for message generation
+    const eventCrewList: ShootReminderCrewMember[] = [];
+    uniqueMemberMap.forEach(({ member, roles }) => {
+      const rolesArr = Array.from(roles);
+      const primaryRole = member.role || rolesArr[0] || "Crew Member";
+      const phoneInfo = normalizeWhatsAppPhone(member.phone);
+      const displayPhone = phoneInfo.isValid ? phoneInfo.displayFormatted : (member.phone || null);
+      eventCrewList.push({
+        name: member.full_name,
+        role: primaryRole,
+        phone: displayPhone,
+        category: categorizeCrewRole(primaryRole),
+      });
+    });
+
+    // Generate the official TA BRIDALS – EVENT DETAILS message for this specific event
+    const eventMessage = generateShootReminderMessage({
+      projectName,
+      eventName,
+      dateFormatted,
+      timeFormatted,
+      locationFormatted,
+      clientName: projectName,
+      clientContact,
+      assignedCrew: eventCrewList,
+    });
+
+    const assignedCrew: AssignedCrewReminder[] = [];
+
+    uniqueMemberMap.forEach(({ member, roles }) => {
+      const fullName = member.full_name || "Assigned Crew";
+      const rolesArr = Array.from(roles);
+      const role = rolesArr.join(", ") || member.role || "Crew Member";
+      const phone = member.phone || null;
       const phoneInfo = normalizeWhatsAppPhone(phone);
 
       const crewStatus: ReminderStatus =
-        currentStored?.crewStatuses?.[a.team_member_id] || "pending";
-
-      const message = generateShootReminderMessage({
-        crewName: fullName,
-        projectName,
-        eventName,
-        dateFormatted,
-        timeFormatted,
-        locationFormatted,
-      });
+        currentStored?.crewStatuses?.[member.id] || "pending";
 
       const whatsAppUrl = phoneInfo.isValid
-        ? buildWhatsAppClickToChatUrl(phoneInfo.waDigits, message)
+        ? buildWhatsAppClickToChatUrl(phoneInfo.waDigits, eventMessage)
         : "";
 
       assignedCrew.push({
-        memberId: a.team_member_id,
+        memberId: member.id,
         fullName,
         role,
         phone,
         phoneInfo,
         status: crewStatus,
         whatsAppUrl,
-        message,
+        message: eventMessage,
       });
-    }
+    });
 
     // Sort crew alphabetically by name
     assignedCrew.sort((a, b) => a.fullName.localeCompare(b.fullName));

@@ -67,7 +67,7 @@ export function EventWhatsAppModal({
   const initialClientContact = useMemo(() => {
     if (shoot.notes) {
       const match = shoot.notes.match(
-        /(?:Client\s*Contact|Contact|Phone|Mobile):\s*([+0-9\s-]+)/i
+        /(?:Client\s*Contact|Contact|Phone|Mobile):\s*([^\]\r\n]+)/i
       );
       if (match && match[1]) {
         return match[1].trim();
