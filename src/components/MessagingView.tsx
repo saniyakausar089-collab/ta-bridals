@@ -26,6 +26,7 @@ import { format, parseISO, isAfter, startOfDay } from "date-fns";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { EventWhatsAppModal } from "@/components/EventWhatsAppModal";
 import {
   deriveMessagingProjects,
   generatePersonalizedMessage,
@@ -85,6 +86,12 @@ export function MessagingView({
     currentIndex: number;
     eligibleCrew: ProjectCrewAssignment[];
     currentMessageText: string;
+  } | null>(null);
+
+  // Event-wise WhatsApp dispatch state
+  const [eventWhatsAppTarget, setEventWhatsAppTarget] = useState<{
+    event: Shoot;
+    projectName: string;
   } | null>(null);
 
   // Derive all projects from the shared shoots, assignments, and team state
@@ -526,9 +533,20 @@ export function MessagingView({
                           </p>
                         )}
                       </div>
-                      <div className="mt-2.5 flex items-center justify-between border-t border-[#30282e]/60 pt-2 text-[11px]">
-                        <span className="text-[#8c828a]">Assigned crew:</span>
-                        <span className="font-semibold text-[#d9b98c]">{evAssignments.length}</span>
+                      <div className="mt-2.5 flex flex-wrap items-center justify-between gap-1 border-t border-[#30282e]/60 pt-2 text-[11px]">
+                        <span className="text-[#8c828a]">
+                          Crew: <strong className="text-[#d9b98c]">{evAssignments.length}</strong>
+                        </span>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() =>
+                            setEventWhatsAppTarget({ event: ev, projectName: activeProject.name })
+                          }
+                          className="h-6 px-2 text-[10px] gap-1 border-[#25D366]/40 bg-[#25D366]/10 text-[#25D366] hover:bg-[#25D366] hover:text-black transition-colors"
+                        >
+                          <MessageSquare className="size-3" /> Send Event Details
+                        </Button>
                       </div>
                     </div>
                   );
@@ -1185,6 +1203,17 @@ export function MessagingView({
             )}
           </div>
         </div>
+      )}
+
+      {/* Event-Wise WhatsApp Event Details Modal */}
+      {eventWhatsAppTarget && (
+        <EventWhatsAppModal
+          shoot={eventWhatsAppTarget.event}
+          projectName={eventWhatsAppTarget.projectName}
+          assignments={assignments}
+          team={team}
+          onClose={() => setEventWhatsAppTarget(null)}
+        />
       )}
     </div>
   );

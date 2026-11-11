@@ -12,6 +12,7 @@ import {
   FolderKanban,
   LoaderCircle,
   MapPin,
+  MessageSquare,
   Pencil,
   Plus,
   Search,
@@ -22,6 +23,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { EventWhatsAppModal } from "@/components/EventWhatsAppModal";
 import type { Tables, TablesInsert } from "@/integrations/supabase/types";
 import type { AvailabilityRequest } from "@/lib/audit";
 import {
@@ -222,6 +224,10 @@ export function ShootsManagementView({
   const [renamingProject, setRenamingProject] = useState<{
     oldName: string;
     newName: string;
+  } | null>(null);
+  const [whatsAppEvent, setWhatsAppEvent] = useState<{
+    event: Shoot;
+    projectName: string;
   } | null>(null);
   const [actionError, setActionError] = useState("");
 
@@ -850,6 +856,18 @@ export function ShootsManagementView({
                             <Button
                               variant="outline"
                               size="sm"
+                              className="h-8 gap-1.5 border-[#25D366]/40 bg-[#25D366]/10 text-xs font-medium text-[#25D366] hover:bg-[#25D366]/20 hover:border-[#25D366]/60 transition-colors"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setWhatsAppEvent({ event: eventItem, projectName: activeProject.name });
+                              }}
+                              title="Send Event Details on WhatsApp"
+                            >
+                              <MessageSquare className="size-3.5 text-[#25D366]" /> Send WhatsApp
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
                               className="h-8 gap-1 border-[#30282e] bg-[#1b181d] text-xs text-[#b8adb2] hover:bg-[#242026] hover:text-[#f7f0ee] hover:border-[#c56c7d]/40 transition-colors"
                               onClick={(e) => {
                                 e.stopPropagation();
@@ -978,6 +996,30 @@ export function ShootsManagementView({
                                   Status: {eventItem.status}
                                 </span>
                               </div>
+                            </div>
+
+                            {/* WhatsApp Dispatch Option for Individual Event */}
+                            <div className="flex flex-wrap items-center justify-between gap-3 border-t border-[#30282e] pt-3">
+                              <div>
+                                <p className="text-xs font-medium text-[#f7f0ee] flex items-center gap-1.5">
+                                  <MessageSquare className="size-3.5 text-[#25D366]" />
+                                  Send Event Details on WhatsApp
+                                </p>
+                                <p className="text-[11px] text-[#8c828a]">
+                                  Generates event-specific details and sends individually to assigned crew ({assignedMembers.length} members).
+                                </p>
+                              </div>
+                              <Button
+                                type="button"
+                                size="sm"
+                                className="h-8 gap-2 bg-[#25D366] text-black hover:bg-[#20ba59] font-medium text-xs shadow-md transition-colors"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setWhatsAppEvent({ event: eventItem, projectName: activeProject.name });
+                                }}
+                              >
+                                <MessageSquare className="size-3.5" /> Send Event Details on WhatsApp
+                              </Button>
                             </div>
                           </div>
                         )}
@@ -1395,6 +1437,17 @@ export function ShootsManagementView({
           availabilityRequests={availabilityRequests}
           onClose={() => setAssigningShoot(null)}
           onSave={onSaveAssignments}
+        />
+      )}
+
+      {/* EVENT-WISE WHATSAPP EVENT DETAILS DISPATCH MODAL */}
+      {whatsAppEvent && (
+        <EventWhatsAppModal
+          shoot={whatsAppEvent.event}
+          projectName={whatsAppEvent.projectName}
+          assignments={assignments}
+          team={team}
+          onClose={() => setWhatsAppEvent(null)}
         />
       )}
     </>

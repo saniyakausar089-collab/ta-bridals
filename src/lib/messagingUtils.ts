@@ -483,3 +483,279 @@ export function generatePersonalizedMessage(params: {
     `Team TA Bridals`,
   ].join("\n");
 }
+
+export type CrewCategory =
+  | "PHOTOGRAPHERS"
+  | "VIDEOGRAPHERS"
+  | "DRONE OPERATORS"
+  | "CINEMATOGRAPHERS"
+  | "OTHERS";
+
+/**
+ * Categorizes a team member's role into standard studio categories:
+ * PHOTOGRAPHERS, VIDEOGRAPHERS, DRONE OPERATORS, CINEMATOGRAPHERS, OTHERS
+ */
+export function categorizeCrewRole(roleInput?: string | null): CrewCategory {
+  const role = (roleInput || "").toLowerCase();
+  if (role.includes("photograph")) {
+    return "PHOTOGRAPHERS";
+  }
+  if (role.includes("drone")) {
+    return "DRONE OPERATORS";
+  }
+  if (role.includes("cinema") || role.includes("creative director")) {
+    return "CINEMATOGRAPHERS";
+  }
+  if (role.includes("video")) {
+    return "VIDEOGRAPHERS";
+  }
+  return "OTHERS";
+}
+
+/**
+ * Formats a shoot date into full event date string, e.g. "Sunday, 15 November 2026" or "15 November 2026"
+ */
+export function formatEventFullDate(dateStr?: string | null): string {
+  if (!dateStr) return "Date TBA";
+  try {
+    const parts = dateStr.split("-");
+    if (parts.length < 3) return dateStr;
+    const [year, month, day] = parts;
+    const months = [
+      "January", "February", "March", "April", "May", "June",
+      "July", "August", "September", "October", "November", "December"
+    ];
+    const monthName = months[parseInt(month, 10) - 1] || month;
+    return `${parseInt(day, 10)} ${monthName} ${year}`;
+  } catch {
+    return dateStr;
+  }
+}
+
+export interface EventAssignedCrewMember {
+  member: TeamMember;
+  roles: string[];
+  category: CrewCategory;
+  phoneInfo: NormalizedPhoneResult;
+}
+
+/**
+ * Extracts assigned crew members strictly for a single event.
+ * Avoids duplicate recipients if a member has multiple roles in the same event.
+ */
+export function getEventAssignedCrew(
+  shootId: string,
+  assignments: Assignment[],
+  team: TeamMember[]
+): EventAssignedCrewMember[] {
+  const eventAssignments = assignments.filter((a) => a.shoot_id === shootId);
+  const teamMap = new Map<string, TeamMember>();
+  for (const m of team) {
+    teamMap.set(m.id, m);
+  }
+
+  const memberMap = new Map<string, { member: TeamMember; roles: Set<string> }>();
+
+  for (const a of eventAssignments) {
+    const member = teamMap.get(a.team_member_id);
+    if (!member) continue;
+
+    if (!memberMap.has(member.id)) {
+      memberMap.set(member.id, {
+        member,
+        roles: new Set<string>(),
+      });
+    }
+
+    const entry = memberMap.get(member.id)!;
+    const role = a.assignment_type || member.role || "Crew Member";
+    entry.roles.add(role);
+  }
+
+  const result: EventAssignedCrewMember[] = [];
+  memberMap.forEach((entry) => {
+    const rolesArr = Array.from(entry.roles);
+    const primaryRole = entry.member.role || rolesArr[0] || "Crew Member";
+    const category = categorizeCrewRole(primaryRole);
+    const phoneInfo = normalizeWhatsAppPhone(entry.member.phone);
+
+    result.push({
+      member: entry.member,
+      roles: rolesArr,
+      category,
+      phoneInfo,
+    });
+  });
+
+  return result.sort((a, b) => a.member.full_name.localeCompare(b.member.full_name));
+}
+
+export interface GenerateEventWhatsAppDetailsParams {
+  shoot: Shoot;
+  clientName?: string;
+  clientContact?: string;
+  assignedCrew: {
+    member: TeamMember;
+    roles?: string[];
+    phoneInfo?: NormalizedPhoneResult;
+  }[];
+}
+
+/**
+ * Generates an event-wise WhatsApp event-details message inspired by the Prashmax Photography format.
+ * Format:
+ * TA BRIDALS – EVENT DETAILS
+ * Dear Team,
+ * Please find below the event details.
+ * - CLIENT NAME: ...
+ * - CONTACT NUMBER: ...
+ * EVENT DETAILS
+ * - EVENT DATE: ...
+ * - EVENT NAME: ...
+ * - REPORTING TIME: ...
+ * VENUE
+ * - ...
+ * PHOTOGRAPHERS / VIDEOGRAPHERS / DRONE OPERATORS / CINEMATOGRAPHERS / OTHERS
+ * (Only displays categories that have assigned members)
+ */
+export function generateEventWhatsAppDetails(params: GenerateEventWhatsAppDetailsParams): string {
+  const { shoot, clientName, clientContact, assignedCrew } = params;
+
+  const resolvedClient = (
+    clientName ||
+    shoot.couple_name ||
+    (shoot as any)["shoot name"] ||
+    "Client"
+  ).trim();
+
+  let resolvedContact = (clientContact || "").trim();
+  if (!resolvedContact && shoot.notes) {
+    const match = shoot.notes.match(/(?:Client\s*Contact|Contact|Phone|Mobile):\s*([+0-9\s-]+)/i);
+    if (match && match[1]) {
+      resolvedContact = match[1].trim();
+    }
+  }
+  if (!resolvedContact) {
+    resolvedContact = "Available on request";
+  }
+
+  const eventDate = formatEventFullDate(shoot.event_date);
+  const eventName = (shoot.event_type || "Event").trim();
+  const reportingTime = formatShootTime(shoot.start_time);
+
+  const venueName = (shoot.venue || "").trim();
+  const address = (shoot.location || "").trim();
+
+  // Group assigned crew by categories
+  const photographers: { name: string; phone?: string | null }[] = [];
+  const videographers: { name: string; phone?: string | null }[] = [];
+  const droneOperators: { name: string; phone?: string | null }[] = [];
+  const cinematographers: { name: string; phone?: string | null }[] = [];
+  const others: { name: string; role: string; phone?: string | null }[] = [];
+
+  for (const c of assignedCrew) {
+    const category = categorizeCrewRole(c.member.role);
+    const phone =
+      c.phoneInfo?.displayFormatted ||
+      (c.member.phone
+        ? normalizeWhatsAppPhone(c.member.phone).displayFormatted || c.member.phone
+        : null);
+    const entry = { name: c.member.full_name, phone };
+
+    switch (category) {
+      case "PHOTOGRAPHERS":
+        photographers.push(entry);
+        break;
+      case "VIDEOGRAPHERS":
+        videographers.push(entry);
+        break;
+      case "DRONE OPERATORS":
+        droneOperators.push(entry);
+        break;
+      case "CINEMATOGRAPHERS":
+        cinematographers.push(entry);
+        break;
+      case "OTHERS":
+      default:
+        others.push({
+          ...entry,
+          role: c.member.role || "Crew Member",
+        });
+        break;
+    }
+  }
+
+  const lines: string[] = [
+    `TA BRIDALS – EVENT DETAILS`,
+    ``,
+    `Dear Team,`,
+    ``,
+    `Please find below the event details.`,
+    ``,
+    `- CLIENT NAME: ${resolvedClient}`,
+    `- CONTACT NUMBER: ${resolvedContact}`,
+    ``,
+    `EVENT DETAILS`,
+    ``,
+    `- EVENT DATE: ${eventDate}`,
+    `- EVENT NAME: ${eventName}`,
+    `- REPORTING TIME: ${reportingTime}`,
+    ``,
+    `VENUE`,
+    ``,
+  ];
+
+  if (venueName && address && venueName.toLowerCase() !== address.toLowerCase()) {
+    lines.push(`- ${venueName}`);
+    lines.push(`- ${address}`);
+  } else if (venueName) {
+    lines.push(`- ${venueName}`);
+  } else if (address) {
+    lines.push(`- ${address}`);
+  } else {
+    lines.push(`- Location TBA`);
+  }
+
+  if (photographers.length > 0) {
+    lines.push(``, `PHOTOGRAPHERS`, ``);
+    photographers.forEach((p) => {
+      lines.push(`- ${p.name}`);
+      if (p.phone && p.phone.trim()) {
+        lines.push(`- ${p.phone.trim()}`);
+      }
+    });
+  }
+
+  if (videographers.length > 0) {
+    lines.push(``, `VIDEOGRAPHERS`, ``);
+    videographers.forEach((v) => {
+      lines.push(`- ${v.name}`);
+      if (v.phone && v.phone.trim()) {
+        lines.push(`- ${v.phone.trim()}`);
+      }
+    });
+  }
+
+  if (droneOperators.length > 0) {
+    lines.push(``, `DRONE OPERATORS`, ``);
+    droneOperators.forEach((d) => {
+      lines.push(`- ${d.name}`);
+    });
+  }
+
+  if (cinematographers.length > 0) {
+    lines.push(``, `CINEMATOGRAPHERS`, ``);
+    cinematographers.forEach((c) => {
+      lines.push(`- ${c.name}`);
+    });
+  }
+
+  if (others.length > 0) {
+    lines.push(``, `OTHERS`, ``);
+    others.forEach((o) => {
+      lines.push(`- ${o.name}`);
+    });
+  }
+
+  return lines.join("\n");
+}

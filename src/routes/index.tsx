@@ -69,6 +69,7 @@ import { getEligibleShootReminders } from "@/lib/shootReminders";
 import { AccountSettingsModal } from "@/components/AccountSettingsModal";
 import { ShootsManagementView } from "@/components/ShootsManagementView";
 import { MessagingView } from "@/components/MessagingView";
+import { EventWhatsAppModal } from "@/components/EventWhatsAppModal";
 import {
   formatCurrency,
   calculateStudioTotals,
@@ -3277,6 +3278,7 @@ function CalendarView({
   const [anchor, setAnchor] = useState(() => new Date());
   const [view, setView] = useState<"month" | "week">("month");
   const [selectedShoot, setSelectedShoot] = useState<Shoot | null>(null);
+  const [whatsAppShoot, setWhatsAppShoot] = useState<Shoot | null>(null);
 
   const monthStart = startOfMonth(anchor);
   const monthEnd = endOfMonth(anchor);
@@ -3605,7 +3607,18 @@ function CalendarView({
                 );
               })()}
 
-            <div className="mt-5 flex justify-end gap-2 border-t border-[#30282e] pt-4">
+            <div className="mt-5 flex flex-wrap items-center justify-end gap-2 border-t border-[#30282e] pt-4">
+              <Button
+                type="button"
+                className="gap-1.5 bg-[#25D366] text-black hover:bg-[#20ba59] font-medium text-xs"
+                onClick={() => {
+                  const target = selectedShoot;
+                  setSelectedShoot(null);
+                  setWhatsAppShoot(target);
+                }}
+              >
+                <MessageSquare className="size-3.5" /> Send WhatsApp Details
+              </Button>
               {onEditShoot && (
                 <Button
                   type="button"
@@ -3625,6 +3638,17 @@ function CalendarView({
             </div>
           </section>
         </div>
+      )}
+
+      {/* EVENT-WISE WHATSAPP EVENT DETAILS DISPATCH MODAL */}
+      {whatsAppShoot && (
+        <EventWhatsAppModal
+          shoot={whatsAppShoot}
+          projectName={whatsAppShoot.couple_name}
+          assignments={assignments}
+          team={team}
+          onClose={() => setWhatsAppShoot(null)}
+        />
       )}
     </>
   );
