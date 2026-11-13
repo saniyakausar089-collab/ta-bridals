@@ -65,33 +65,62 @@ describe("24-Hour Shoot Reminder System", () => {
   });
 
   describe("Personalized WhatsApp Message Template", () => {
-    it("generates the exact required WhatsApp reminder message format", () => {
+    it("generates the exact required TA BRIDALS – EVENT DETAILS message format", () => {
       const message = generateShootReminderMessage({
-        crewName: "Arjun Verma",
         projectName: "Sneha & Rahul Wedding",
         eventName: "Muhurtham & Reception",
         dateFormatted: "10 Nov 2026",
         timeFormatted: "06:30 AM",
         locationFormatted: "Leela Palace, Chennai",
+        clientName: "Sneha & Rahul",
+        clientContact: "+91 99887 76655",
+        assignedCrew: [
+          {
+            name: "Arjun Verma",
+            role: "Lead Photographer",
+            phone: "+91 92465 56478",
+            category: "PHOTOGRAPHERS",
+          },
+          {
+            name: "Vikram Rathore",
+            role: "Videographer",
+            phone: "+91 98401 23456",
+            category: "VIDEOGRAPHERS",
+          },
+        ],
       });
 
       const expected = [
-        "Hi Arjun Verma! 👋",
+        "TA BRIDALS – EVENT DETAILS",
         "",
-        "Reminder: You have an upcoming shoot tomorrow.",
+        "Dear Team,",
         "",
-        "Project: Sneha & Rahul Wedding",
-        "Event: Muhurtham & Reception",
-        "Date: 10 Nov 2026",
-        "Time: 06:30 AM",
-        "Location: Leela Palace, Chennai",
+        "Please find below the event details.",
         "",
-        "Please be available on time.",
+        "CLIENT NAME: Sneha & Rahul",
+        "CONTACT NUMBER: +91 99887 76655",
         "",
-        "– TA Bridals",
+        "EVENT DETAILS:",
+        "EVENT DATE: 10 Nov 2026",
+        "EVENT: Muhurtham & Reception",
+        "REPORTING TIME: 06:30 AM",
+        "",
+        "VENUE:",
+        "Leela Palace, Chennai",
+        "",
+        "PHOTOGRAPHERS:",
+        "",
+        "1. Arjun Verma – +91 92465 56478",
+        "",
+        "VIDEOGRAPHERS:",
+        "",
+        "1. Vikram Rathore – +91 98401 23456",
+        "",
+        "– TA BRIDALS",
       ].join("\n");
 
       expect(message).toBe(expected);
+      expect(message).not.toContain("Reminder: You have an upcoming shoot tomorrow.");
     });
   });
 
@@ -214,15 +243,18 @@ describe("24-Hour Shoot Reminder System", () => {
       expect(reminder.isPending).toBe(true);
     });
 
-    it("generates valid wa.me URLs for assigned crew using their registered phone numbers", () => {
+    it("generates valid wa.me URLs for assigned crew using their registered phone numbers with TA BRIDALS event details", () => {
       const now = Date.parse("2026-11-09T22:00:00+05:30");
       const reminders = getEligibleShootReminders(mockShoots, mockAssignments, mockTeam, now);
       const crew1 = reminders[0]!.assignedCrew[0]!; // Kavita Pillai
       expect(crew1.phoneInfo.isValid).toBe(true);
       expect(crew1.phoneInfo.waDigits).toBe("919876543210");
       expect(crew1.whatsAppUrl).toContain("https://wa.me/919876543210?text=");
-      expect(crew1.whatsAppUrl).toContain(encodeURIComponent("Hi Kavita Pillai! 👋"));
-      expect(crew1.whatsAppUrl).toContain(encodeURIComponent("– TA Bridals"));
+      expect(crew1.whatsAppUrl).toContain(encodeURIComponent("TA BRIDALS – EVENT DETAILS"));
+      expect(crew1.whatsAppUrl).toContain(encodeURIComponent("– TA BRIDALS"));
+      expect(crew1.message).toContain("TA BRIDALS – EVENT DETAILS");
+      expect(crew1.message).toContain("PHOTOGRAPHERS:\n\n1. Kavita Pillai – +91 98765 43210");
+      expect(crew1.message).not.toContain("Reminder: You have an upcoming shoot tomorrow.");
     });
 
     it("prevents duplicate alerts even if the same shoot appears more than once in input", () => {

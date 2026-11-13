@@ -55,6 +55,7 @@ import {
   Bell,
   Settings,
   MessageSquare,
+  FileText,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -71,6 +72,8 @@ import { getEligibleShootReminders } from "@/lib/shootReminders";
 import { AccountSettingsModal } from "@/components/AccountSettingsModal";
 import { ShootsManagementView } from "@/components/ShootsManagementView";
 import { MessagingView } from "@/components/MessagingView";
+import { EventWhatsAppModal } from "@/components/EventWhatsAppModal";
+import { EventDetailsPdfModal } from "@/components/EventDetailsPdfModal";
 import {
   formatCurrency,
   calculateStudioTotals,
@@ -3280,6 +3283,8 @@ export function CalendarView({
   const [view, setView] = useState<"month" | "week">("month");
   const [selectedShoot, setSelectedShoot] = useState<Shoot | null>(null);
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+  const [whatsAppShoot, setWhatsAppShoot] = useState<Shoot | null>(null);
+  const [pdfShoot, setPdfShoot] = useState<Shoot | null>(null);
 
   const monthStart = startOfMonth(anchor);
   const monthEnd = endOfMonth(anchor);
@@ -3637,7 +3642,29 @@ export function CalendarView({
                 );
               })()}
 
-            <div className="mt-5 flex justify-end gap-2 border-t border-[#30282e] pt-4">
+            <div className="mt-5 flex flex-wrap items-center justify-end gap-2 border-t border-[#30282e] pt-4">
+              <Button
+                type="button"
+                className="gap-1.5 bg-[#d11a2a] text-white hover:bg-[#b01422] font-medium text-xs"
+                onClick={() => {
+                  const target = selectedShoot;
+                  setSelectedShoot(null);
+                  setPdfShoot(target);
+                }}
+              >
+                <FileText className="size-3.5" /> Event PDF
+              </Button>
+              <Button
+                type="button"
+                className="gap-1.5 bg-[#25D366] text-black hover:bg-[#20ba59] font-medium text-xs"
+                onClick={() => {
+                  const target = selectedShoot;
+                  setSelectedShoot(null);
+                  setWhatsAppShoot(target);
+                }}
+              >
+                <MessageSquare className="size-3.5" /> Send WhatsApp Details
+              </Button>
               {onEditShoot && (
                 <Button
                   type="button"
@@ -3894,6 +3921,33 @@ export function CalendarView({
             </div>
           </section>
         </div>
+      )}
+
+      {/* EVENT-WISE WHATSAPP EVENT DETAILS DISPATCH MODAL */}
+      {whatsAppShoot && (
+        <EventWhatsAppModal
+          shoot={whatsAppShoot}
+          projectName={whatsAppShoot.couple_name}
+          assignments={assignments}
+          team={team}
+          onClose={() => setWhatsAppShoot(null)}
+        />
+      )}
+
+      {/* EVENT DETAILS PDF / PRINT FLYER MODAL */}
+      {pdfShoot && (
+        <EventDetailsPdfModal
+          shoot={pdfShoot}
+          projectName={pdfShoot.couple_name}
+          assignments={assignments}
+          team={team}
+          onClose={() => setPdfShoot(null)}
+          onOpenWhatsApp={() => {
+            const target = pdfShoot;
+            setPdfShoot(null);
+            setWhatsAppShoot(target);
+          }}
+        />
       )}
     </>
   );

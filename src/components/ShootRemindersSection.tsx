@@ -50,7 +50,7 @@ export function ShootRemindersSection({
   // "Message All Crew" Wizard Stepper state
   const [wizardReminder, setWizardReminder] = useState<ShootReminderItem | null>(null);
   const [wizardIndex, setWizardIndex] = useState(0);
-  const [editedDraftMessages, setEditedDraftMessages] = useState<Record<string, string>>({});
+  const [editedMessages, setEditedMessages] = useState<Record<string, string>>({});
   const [isEditingWizardDraft, setIsEditingWizardDraft] = useState(false);
   const [wizardEditText, setWizardEditText] = useState("");
   const [wizardCopied, setWizardCopied] = useState(false);
@@ -84,11 +84,17 @@ export function ShootRemindersSection({
     reminder: ShootReminderItem,
     memberId: string,
     urlFallback?: string,
+    customMessage?: string,
   ) => {
     const crew = reminder.assignedCrew.find((c) => c.memberId === memberId);
     if (!crew && !urlFallback) return;
 
-    const messageToSend = editedDraftMessages[memberId] ?? crew?.message ?? "";
+    const memberKey = `${reminder.eventId}_${memberId}`;
+    const messageToSend =
+      customMessage ||
+      (editedMessages[memberKey] !== undefined ? editedMessages[memberKey] : "") ||
+      crew?.message ||
+      "";
 
     if (crew?.phoneInfo?.isValid) {
       openWhatsAppChat(crew.phoneInfo.waDigits, messageToSend);
@@ -152,6 +158,29 @@ export function ShootRemindersSection({
     wizardReminder && wizardReminder.assignedCrew[wizardIndex]
       ? wizardReminder.assignedCrew[wizardIndex]
       : null;
+
+  const stepKey =
+    wizardReminder && currentWizardCrew
+      ? `${wizardReminder.eventId}_${currentWizardCrew.memberId}`
+      : "";
+  const currentDraftMessage =
+    stepKey && editedMessages[stepKey] !== undefined
+      ? editedMessages[stepKey]
+      : currentWizardCrew?.message || "";
+
+  const handleEditCurrentDraft = (newVal: string) => {
+    if (!stepKey) return;
+    setEditedMessages((prev) => ({ ...prev, [stepKey]: newVal }));
+  };
+
+  const handleResetCurrentDraft = () => {
+    if (!stepKey) return;
+    setEditedMessages((prev) => {
+      const copy = { ...prev };
+      delete copy[stepKey];
+      return copy;
+    });
+  };
 
   const storedStatuses = getStoredReminderStatuses();
   const pendingCount = reminders.filter((r) => {
@@ -536,8 +565,7 @@ export function ShootRemindersSection({
 
             {/* Message Template Preview Box with Edit Draft option */}
             {(() => {
-              const activeMsg =
-                editedDraftMessages[currentWizardCrew.memberId] ?? currentWizardCrew.message;
+              const activeMsg = currentDraftMessage;
 
               return (
                 <div className="mt-4 space-y-2">
@@ -548,6 +576,16 @@ export function ShootRemindersSection({
 
                     {!isEditingWizardDraft && (
                       <div className="flex items-center gap-2">
+                        {stepKey && editedMessages[stepKey] !== undefined && (
+                          <button
+                            type="button"
+                            onClick={handleResetCurrentDraft}
+                            className="text-[10px] text-[#d9b98c] hover:underline cursor-pointer"
+                          >
+                            Reset to Default
+                          </button>
+                        )}
+
                         <Button
                           type="button"
                           size="sm"
@@ -624,10 +662,7 @@ export function ShootRemindersSection({
                           type="button"
                           size="sm"
                           onClick={() => {
-                            setEditedDraftMessages((prev) => ({
-                              ...prev,
-                              [currentWizardCrew.memberId]: wizardEditText,
-                            }));
+                            handleEditCurrentDraft(wizardEditText);
                             setIsEditingWizardDraft(false);
                           }}
                           className="h-7 bg-[#762d40] text-[11px] font-medium text-white hover:bg-[#c56c7d]"
@@ -680,6 +715,7 @@ export function ShootRemindersSection({
                         wizardReminder,
                         currentWizardCrew.memberId,
                         currentWizardCrew.whatsAppUrl,
+                        currentDraftMessage,
                       )
                     }
                     className="h-8 bg-[#25D366] hover:bg-[#1ebd59] text-black font-semibold text-xs px-3 shadow-xs"
