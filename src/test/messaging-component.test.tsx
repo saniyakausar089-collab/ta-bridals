@@ -228,18 +228,44 @@ describe("MessagingView Component Full Story Verification", () => {
     expect(rahulBtn).toBeDefined();
     fireEvent.click(rahulBtn!);
 
-    // Modal opens
+    // Modal opens with draft preview
     expect(screen.getByText("WhatsApp Dispatch Preview")).toBeInTheDocument();
     expect(screen.getByText("Message Rahul Sharma")).toBeInTheDocument();
 
-    // Check textarea has personalized message
+    const preview = screen.getByTestId("draft-preview");
+    expect(preview.textContent).toContain("Hi Rahul! 👋");
+    expect(preview.textContent).toContain("Ayesha & Ahmed");
+
+    // Click "Edit Draft" option
+    const editBtn = screen.getByRole("button", { name: /Edit Draft/i });
+    fireEvent.click(editBtn);
+
+    // Textarea is now displayed with complete generated message
     const textarea = screen.getByRole("textbox") as HTMLTextAreaElement;
     expect(textarea.value).toContain("Hi Rahul! 👋");
     expect(textarea.value).toContain("Ayesha & Ahmed");
 
-    // User edits message
-    fireEvent.change(textarea, { target: { value: "Custom shoot instruction for Rahul" } });
-    expect(textarea).toHaveValue("Custom shoot instruction for Rahul");
+    // Test Cancel first: make changes and cancel
+    fireEvent.change(textarea, { target: { value: "Temporary cancel test" } });
+    const cancelBtn = screen.getByRole("button", { name: /Cancel edit/i });
+    fireEvent.click(cancelBtn);
+
+    // Message is restored and preview is shown again
+    expect(screen.getByTestId("draft-preview").textContent).toContain("Hi Rahul! 👋");
+
+    // Re-open Edit Draft and save changes
+    fireEvent.click(screen.getByRole("button", { name: /Edit Draft/i }));
+    const editableTextarea = screen.getByRole("textbox") as HTMLTextAreaElement;
+    fireEvent.change(editableTextarea, { target: { value: "Custom shoot instruction for Rahul" } });
+    const saveChangesBtn = screen.getByRole("button", { name: /Save Changes/i });
+    fireEvent.click(saveChangesBtn);
+
+    // Preview now displays updated message
+    expect(screen.getByTestId("draft-preview").textContent).toBe("Custom shoot instruction for Rahul");
+
+    // Test Copy Message
+    const copyBtn = screen.getByRole("button", { name: /Copy draft message/i });
+    fireEvent.click(copyBtn);
 
     // Click "Open WhatsApp"
     const openWaBtn = screen.getByRole("button", { name: /Open WhatsApp/i });

@@ -21,6 +21,9 @@ import {
   CalendarClock,
   Camera,
   Filter,
+  Edit3,
+  Copy,
+  X,
 } from "lucide-react";
 import { format, parseISO, isAfter, startOfDay } from "date-fns";
 import { Button } from "@/components/ui/button";
@@ -76,7 +79,10 @@ export function MessagingView({
     project: MessagingProject;
     crewItem: ProjectCrewAssignment;
     messageText: string;
+    isEditing: boolean;
+    editText: string;
   } | null>(null);
+  const [copiedIndividual, setCopiedIndividual] = useState(false);
 
   // Message All Stepper Modal state
   const [stepperState, setStepperState] = useState<{
@@ -85,7 +91,34 @@ export function MessagingView({
     currentIndex: number;
     eligibleCrew: ProjectCrewAssignment[];
     currentMessageText: string;
+    isEditing?: boolean;
+    editText?: string;
   } | null>(null);
+  const [copiedStepper, setCopiedStepper] = useState(false);
+
+  // Safe clipboard helper
+  const copyToClipboard = async (text: string): Promise<boolean> => {
+    try {
+      if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(text);
+        return true;
+      }
+      if (typeof document !== "undefined") {
+        const ta = document.createElement("textarea");
+        ta.value = text;
+        ta.style.position = "fixed";
+        ta.style.opacity = "0";
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand("copy");
+        document.body.removeChild(ta);
+        return true;
+      }
+    } catch {
+      // ignore
+    }
+    return false;
+  };
 
   // Derive all projects from the shared shoots, assignments, and team state
   const projects = useMemo(() => {
@@ -211,7 +244,10 @@ export function MessagingView({
       project,
       crewItem,
       messageText: generated,
+      isEditing: false,
+      editText: generated,
     });
+    setCopiedIndividual(false);
   };
 
   // Launch WhatsApp Click to Chat URL
@@ -231,6 +267,7 @@ export function MessagingView({
     if (eligible.length === 0) return;
 
     const firstCrew = eligible[0];
+    if (!firstCrew) return;
     const firstMsg = generatePersonalizedMessage({
       crewName: firstCrew.member.full_name,
       projectName: project.name,
@@ -244,7 +281,10 @@ export function MessagingView({
       currentIndex: 0,
       eligibleCrew: eligible,
       currentMessageText: firstMsg,
+      isEditing: false,
+      editText: firstMsg,
     });
+    setCopiedStepper(false);
   };
 
   // Stepper: Proceed to next member
@@ -254,11 +294,14 @@ export function MessagingView({
       setStepperState({
         ...stepperState,
         step: "complete",
+        isEditing: false,
       });
+      setCopiedStepper(false);
       return;
     }
 
     const nextCrew = stepperState.eligibleCrew[nextIdx];
+    if (!nextCrew) return;
     const nextMsg = generatePersonalizedMessage({
       crewName: nextCrew.member.full_name,
       projectName: stepperState.project.name,
@@ -270,7 +313,10 @@ export function MessagingView({
       ...stepperState,
       currentIndex: nextIdx,
       currentMessageText: nextMsg,
+      isEditing: false,
+      editText: nextMsg,
     });
+    setCopiedStepper(false);
   };
 
   // Format status badge
@@ -863,40 +909,152 @@ export function MessagingView({
               </div>
             </div>
 
-            {/* Message Editor */}
+            {/* Message Area: Generated Draft Preview with Edit Draft option */}
             <div className="mt-4 space-y-2">
-              <div className="flex items-center justify-between text-xs">
-                <label className="font-medium text-[#f7f0ee]">Personalized Message (Editable)</label>
-                <button
-                  type="button"
-                  onClick={() => {
-                    const fresh = generatePersonalizedMessage({
-                      crewName: individualModal.crewItem.member.full_name,
-                      projectName: individualModal.project.name,
-                      roles: individualModal.crewItem.roles,
-                      assignedEvents: individualModal.crewItem.assignedEvents,
-                    });
-                    setIndividualModal({
-                      ...individualModal,
-                      messageText: fresh,
-                    });
-                  }}
-                  className="text-[11px] text-[#d9b98c] hover:underline"
-                >
-                  Reset to Template
-                </button>
+              <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+                <span className="font-medium text-[#f7f0ee]">
+                  {individualModal.isEditing ? "Edit Draft Message" : "Generated Draft Message"}
+                </span>
+
+                <div className="flex items-center gap-2">
+                  {!individualModal.isEditing ? (
+                    <>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        onClick={async () => {
+                          const success = await copyToClipboard(individualModal.messageText);
+                          if (success) {
+                            setCopiedIndividual(true);
+                            setTimeout(() => setCopiedIndividual(false), 2000);
+                          }
+                        }}
+                        className="h-7 border-[#30282e] bg-[#100d10] px-2 text-[11px] text-[#b8adb2] hover:bg-white/5 hover:text-white"
+                        title="Copy draft message to clipboard"
+                        aria-label="Copy draft message"
+                      >
+                        {copiedIndividual ? (
+                          <>
+                            <Check className="size-3 mr-1 text-[#25D366]" />
+                            Copied!
+                          </>
+                        ) : (
+                          <>
+                            <Copy className="size-3 mr-1" />
+                            Copy Message
+                          </>
+                        )}
+                      </Button>
+
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        onClick={() =>
+                          setIndividualModal({
+                            ...individualModal,
+                            isEditing: true,
+                            editText: individualModal.messageText,
+                          })
+                        }
+                        className="h-7 border-[#d9b98c]/40 bg-[#d9b98c]/10 px-2.5 text-[11px] font-medium text-[#d9b98c] hover:bg-[#d9b98c]/20 hover:text-[#f7f0ee]"
+                        title="Edit draft message text"
+                        aria-label="Edit Draft"
+                      >
+                        <Edit3 className="size-3 mr-1" />
+                        Edit Draft
+                      </Button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const fresh = generatePersonalizedMessage({
+                            crewName: individualModal.crewItem.member.full_name,
+                            projectName: individualModal.project.name,
+                            roles: individualModal.crewItem.roles,
+                            assignedEvents: individualModal.crewItem.assignedEvents,
+                          });
+                          setIndividualModal({
+                            ...individualModal,
+                            messageText: fresh,
+                            editText: fresh,
+                            isEditing: false,
+                          });
+                        }}
+                        className="text-[11px] text-[#8c828a] hover:text-[#d9b98c] hover:underline"
+                      >
+                        Reset Template
+                      </button>
+                    </>
+                  ) : null}
+                </div>
               </div>
-              <textarea
-                rows={9}
-                value={individualModal.messageText}
-                onChange={(e) =>
-                  setIndividualModal({
-                    ...individualModal,
-                    messageText: e.target.value,
-                  })
-                }
-                className="w-full rounded-lg border border-[#30282e] bg-[#100d10] p-3 font-mono text-xs text-[#f7f0ee] focus:border-[#d9b98c] focus:outline-none"
-              />
+
+              {!individualModal.isEditing ? (
+                /* Generated Draft Preview */
+                <pre
+                  data-testid="draft-preview"
+                  className="max-h-60 w-full overflow-y-auto rounded-lg border border-[#30282e] bg-[#100d10] p-3 font-mono text-xs text-[#f7f0ee] leading-relaxed whitespace-pre-wrap select-all"
+                >
+                  {individualModal.messageText}
+                </pre>
+              ) : (
+                /* Editable Text Area */
+                <div className="space-y-2">
+                  <p className="text-[11px] text-[#8c828a]">
+                    Modify crew names, event details, dates, timings, locations, or custom instructions:
+                  </p>
+                  <textarea
+                    rows={9}
+                    value={individualModal.editText}
+                    onChange={(e) =>
+                      setIndividualModal({
+                        ...individualModal,
+                        editText: e.target.value,
+                      })
+                    }
+                    className="w-full rounded-lg border border-[#d9b98c]/50 bg-[#100d10] p-3 font-mono text-xs text-[#f7f0ee] focus:border-[#d9b98c] focus:outline-none"
+                    placeholder="Edit complete draft message..."
+                    aria-label="Editable draft message text"
+                  />
+                  <div className="flex items-center justify-end gap-2 pt-1">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={() =>
+                        setIndividualModal({
+                          ...individualModal,
+                          isEditing: false,
+                          editText: individualModal.messageText,
+                        })
+                      }
+                      className="h-7 border-[#30282e] text-[11px] text-[#8c828a] hover:text-white"
+                      aria-label="Cancel edit"
+                    >
+                      <X className="size-3 mr-1" />
+                      Cancel
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      onClick={() =>
+                        setIndividualModal({
+                          ...individualModal,
+                          messageText: individualModal.editText,
+                          isEditing: false,
+                        })
+                      }
+                      className="h-7 bg-[#762d40] text-[11px] font-medium text-white hover:bg-[#c56c7d]"
+                      aria-label="Save Changes"
+                    >
+                      <Check className="size-3 mr-1" />
+                      Save Changes
+                    </Button>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Delivery Note */}
@@ -913,15 +1071,19 @@ export function MessagingView({
                 size="sm"
                 onClick={() => setIndividualModal(null)}
                 className="border-[#30282e] text-xs text-[#8c828a] hover:text-white"
+                aria-label="Close modal"
               >
-                Cancel
+                Close
               </Button>
               <Button
                 size="sm"
                 onClick={() => {
+                  const finalMessage = individualModal.isEditing
+                    ? individualModal.editText
+                    : individualModal.messageText;
                   handleLaunchWhatsApp(
                     individualModal.crewItem.phoneInfo.waDigits,
-                    individualModal.messageText,
+                    finalMessage,
                     individualModal.project.id,
                     individualModal.crewItem.member.id
                   );
@@ -1057,42 +1219,152 @@ export function MessagingView({
                         </p>
                       </div>
 
-                      {/* Editable Text Area */}
-                      <div className="space-y-1.5">
-                        <div className="flex items-center justify-between text-xs">
+                      {/* Message Preview vs Editor */}
+                      <div className="space-y-2">
+                        <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
                           <label className="font-medium text-[#f7f0ee]">
-                            Personalized Message Preview
+                            {stepperState.isEditing
+                              ? "Edit Draft Message"
+                              : "Personalized Message Preview"}
                           </label>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              const fresh = generatePersonalizedMessage({
-                                crewName: current.member.full_name,
-                                projectName: stepperState.project.name,
-                                roles: current.roles,
-                                assignedEvents: current.assignedEvents,
-                              });
-                              setStepperState({
-                                ...stepperState,
-                                currentMessageText: fresh,
-                              });
-                            }}
-                            className="text-[11px] text-[#d9b98c] hover:underline"
-                          >
-                            Reset
-                          </button>
+                          <div className="flex items-center gap-2">
+                            {!stepperState.isEditing ? (
+                              <>
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={async () => {
+                                    const success = await copyToClipboard(
+                                      stepperState.currentMessageText
+                                    );
+                                    if (success) {
+                                      setCopiedStepper(true);
+                                      setTimeout(() => setCopiedStepper(false), 2000);
+                                    }
+                                  }}
+                                  className="h-7 border-[#30282e] bg-[#100d10] px-2 text-[11px] text-[#b8adb2] hover:bg-white/5 hover:text-white"
+                                  title="Copy draft message to clipboard"
+                                  aria-label="Copy draft message"
+                                >
+                                  {copiedStepper ? (
+                                    <>
+                                      <Check className="size-3 mr-1 text-[#25D366]" />
+                                      Copied!
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Copy className="size-3 mr-1" />
+                                      Copy Message
+                                    </>
+                                  )}
+                                </Button>
+
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() =>
+                                    setStepperState({
+                                      ...stepperState,
+                                      isEditing: true,
+                                      editText: stepperState.currentMessageText,
+                                    })
+                                  }
+                                  className="h-7 border-[#d9b98c]/40 bg-[#d9b98c]/10 px-2.5 text-[11px] font-medium text-[#d9b98c] hover:bg-[#d9b98c]/20 hover:text-[#f7f0ee]"
+                                  title="Edit draft message text"
+                                  aria-label="Edit Draft"
+                                >
+                                  <Edit3 className="size-3 mr-1" />
+                                  Edit Draft
+                                </Button>
+
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const fresh = generatePersonalizedMessage({
+                                      crewName: current.member.full_name,
+                                      projectName: stepperState.project.name,
+                                      roles: current.roles,
+                                      assignedEvents: current.assignedEvents,
+                                    });
+                                    setStepperState({
+                                      ...stepperState,
+                                      currentMessageText: fresh,
+                                      editText: fresh,
+                                      isEditing: false,
+                                    });
+                                  }}
+                                  className="text-[11px] text-[#8c828a] hover:text-[#d9b98c] hover:underline"
+                                >
+                                  Reset
+                                </button>
+                              </>
+                            ) : null}
+                          </div>
                         </div>
-                        <textarea
-                          rows={8}
-                          value={stepperState.currentMessageText}
-                          onChange={(e) =>
-                            setStepperState({
-                              ...stepperState,
-                              currentMessageText: e.target.value,
-                            })
-                          }
-                          className="w-full rounded-lg border border-[#30282e] bg-[#100d10] p-3 font-mono text-xs text-[#f7f0ee] focus:border-[#d9b98c] focus:outline-none"
-                        />
+
+                        {!stepperState.isEditing ? (
+                          <pre
+                            data-testid="stepper-draft-preview"
+                            className="max-h-56 w-full overflow-y-auto rounded-lg border border-[#30282e] bg-[#100d10] p-3 font-mono text-xs text-[#f7f0ee] leading-relaxed whitespace-pre-wrap select-all"
+                          >
+                            {stepperState.currentMessageText}
+                          </pre>
+                        ) : (
+                          <div className="space-y-2">
+                            <p className="text-[11px] text-[#8c828a]">
+                              Modify names, shoot timings, venues, or instructions for this crew member:
+                            </p>
+                            <textarea
+                              rows={8}
+                              value={stepperState.editText ?? stepperState.currentMessageText}
+                              onChange={(e) =>
+                                setStepperState({
+                                  ...stepperState,
+                                  editText: e.target.value,
+                                })
+                              }
+                              className="w-full rounded-lg border border-[#d9b98c]/50 bg-[#100d10] p-3 font-mono text-xs text-[#f7f0ee] focus:border-[#d9b98c] focus:outline-none"
+                              placeholder="Edit draft message..."
+                              aria-label="Editable draft message text"
+                            />
+                            <div className="flex items-center justify-end gap-2 pt-1">
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="outline"
+                                onClick={() =>
+                                  setStepperState({
+                                    ...stepperState,
+                                    isEditing: false,
+                                    editText: stepperState.currentMessageText,
+                                  })
+                                }
+                                className="h-7 border-[#30282e] text-[11px] text-[#8c828a] hover:text-white"
+                              >
+                                <X className="size-3 mr-1" />
+                                Cancel
+                              </Button>
+                              <Button
+                                type="button"
+                                size="sm"
+                                onClick={() =>
+                                  setStepperState({
+                                    ...stepperState,
+                                    currentMessageText:
+                                      stepperState.editText ?? stepperState.currentMessageText,
+                                    isEditing: false,
+                                  })
+                                }
+                                className="h-7 bg-[#762d40] text-[11px] font-medium text-white hover:bg-[#c56c7d]"
+                              >
+                                <Check className="size-3 mr-1" />
+                                Save Changes
+                              </Button>
+                            </div>
+                          </div>
+                        )}
                       </div>
 
                       {/* Stepper Controls */}
@@ -1114,9 +1386,12 @@ export function MessagingView({
                           <Button
                             size="sm"
                             onClick={() => {
+                              const finalMsg = stepperState.isEditing
+                                ? stepperState.editText ?? stepperState.currentMessageText
+                                : stepperState.currentMessageText;
                               handleLaunchWhatsApp(
                                 current.phoneInfo.waDigits,
-                                stepperState.currentMessageText,
+                                finalMsg,
                                 stepperState.project.id,
                                 current.member.id
                               );

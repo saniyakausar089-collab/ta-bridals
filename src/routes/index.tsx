@@ -19,7 +19,9 @@ import {
 } from "date-fns";
 import {
   AlertCircle,
+  Calendar,
   CalendarDays,
+  Clock,
   Camera,
   Check,
   CheckCircle2,
@@ -3259,7 +3261,7 @@ function ShootsView(props: React.ComponentProps<typeof ShootsManagementView>) {
   return <ShootsManagementView {...props} />;
 }
 
-function CalendarView({
+export function CalendarView({
   shoots,
   loading,
   compact = false,
@@ -3277,6 +3279,7 @@ function CalendarView({
   const [anchor, setAnchor] = useState(() => new Date());
   const [view, setView] = useState<"month" | "week">("month");
   const [selectedShoot, setSelectedShoot] = useState<Shoot | null>(null);
+  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
 
   const monthStart = startOfMonth(anchor);
   const monthEnd = endOfMonth(anchor);
@@ -3394,32 +3397,54 @@ function CalendarView({
               <div className="grid grid-cols-7">
                 {days.map((day) => {
                   const events = eventsFor(day);
+                  const isCurrentMonth = isSameMonth(day, anchor);
                   return (
                     <div
                       key={day.toISOString()}
-                      className={`${compact ? "min-h-[78px]" : "min-h-[112px]"} border-b border-r border-[#30282e] p-2.5 ${
-                        view === "month" && !isSameMonth(day, anchor)
+                      data-testid={`calendar-day-${format(day, "yyyy-MM-dd")}`}
+                      onClick={() => setSelectedDate(day)}
+                      role="button"
+                      tabIndex={0}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          setSelectedDate(day);
+                        }
+                      }}
+                      className={`${compact ? "min-h-[78px]" : "min-h-[112px]"} border-b border-r border-[#30282e] p-2.5 transition-colors cursor-pointer hover:bg-white/[0.04] focus:outline-none focus:ring-1 focus:ring-[#c56c7d]/50 ${
+                        view === "month" && !isCurrentMonth
                           ? "bg-[#100d10]/60"
                           : "bg-[#151317]"
                       }`}
+                      aria-label={`Date ${format(day, "MMMM d, yyyy")}, ${events.length} events. Click to view all events.`}
                     >
-                      <span
-                        className={`grid size-7 place-items-center rounded-full text-xs ${
-                          isToday(day)
-                            ? "bg-[#762d40] font-medium text-white border border-[#c56c7d]/40 shadow-[0_0_10px_rgba(197,108,125,0.3)]"
-                            : isSameMonth(day, anchor)
-                              ? "text-[#565b52]"
-                              : "text-[#bbb8ae]"
-                        }`}
-                      >
-                        {format(day, "d")}
-                      </span>
+                      <div className="flex items-center justify-between">
+                        <span
+                          className={`grid size-7 place-items-center rounded-full text-xs transition-transform hover:scale-105 ${
+                            isToday(day)
+                              ? "bg-[#762d40] font-medium text-white border border-[#c56c7d]/40 shadow-[0_0_10px_rgba(197,108,125,0.3)]"
+                              : isCurrentMonth
+                                ? "text-[#565b52]"
+                                : "text-[#bbb8ae]"
+                          }`}
+                        >
+                          {format(day, "d")}
+                        </span>
+                        {events.length > 0 && (
+                          <span className="text-[10px] text-[#82767d] font-mono">
+                            {events.length} {events.length === 1 ? "event" : "events"}
+                          </span>
+                        )}
+                      </div>
                       <div className="mt-1.5 space-y-1">
                         {events.slice(0, compact ? 1 : 2).map((shoot) => (
                           <button
                             key={shoot.id}
                             type="button"
-                            onClick={() => setSelectedShoot(shoot)}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedShoot(shoot);
+                            }}
                             className="studio-glow-button w-full truncate rounded-lg bg-[#762d40]/40 border border-[#c56c7d]/40 px-1.5 py-1 text-left text-[10px] text-[#f7f0ee] hover:bg-[#762d40]/80 hover:border-[#c56c7d] hover:shadow-[0_0_14px_rgba(197,108,125,0.4)] transition-all"
                             title={`${shoot.couple_name} · ${shoot.event_type}`}
                             aria-label={`View ${shoot.event_type} for ${shoot.couple_name}`}
@@ -3428,9 +3453,16 @@ function CalendarView({
                           </button>
                         ))}
                         {events.length > (compact ? 1 : 2) && (
-                          <p className="px-1 text-[9px] text-[#838177]">
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedDate(day);
+                            }}
+                            className="w-full text-left px-1 py-0.5 text-[9px] font-medium text-[#d9b98c] hover:text-[#f7f0ee] hover:underline cursor-pointer transition-colors block"
+                          >
                             +{events.length - (compact ? 1 : 2)} more
-                          </p>
+                          </button>
                         )}
                       </div>
                     </div>
@@ -3461,8 +3493,8 @@ function CalendarView({
                   <button
                     key={shoot.id}
                     type="button"
-                    onClick={() => setSelectedShoot(shoot)}
-                    className="flex w-full items-center gap-3 rounded-lg border border-[#30282e] bg-[#151317] p-3 text-left"
+                    onClick={() => setSelectedDate(parseISO(shoot.event_date))}
+                    className="flex w-full items-center gap-3 rounded-lg border border-[#30282e] bg-[#151317] p-3 text-left hover:border-[#d9b98c]/40 transition-colors"
                   >
                     <span className="font-serif text-lg text-[#e7a0ad]">
                       {format(parseISO(shoot.event_date), "d")}
@@ -3620,6 +3652,243 @@ function CalendarView({
                 </Button>
               )}
               <Button type="button" onClick={() => setSelectedShoot(null)}>
+                Close
+              </Button>
+            </div>
+          </section>
+        </div>
+      )}
+      {selectedDate && (
+        <div
+          className="studio-modal-backdrop"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) setSelectedDate(null);
+          }}
+        >
+          <section
+            className="studio-modal w-full max-w-2xl"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="calendar-date-events-title"
+          >
+            {/* Modal Header */}
+            <div className="flex items-start justify-between border-b border-[#30282e] pb-4">
+              <div>
+                <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#d9b98c]">
+                  Detailed Schedule · {eventsFor(selectedDate).length}{" "}
+                  {eventsFor(selectedDate).length === 1 ? "Event" : "Events"}
+                </p>
+                <h2 id="calendar-date-events-title" className="mt-1 font-serif text-2xl text-[#f7f0ee]">
+                  {format(selectedDate, "EEEE, MMMM d, yyyy")}
+                </h2>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedDate(null)}
+                className="rounded-lg p-1.5 text-[#82767d] hover:bg-white/5 hover:text-[#f7f0ee] transition-colors"
+                aria-label="Close date schedule view"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Scrollable Event List */}
+            <div className="mt-4 max-h-[70vh] overflow-y-auto pr-1 space-y-4">
+              {eventsFor(selectedDate).length === 0 ? (
+                <div className="rounded-xl border border-dashed border-[#30282e] bg-[#100d10] p-8 text-center">
+                  <Calendar className="mx-auto size-8 text-[#82767d]" />
+                  <p className="mt-2 text-sm font-medium text-[#f7f0ee]">
+                    No events scheduled for this date
+                  </p>
+                  <p className="mt-1 text-xs text-[#82767d]">
+                    There are no shoots or ceremonies scheduled for{" "}
+                    {format(selectedDate, "MMMM d, yyyy")}.
+                  </p>
+                </div>
+              ) : (
+                eventsFor(selectedDate).map((event) => {
+                  const shootAssignments = assignments.filter((a) => a.shoot_id === event.id);
+                  const assignedCrew = shootAssignments
+                    .map((a) => ({
+                      ...a,
+                      member: team.find((m) => m.id === a.team_member_id),
+                    }))
+                    .filter((a): a is typeof a & { member: TeamMember } => Boolean(a.member));
+
+                  const photographers = assignedCrew.filter((c) => {
+                    const role = (c.member.role || "").toLowerCase();
+                    const type = (c.assignment_type || "").toLowerCase();
+                    return role.includes("photo") || type.includes("photo");
+                  });
+
+                  const videographers = assignedCrew.filter((c) => {
+                    const role = (c.member.role || "").toLowerCase();
+                    const type = (c.assignment_type || "").toLowerCase();
+                    return (
+                      role.includes("video") ||
+                      type.includes("video") ||
+                      role.includes("cinema") ||
+                      type.includes("cinema")
+                    );
+                  });
+
+                  const otherCrew = assignedCrew.filter((c) => {
+                    const isPhoto = photographers.some((p) => p.id === c.id);
+                    const isVideo = videographers.some((v) => v.id === c.id);
+                    return !isPhoto && !isVideo;
+                  });
+
+                  const locationStr = event.venue
+                    ? event.location
+                      ? `${event.venue} · ${event.location}`
+                      : event.venue
+                    : event.location || "";
+
+                  return (
+                    <div
+                      key={event.id}
+                      className="rounded-xl border border-[#30282e] bg-[#100d10] p-4 sm:p-5 transition-all hover:border-[#d9b98c]/30"
+                    >
+                      {/* Event Header */}
+                      <div className="flex flex-wrap items-start justify-between gap-2 border-b border-[#30282e]/60 pb-3">
+                        <div>
+                          <span className="inline-block rounded-md border border-[#c56c7d]/30 bg-[#762d40]/20 px-2 py-0.5 text-[11px] font-semibold text-[#f7f0ee]">
+                            {event.event_type || "Shoot"}
+                          </span>
+                          <h3 className="mt-1.5 font-serif text-xl font-medium text-[#f7f0ee]">
+                            {event.couple_name}
+                          </h3>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <StatusBadge status={event.status} />
+                          {onEditShoot && (
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="outline"
+                              onClick={() => {
+                                setSelectedDate(null);
+                                onEditShoot(event);
+                              }}
+                              className="h-7 text-[11px] border-[#30282e] text-[#d9b98c] hover:bg-[#d9b98c]/10"
+                            >
+                              Edit shoot & crew
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Event Details: Date, Time, Location */}
+                      <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2.5 text-xs text-[#82767d]">
+                        <div className="flex items-center gap-2">
+                          <Calendar className="size-3.5 text-[#d9b98c] shrink-0" />
+                          <span className="text-[#f7f0ee]">
+                            {format(parseISO(event.event_date), "EEEE, MMMM d, yyyy")}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Clock className="size-3.5 text-[#d9b98c] shrink-0" />
+                          <span className="text-[#f7f0ee]">
+                            {formatTime(event.start_time)}
+                            {event.end_time ? ` – ${formatTime(event.end_time)}` : ""}
+                          </span>
+                        </div>
+                        <div className="sm:col-span-2 flex items-start gap-2">
+                          <MapPin className="size-3.5 text-[#d9b98c] shrink-0 mt-0.5" />
+                          <span className="text-[#f7f0ee]">
+                            {locationStr || "Location not specified"}
+                          </span>
+                        </div>
+                        {event.notes && (
+                          <div className="sm:col-span-2 rounded-lg border border-[#30282e]/60 bg-[#151317] p-2.5 text-[11px] text-[#b8adb2]">
+                            <span className="font-semibold text-[#82767d] block mb-0.5">Notes:</span>
+                            {event.notes}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Assigned Crew Breakdown */}
+                      <div className="mt-4 border-t border-[#30282e]/60 pt-3">
+                        <div className="flex items-center justify-between mb-2">
+                          <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#d9b98c]">
+                            Assigned Crew ({assignedCrew.length} of {event.planned_team_size} planned)
+                          </p>
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 text-xs">
+                          {/* Photographers */}
+                          <div className="rounded-lg border border-[#30282e]/60 bg-[#151317] p-2.5">
+                            <span className="text-[10px] font-medium uppercase tracking-wider text-[#82767d] mb-1.5 flex items-center gap-1">
+                              <Camera className="size-3 text-[#d9b98c]" /> Photographers ({photographers.length})
+                            </span>
+                            {photographers.length === 0 ? (
+                              <p className="text-[11px] text-[#82767d] italic">None assigned</p>
+                            ) : (
+                              <div className="space-y-1">
+                                {photographers.map((p) => (
+                                  <div key={p.id} className="text-[#f7f0ee] text-[11px] font-medium">
+                                    • {p.member.full_name}
+                                    <span className="text-[10px] text-[#82767d] block pl-2 font-normal">
+                                      {p.assignment_type.replace("_", " ")}
+                                    </span>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Videographers */}
+                          <div className="rounded-lg border border-[#30282e]/60 bg-[#151317] p-2.5">
+                            <span className="text-[10px] font-medium uppercase tracking-wider text-[#82767d] mb-1.5 flex items-center gap-1">
+                              <Users className="size-3 text-[#d9b98c]" /> Videographers ({videographers.length})
+                            </span>
+                            {videographers.length === 0 ? (
+                              <p className="text-[11px] text-[#82767d] italic">None assigned</p>
+                            ) : (
+                              <div className="space-y-1">
+                                {videographers.map((v) => (
+                                  <div key={v.id} className="text-[#f7f0ee] text-[11px] font-medium">
+                                    • {v.member.full_name}
+                                    <span className="text-[10px] text-[#82767d] block pl-2 font-normal">
+                                      {v.assignment_type.replace("_", " ")}
+                                    </span>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Other Crew Members */}
+                          <div className="rounded-lg border border-[#30282e]/60 bg-[#151317] p-2.5">
+                            <span className="text-[10px] font-medium uppercase tracking-wider text-[#82767d] block mb-1.5">
+                              Other Crew ({otherCrew.length})
+                            </span>
+                            {otherCrew.length === 0 ? (
+                              <p className="text-[11px] text-[#82767d] italic">None assigned</p>
+                            ) : (
+                              <div className="space-y-1">
+                                {otherCrew.map((o) => (
+                                  <div key={o.id} className="text-[#f7f0ee] text-[11px] font-medium">
+                                    • {o.member.full_name}
+                                    <span className="text-[10px] text-[#82767d] block pl-2 font-normal">
+                                      {o.assignment_type.replace("_", " ")}
+                                    </span>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="mt-5 flex justify-end gap-2 border-t border-[#30282e] pt-4">
+              <Button type="button" onClick={() => setSelectedDate(null)}>
                 Close
               </Button>
             </div>

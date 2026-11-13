@@ -15,6 +15,8 @@ import {
   X,
   Phone,
   Sparkles,
+  Edit3,
+  Copy,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { NotificationBadge } from "@/components/AdminNotificationCenter";
@@ -48,6 +50,34 @@ export function ShootRemindersSection({
   // "Message All Crew" Wizard Stepper state
   const [wizardReminder, setWizardReminder] = useState<ShootReminderItem | null>(null);
   const [wizardIndex, setWizardIndex] = useState(0);
+  const [editedDraftMessages, setEditedDraftMessages] = useState<Record<string, string>>({});
+  const [isEditingWizardDraft, setIsEditingWizardDraft] = useState(false);
+  const [wizardEditText, setWizardEditText] = useState("");
+  const [wizardCopied, setWizardCopied] = useState(false);
+
+  // Safe clipboard helper
+  const copyReminderToClipboard = async (text: string) => {
+    try {
+      if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(text);
+        return true;
+      }
+      if (typeof document !== "undefined") {
+        const ta = document.createElement("textarea");
+        ta.value = text;
+        ta.style.position = "fixed";
+        ta.style.opacity = "0";
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand("copy");
+        document.body.removeChild(ta);
+        return true;
+      }
+    } catch {
+      // ignore
+    }
+    return false;
+  };
 
   // Handle single crew member WhatsApp open
   const handleOpenWhatsApp = (
@@ -58,8 +88,10 @@ export function ShootRemindersSection({
     const crew = reminder.assignedCrew.find((c) => c.memberId === memberId);
     if (!crew && !urlFallback) return;
 
+    const messageToSend = editedDraftMessages[memberId] ?? crew?.message ?? "";
+
     if (crew?.phoneInfo?.isValid) {
-      openWhatsAppChat(crew.phoneInfo.waDigits, crew.message);
+      openWhatsAppChat(crew.phoneInfo.waDigits, messageToSend);
     } else if (urlFallback) {
       window.open(urlFallback, "_blank", "noopener,noreferrer");
     }
@@ -502,15 +534,113 @@ export function ShootRemindersSection({
               </div>
             </div>
 
-            {/* Message Template Preview Box */}
-            <div className="mt-4">
-              <label className="block text-[11px] font-semibold uppercase tracking-wider text-[#a08d96] mb-1.5">
-                WhatsApp Message Preview
-              </label>
-              <pre className="rounded-xl border border-[#30282e] bg-[#100d10] p-3 font-mono text-[11px] text-[#e7a0ad] leading-relaxed whitespace-pre-wrap select-all">
-                {currentWizardCrew.message}
-              </pre>
-            </div>
+            {/* Message Template Preview Box with Edit Draft option */}
+            {(() => {
+              const activeMsg =
+                editedDraftMessages[currentWizardCrew.memberId] ?? currentWizardCrew.message;
+
+              return (
+                <div className="mt-4 space-y-2">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <label className="block text-[11px] font-semibold uppercase tracking-wider text-[#a08d96]">
+                      {isEditingWizardDraft ? "Edit Draft Message" : "WhatsApp Message Preview"}
+                    </label>
+
+                    {!isEditingWizardDraft && (
+                      <div className="flex items-center gap-2">
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          onClick={async () => {
+                            const ok = await copyReminderToClipboard(activeMsg);
+                            if (ok) {
+                              setWizardCopied(true);
+                              setTimeout(() => setWizardCopied(false), 2000);
+                            }
+                          }}
+                          className="h-6 border-[#30282e] bg-[#100d10] px-2 text-[10px] text-[#b8adb2] hover:text-[#f7f0ee]"
+                          aria-label="Copy draft message"
+                        >
+                          {wizardCopied ? (
+                            <>
+                              <Check className="size-2.5 mr-1 text-[#25D366]" />
+                              Copied!
+                            </>
+                          ) : (
+                            <>
+                              <Copy className="size-2.5 mr-1" />
+                              Copy
+                            </>
+                          )}
+                        </Button>
+
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          onClick={() => {
+                            setWizardEditText(activeMsg);
+                            setIsEditingWizardDraft(true);
+                          }}
+                          className="h-6 border-[#d9b98c]/40 bg-[#d9b98c]/10 px-2 text-[10px] font-medium text-[#d9b98c] hover:bg-[#d9b98c]/20"
+                          aria-label="Edit Draft"
+                        >
+                          <Edit3 className="size-2.5 mr-1" />
+                          Edit Draft
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+
+                  {!isEditingWizardDraft ? (
+                    <pre className="rounded-xl border border-[#30282e] bg-[#100d10] p-3 font-mono text-[11px] text-[#e7a0ad] leading-relaxed whitespace-pre-wrap select-all">
+                      {activeMsg}
+                    </pre>
+                  ) : (
+                    <div className="space-y-2">
+                      <p className="text-[11px] text-[#82767d]">
+                        Modify names, shoot timings, venues, or reminder instructions:
+                      </p>
+                      <textarea
+                        rows={7}
+                        value={wizardEditText}
+                        onChange={(e) => setWizardEditText(e.target.value)}
+                        className="w-full rounded-xl border border-[#d9b98c]/50 bg-[#100d10] p-3 font-mono text-[11px] text-[#f7f0ee] focus:border-[#d9b98c] focus:outline-none"
+                        aria-label="Editable draft message text"
+                      />
+                      <div className="flex items-center justify-end gap-2">
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          onClick={() => setIsEditingWizardDraft(false)}
+                          className="h-7 border-[#30282e] text-[11px] text-[#82767d] hover:text-white"
+                        >
+                          <X className="size-3 mr-1" />
+                          Cancel
+                        </Button>
+                        <Button
+                          type="button"
+                          size="sm"
+                          onClick={() => {
+                            setEditedDraftMessages((prev) => ({
+                              ...prev,
+                              [currentWizardCrew.memberId]: wizardEditText,
+                            }));
+                            setIsEditingWizardDraft(false);
+                          }}
+                          className="h-7 bg-[#762d40] text-[11px] font-medium text-white hover:bg-[#c56c7d]"
+                        >
+                          <Check className="size-3 mr-1" />
+                          Save Changes
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
 
             {/* Action Bar */}
             <div className="mt-6 flex flex-wrap items-center justify-between gap-2 border-t border-[#30282e] pt-4">
